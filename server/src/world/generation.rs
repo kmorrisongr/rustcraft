@@ -33,6 +33,23 @@ pub fn apply_pending_blocks(
     }
 }
 
+/// Propagate pending blocks from a newly generated chunk to existing neighbors
+pub fn propagate_pending_blocks(
+    pending_blocks: &HashMap<IVec3, HashMap<IVec3, BlockData>>,
+    chunk_pos: IVec3,
+    chunks_map: &mut HashMap<IVec3, ServerChunk>,
+) {
+    for (offset, blocks) in pending_blocks.iter() {
+        let neighbor_pos = chunk_pos + *offset;
+        if let Some(neighbor_chunk) = chunks_map.get_mut(&neighbor_pos) {
+            for (local_pos, block_data) in blocks.iter() {
+                // Only insert if position is empty to avoid overwriting
+                neighbor_chunk.map.entry(*local_pos).or_insert(*block_data);
+            }
+        }
+    }
+}
+
 /// Helper function to place a block in the chunk or queue it for a neighboring chunk
 fn place_or_queue_block(
     chunk: &mut ServerChunk,

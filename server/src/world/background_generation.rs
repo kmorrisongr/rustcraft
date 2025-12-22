@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use shared::world::{ServerWorldMap, WorldSeed};
 
-use crate::world::generation::{apply_pending_blocks, generate_chunk};
+use crate::world::generation::{apply_pending_blocks, generate_chunk, propagate_pending_blocks};
 
 use super::broadcast_world::{get_all_active_chunks, BROADCAST_RENDER_DISTANCE};
 
@@ -22,21 +22,14 @@ pub fn background_world_generation_system(
             
             info!("Generated chunk: {:?}", c);
             
-            // Extract pending blocks before moving chunk into map
-            let pending_blocks = chunk.pending_blocks.clone();
+            // Extract pending blocks before moving chunk into map (avoid clone)
+            let pending_blocks = std::mem::take(&mut chunk.pending_blocks);
             
             // Insert chunk into map
             world_map.chunks.map.insert(c, chunk);
             
             // Push pending blocks to existing neighbors
-            for (offset, blocks) in pending_blocks.iter() {
-                let neighbor_pos = c + *offset;
-                if let Some(neighbor_chunk) = world_map.chunks.map.get_mut(&neighbor_pos) {
-                    for (local_pos, block_data) in blocks.iter() {
-                        neighbor_chunk.map.entry(*local_pos).or_insert(*block_data);
-                    }
-                }
-            }
+            propagate_pending_blocks(&pending_blocks, c, &mut world_map.chunks.map);
             
             generated += 1;
         }
