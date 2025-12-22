@@ -437,53 +437,59 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
 
                 // Add flora in biomes
                 if y == terrain_height && terrain_height > 62 {
-                    let above_surface_pos = IVec3::new(dx, terrain_height + 1, dz);
+                    let above_surface_pos = IVec3::new(dx, dy + 1, dz);
+
+                    // Only place flora if the block above is within chunk boundaries
+                    let can_place_flora = dy + 1 < CHUNK_SIZE;
 
                     // Add flowers
-                    let flower_chance = rand::random::<f32>();
-                    match biome_type {
-                        BiomeType::FlowerPlains => {
-                            // High probability for flowers in Flower Plains
-                            if flower_chance < 0.1 {
-                                let flower_type = if rand::random::<f32>() < 0.5 {
-                                    BlockId::Dandelion
-                                } else {
-                                    BlockId::Poppy
-                                };
+                    if can_place_flora {
+                        let flower_chance = rand::random::<f32>();
+                        match biome_type {
+                            BiomeType::FlowerPlains => {
+                                // High probability for flowers in Flower Plains
+                                if flower_chance < 0.1 {
+                                    let flower_type = if rand::random::<f32>() < 0.5 {
+                                        BlockId::Dandelion
+                                    } else {
+                                        BlockId::Poppy
+                                    };
 
-                                chunk.map.insert(
-                                    block_pos.with_y(block_pos.y + 1),
-                                    BlockData::new(flower_type, BlockDirection::Front),
-                                );
+                                    chunk.map.insert(
+                                        above_surface_pos,
+                                        BlockData::new(flower_type, BlockDirection::Front),
+                                    );
+                                }
                             }
-                        }
-                        BiomeType::Plains | BiomeType::Forest | BiomeType::MediumMountain => {
-                            // Low probability for flowers in Plains, Forest, Medium Mountain
-                            if flower_chance < 0.02 {
-                                let flower_type = if rand::random::<f32>() < 0.5 {
-                                    BlockId::Dandelion
-                                } else {
-                                    BlockId::Poppy
-                                };
+                            BiomeType::Plains | BiomeType::Forest | BiomeType::MediumMountain => {
+                                // Low probability for flowers in Plains, Forest, Medium Mountain
+                                if flower_chance < 0.02 {
+                                    let flower_type = if rand::random::<f32>() < 0.5 {
+                                        BlockId::Dandelion
+                                    } else {
+                                        BlockId::Poppy
+                                    };
 
-                                chunk.map.insert(
-                                    block_pos.with_y(block_pos.y + 1),
-                                    BlockData::new(flower_type, BlockDirection::Front),
-                                );
+                                    chunk.map.insert(
+                                        above_surface_pos,
+                                        BlockData::new(flower_type, BlockDirection::Front),
+                                    );
+                                }
                             }
+                            _ => {}
                         }
-                        _ => {}
                     }
 
                     // Add tall grass
-                    if biome_type != BiomeType::HighMountainGrass
+                    if can_place_flora
+                        && biome_type != BiomeType::HighMountainGrass
                         && biome_type != BiomeType::Desert
                         && biome_type != BiomeType::IcePlain
                     {
                         let tall_grass_chance = rand::random::<f32>();
                         if tall_grass_chance < 0.10 {
                             chunk.map.insert(
-                                block_pos.with_y(block_pos.y + 1),
+                                above_surface_pos,
                                 BlockData::new(BlockId::TallGrass, BlockDirection::Front),
                             );
                         }
@@ -493,14 +499,16 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                     // Only generate trees if trunk is at least 1 block away from chunk edges.
                     // This prevents trees from looking incomplete when their leaves would extend
                     // beyond chunk boundaries and get clipped.
-                    let is_valid_tree_position = dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
-                    
+                    let is_valid_tree_position =
+                        dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
+
                     if is_valid_tree_position {
                         let tree_chance = rand::random::<f32>();
                         match biome_type {
                             BiomeType::Forest => {
                                 // High probability for trees in Forest
-                                if tree_chance < 0.06 && !chunk.map.contains_key(&above_surface_pos) {
+                                if tree_chance < 0.06 && !chunk.map.contains_key(&above_surface_pos)
+                                {
                                     if tree_chance < 0.01 {
                                         generate_big_tree(
                                             &mut chunk,
@@ -524,7 +532,8 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                             }
                             BiomeType::FlowerPlains | BiomeType::MediumMountain => {
                                 // Medium probability for trees in Flower Plains and Medium Mountain
-                                if tree_chance < 0.02 && !chunk.map.contains_key(&above_surface_pos) {
+                                if tree_chance < 0.02 && !chunk.map.contains_key(&above_surface_pos)
+                                {
                                     generate_tree(
                                         &mut chunk,
                                         dx,
