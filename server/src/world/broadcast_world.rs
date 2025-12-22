@@ -16,6 +16,22 @@ use std::collections::HashMap;
 /// Maximum number of chunks to send to a client per update
 const MAX_CHUNKS_PER_UPDATE: usize = 50;
 
+// Chunk prioritization constants for get_all_active_chunks
+/// Dot product threshold for considering a chunk as "in front" of the player.
+/// -0.3 allows a wider viewing angle (~108° from center vs 90° for 0.0).
+/// This ensures chunks slightly behind the player are still prioritized.
+const FORWARD_DOT_THRESHOLD: f32 = -0.3;
+
+/// Multiplier for view direction bias when chunks are in front of the player.
+/// A value of 500.0 creates a smooth falloff for peripheral chunks,
+/// balancing between distance and view direction importance.
+const VIEW_DIRECTION_MULTIPLIER: f32 = 500.0;
+
+/// Penalty added to chunks behind the player to deprioritize them.
+/// 5000.0 creates a noticeable but not extreme deprioritization,
+/// allowing chunks behind to still be loaded but with lower priority.
+const BEHIND_PLAYER_PENALTY: f32 = 5000.0;
+
 pub fn broadcast_world_state(
     mut server: ResMut<RenetServer>,
     time: Res<ServerTime>,
@@ -180,18 +196,16 @@ pub fn get_all_active_chunks(
             let dist_b = (b - player_chunk_pos).length_squared();
 
             // Prioritize: closer chunks first, but favor chunks in view direction
-            // Using threshold of -0.3 allows wider angle (~108° from center vs 90°)
-            // Lower multiplier (500 vs 1000) creates smoother falloff for peripheral chunks
-            let score_a = if dot_a > -0.3 {
-                dist_a as f32 - (dot_a * 500.0) // In/near view: closer = lower score
+            let score_a = if dot_a > FORWARD_DOT_THRESHOLD {
+                dist_a as f32 - (dot_a * VIEW_DIRECTION_MULTIPLIER) // In/near view: closer = lower score
             } else {
-                dist_a as f32 + 5000.0 // Behind: higher score but not extreme
+                dist_a as f32 + BEHIND_PLAYER_PENALTY // Behind: higher score but not extreme
             };
 
-            let score_b = if dot_b > -0.3 {
-                dist_b as f32 - (dot_b * 500.0)
+            let score_b = if dot_b > FORWARD_DOT_THRESHOLD {
+                dist_b as f32 - (dot_b * VIEW_DIRECTION_MULTIPLIER)
             } else {
-                dist_b as f32 + 5000.0
+                dist_b as f32 + BEHIND_PLAYER_PENALTY
             };
 
             score_a
