@@ -490,7 +490,9 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                     }
 
                     // Add trees
-                    // Only generate trees if trunk is at least 1 block away from chunk edges
+                    // Only generate trees if trunk is at least 1 block away from chunk edges.
+                    // This prevents trees from looking incomplete when their leaves would extend
+                    // beyond chunk boundaries and get clipped.
                     let is_valid_tree_position = dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
                     
                     if is_valid_tree_position {
