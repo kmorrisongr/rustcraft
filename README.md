@@ -185,6 +185,7 @@ Comprehensive documentation is available to help you understand and extend the R
 
 ## 📚 Core Documentation
 
+- **[Documentation Index](./docs/INDEX.md)** - Complete documentation navigation guide
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Complete system architecture overview
   - Project structure and module organization
   - Client-server architecture patterns
