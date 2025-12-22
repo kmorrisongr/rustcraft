@@ -15,6 +15,36 @@ use std::fmt::Debug;
 
 use super::{BlockData, ItemId, ItemType, MobId, ServerMob};
 
+/// Represents a type of flora that can be requested for generation in the chunk above.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FloraType {
+    /// A flower (Dandelion or Poppy)
+    Flower,
+    /// Tall grass
+    TallGrass,
+    /// A standard tree
+    Tree,
+    /// A big tree (Forest biome)
+    BigTree,
+    /// A cactus
+    Cactus,
+}
+
+/// Represents a request for flora generation to be fulfilled in a target chunk.
+/// This is created when a chunk's top layer (y = CHUNK_SIZE - 1) has a valid
+/// surface block and rolls successfully for flora generation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FloraRequest {
+    /// The local x position within the target chunk (0 to CHUNK_SIZE - 1)
+    pub local_x: i32,
+    /// The local z position within the target chunk (0 to CHUNK_SIZE - 1)
+    pub local_z: i32,
+    /// The type of flora to generate
+    pub flora_type: FloraType,
+    /// The biome type where this flora should be generated
+    pub biome_type: BiomeType,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ServerItemStack {
     pub id: u128,
@@ -49,6 +79,10 @@ pub struct ServerWorldMap {
 pub struct ServerChunkWorldMap {
     pub map: HashMap<IVec3, ServerChunk>,
     pub chunks_to_update: Vec<IVec3>,
+    /// Pending flora generation requests, keyed by the target chunk position.
+    /// When a chunk is generated, it checks this map for any pending requests
+    /// and processes them before generating its own flora.
+    pub generation_requests: HashMap<IVec3, Vec<FloraRequest>>,
 }
 
 #[derive(Resource, Clone, Copy, Serialize, Deserialize, Default)]
@@ -61,7 +95,7 @@ pub struct ItemStack {
     pub nb: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BiomeType {
     Plains,
     Forest,

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use log::info;
 use shared::world::{ServerWorldMap, WorldSeed};
 
 use crate::world::generation::generate_chunk;
@@ -15,9 +16,25 @@ pub fn background_world_generation_system(
         let chunk = world_map.chunks.map.get(&c);
 
         if chunk.is_none() {
-            let chunk = generate_chunk(c, seed.0);
+            // Check for any pending generation requests for this chunk
+            let pending_requests = world_map.chunks.generation_requests.remove(&c);
+
+            // Generate the chunk with any pending requests
+            let result = generate_chunk(c, seed.0, pending_requests);
             info!("Generated chunk: {:?}", c);
-            world_map.chunks.map.insert(c, chunk);
+            world_map.chunks.map.insert(c, result.chunk);
+
+            // Store any generation requests for the chunk above
+            if !result.requests_for_chunk_above.is_empty() {
+                let chunk_above = IVec3::new(c.x, c.y + 1, c.z);
+                world_map
+                    .chunks
+                    .generation_requests
+                    .entry(chunk_above)
+                    .or_default()
+                    .extend(result.requests_for_chunk_above);
+            }
+
             generated += 1;
         }
 
