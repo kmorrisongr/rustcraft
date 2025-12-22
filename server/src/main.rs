@@ -28,6 +28,15 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
+    
+    // Validate render_distance is within reasonable range
+    if args.render_distance < 1 || args.render_distance > 32 {
+        eprintln!("Error: render_distance must be between 1 and 32 (inclusive).");
+        eprintln!("Got: {}", args.render_distance);
+        eprintln!("Negative values would cause unexpected chunk ranges, and very large values would cause performance issues.");
+        std::process::exit(1);
+    }
+    
     let socket = acquire_socket_by_port(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), args.port);
 
     init::init(
