@@ -98,8 +98,12 @@ fn get_world_map_chunks_to_send(
         }
     }
 
+    // Scale chunk limit based on render distance to prevent bandwidth issues
+    // with larger render distances while maintaining good performance
+    let chunk_limit = (broadcast_render_distance * 6).min(50) as usize;
+
     for c in active_chunks {
-        if map.len() >= 50 {
+        if map.len() >= chunk_limit {
             break;
         }
 
