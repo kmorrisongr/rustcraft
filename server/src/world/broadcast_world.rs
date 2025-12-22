@@ -159,37 +159,44 @@ pub fn get_all_active_chunks(
     let player_chunk_pos = world_position_to_chunk_position(requesting_player.position);
     let forward = requesting_player.camera_transform.forward();
 
-    chunks.sort_by(|&a, &b| {
-        let dir_a = (a - player_chunk_pos).as_vec3().normalize_or_zero();
-        let dir_b = (b - player_chunk_pos).as_vec3().normalize_or_zero();
+    // Only partially sort the chunks we'll actually use (first 50 for broadcast)
+    // This significantly improves performance when there are many chunks
+    const MAX_CHUNKS_TO_SEND: usize = 50;
+    let sort_count = chunks.len().min(MAX_CHUNKS_TO_SEND);
 
-        // Calculate dot product with forward vector (higher = more in front)
-        let dot_a = forward.dot(dir_a);
-        let dot_b = forward.dot(dir_b);
+    if sort_count > 0 && chunks.len() > 1 {
+        chunks.select_nth_unstable_by(sort_count - 1, |&a, &b| {
+            let dir_a = (a - player_chunk_pos).as_vec3().normalize_or_zero();
+            let dir_b = (b - player_chunk_pos).as_vec3().normalize_or_zero();
 
-        // Distance from player
-        let dist_a = (a - player_chunk_pos).length_squared();
-        let dist_b = (b - player_chunk_pos).length_squared();
+            // Calculate dot product with forward vector (higher = more in front)
+            let dot_a = forward.dot(dir_a);
+            let dot_b = forward.dot(dir_b);
 
-        // Prioritize: closer chunks first, but favor chunks in view direction
-        // Using threshold of -0.3 allows wider angle (~108° from center vs 90°)
-        // Lower multiplier (500 vs 1000) creates smoother falloff for peripheral chunks
-        let score_a = if dot_a > -0.3 {
-            dist_a as f32 - (dot_a * 500.0) // In/near view: closer = lower score
-        } else {
-            dist_a as f32 + 5000.0 // Behind: higher score but not extreme
-        };
+            // Distance from player
+            let dist_a = (a - player_chunk_pos).length_squared();
+            let dist_b = (b - player_chunk_pos).length_squared();
 
-        let score_b = if dot_b > -0.3 {
-            dist_b as f32 - (dot_b * 500.0)
-        } else {
-            dist_b as f32 + 5000.0
-        };
+            // Prioritize: closer chunks first, but favor chunks in view direction
+            // Using threshold of -0.3 allows wider angle (~108° from center vs 90°)
+            // Lower multiplier (500 vs 1000) creates smoother falloff for peripheral chunks
+            let score_a = if dot_a > -0.3 {
+                dist_a as f32 - (dot_a * 500.0) // In/near view: closer = lower score
+            } else {
+                dist_a as f32 + 5000.0 // Behind: higher score but not extreme
+            };
 
-        score_a
-            .partial_cmp(&score_b)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+            let score_b = if dot_b > -0.3 {
+                dist_b as f32 - (dot_b * 500.0)
+            } else {
+                dist_b as f32 + 5000.0
+            };
+
+            score_a
+                .partial_cmp(&score_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+    }
 
     chunks
 }
