@@ -23,7 +23,8 @@ pub fn apply_pending_blocks(
                 if let Some(neighbor_chunk) = chunks_map.get(&neighbor_pos) {
                     if let Some(pending_blocks) = neighbor_chunk.pending_blocks.get(&inverse_offset) {
                         for (local_pos, block_data) in pending_blocks.iter() {
-                            chunk.map.insert(*local_pos, *block_data);
+                            // Only insert if the position is empty to avoid overwriting terrain
+                            chunk.map.entry(*local_pos).or_insert(*block_data);
                         }
                     }
                 }
@@ -45,7 +46,8 @@ pub fn push_pending_blocks(
         // If the neighbor chunk already exists, apply the pending blocks to it
         if let Some(neighbor_chunk) = chunks_map.get_mut(&neighbor_pos) {
             for (local_pos, block_data) in pending_blocks.iter() {
-                neighbor_chunk.map.insert(*local_pos, *block_data);
+                // Only insert if the position is empty to avoid overwriting existing blocks
+                neighbor_chunk.map.entry(*local_pos).or_insert(*block_data);
             }
         }
     }
