@@ -11,7 +11,7 @@ use shared::{
 
 use crate::{
     network::extensions::SendGameMessageExtension,
-    world::generation::{apply_pending_blocks, generate_chunk, push_pending_blocks},
+    world::generation::{apply_pending_blocks, generate_chunk},
 };
 
 use super::broadcast_world::get_all_active_chunks;
@@ -43,10 +43,22 @@ pub fn handle_player_inputs_system(
             apply_pending_blocks(&mut chunk, c, &chunks.map);
             
             info!("Generated chunk: {:?}", c);
-            chunks.map.insert(c, chunk.clone());
             
-            // Push pending blocks from this chunk to existing neighbors
-            push_pending_blocks(&chunk, c, &mut chunks.map);
+            // Extract pending blocks before moving chunk into map
+            let pending_blocks = chunk.pending_blocks.clone();
+            
+            // Insert chunk into map
+            chunks.map.insert(c, chunk);
+            
+            // Push pending blocks to existing neighbors
+            for (offset, blocks) in pending_blocks.iter() {
+                let neighbor_pos = c + *offset;
+                if let Some(neighbor_chunk) = chunks.map.get_mut(&neighbor_pos) {
+                    for (local_pos, block_data) in blocks.iter() {
+                        neighbor_chunk.map.entry(*local_pos).or_insert(*block_data);
+                    }
+                }
+            }
         }
     }
 
