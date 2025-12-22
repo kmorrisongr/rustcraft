@@ -12,7 +12,13 @@ pub fn background_world_generation_system(
     seed: Res<WorldSeed>,
     config: Res<GameServerConfig>,
 ) {
-    let all_chunks = get_all_active_chunks(&world_map.players, config.broadcast_render_distance);
+    // Get first player for chunk prioritization (or default if no players)
+    let first_player = world_map.players.values().next();
+    if first_player.is_none() {
+        return; // No players, no need to generate chunks
+    }
+    
+    let all_chunks = get_all_active_chunks(&world_map.players, config.broadcast_render_distance, first_player.unwrap());
     let mut generated = 0;
     for c in all_chunks {
         let chunk = world_map.chunks.map.get(&c);

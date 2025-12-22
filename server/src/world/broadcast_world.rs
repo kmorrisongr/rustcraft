@@ -86,7 +86,7 @@ fn get_world_map_chunks_to_send(
     // Send only chunks in render distance
     let mut map: HashMap<IVec3, ServerChunk> = HashMap::new();
 
-    let active_chunks = get_all_active_chunks(players, broadcast_render_distance);
+    let active_chunks = get_all_active_chunks(players, broadcast_render_distance, player);
 
     // First, handle chunks that need to be updated (re-sent due to modifications)
     for &chunk_pos in &chunks.chunks_to_update {
@@ -136,7 +136,11 @@ fn get_items_stacks() -> Vec<ItemStackUpdateEvent> {
     //     .collect()
 }
 
-pub fn get_all_active_chunks(players: &HashMap<PlayerId, Player>, radius: i32) -> Vec<IVec3> {
+pub fn get_all_active_chunks(
+    players: &HashMap<PlayerId, Player>,
+    radius: i32,
+    requesting_player: &Player,
+) -> Vec<IVec3> {
     let player_chunks: Vec<IVec3> = players
         .values()
         .map(|v| world_position_to_chunk_position(v.position))
@@ -150,6 +154,42 @@ pub fn get_all_active_chunks(players: &HashMap<PlayerId, Player>, radius: i32) -
             chunks.push(c);
         }
     }
+
+    // Prioritize chunks based on requesting player's view direction
+    let player_chunk_pos = world_position_to_chunk_position(requesting_player.position);
+    let forward = requesting_player.camera_transform.forward();
+
+    chunks.sort_by(|&a, &b| {
+        let dir_a = (a - player_chunk_pos).as_vec3().normalize_or_zero();
+        let dir_b = (b - player_chunk_pos).as_vec3().normalize_or_zero();
+
+        // Calculate dot product with forward vector (higher = more in front)
+        let dot_a = forward.dot(dir_a);
+        let dot_b = forward.dot(dir_b);
+
+        // Distance from player
+        let dist_a = (a - player_chunk_pos).length_squared();
+        let dist_b = (b - player_chunk_pos).length_squared();
+
+        // Prioritize: closer chunks first, but heavily favor chunks in view direction
+        // Formula: chunks in front (dot > 0) are prioritized, sorted by distance
+        // Chunks behind (dot < 0) come after, also sorted by distance
+        let score_a = if dot_a > 0.0 {
+            dist_a as f32 - (dot_a * 1000.0) // In view: closer = lower score
+        } else {
+            dist_a as f32 + 10000.0 // Behind: much higher score
+        };
+
+        let score_b = if dot_b > 0.0 {
+            dist_b as f32 - (dot_b * 1000.0)
+        } else {
+            dist_b as f32 + 10000.0
+        };
+
+        score_a
+            .partial_cmp(&score_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     chunks
 }
