@@ -20,7 +20,7 @@ use std::collections::HashMap;
 const FORWARD_DOT_THRESHOLD: f32 = -0.3;
 
 /// Multiplier for view direction bias when chunks are in front of the player.
-/// Lower values (500 vs 1000) create a smoother falloff for peripheral chunks,
+/// A value of 500.0 creates a smooth falloff for peripheral chunks,
 /// balancing between distance and view direction importance.
 const VIEW_DIRECTION_MULTIPLIER: f32 = 500.0;
 
