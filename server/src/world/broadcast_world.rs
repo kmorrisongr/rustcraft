@@ -99,7 +99,7 @@ fn get_world_map_chunks_to_send(
     }
 
     for c in active_chunks {
-        if map.len() >= 10 {
+        if map.len() >= 50 {
             break;
         }
 
@@ -159,10 +159,16 @@ fn get_player_nearby_chunks_coords(
     render_distance: i32,
 ) -> Vec<IVec3> {
     let mut chunks: Vec<IVec3> = Vec::new();
+    let radius_squared = render_distance * render_distance;
+
     for x in -render_distance..=render_distance {
         for y in -render_distance..=render_distance {
             for z in -render_distance..=render_distance {
-                chunks.push(player_chunk_position + IVec3::new(x, y, z));
+                let offset = IVec3::new(x, y, z);
+                // Only include chunks within spherical distance
+                if offset.length_squared() <= radius_squared {
+                    chunks.push(player_chunk_position + offset);
+                }
             }
         }
     }
