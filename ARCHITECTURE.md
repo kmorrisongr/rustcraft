@@ -229,97 +229,23 @@ Chunks → Mesh Generation → GPU Buffers → Rendered Frames
 
 ## Key Systems
 
-### 1. World Generation System
+The codebase is organized into several major systems. For detailed documentation, see the respective module guides in `docs/modules/`.
 
-**Location**: `server/src/world/generation.rs`
+### World Generation (`server/src/world/generation.rs`)
+Procedural terrain using Perlin noise, biome generation, and feature placement. See [WORLD_SYSTEM.md](./docs/modules/WORLD_SYSTEM.md) for details.
 
-- Uses Perlin noise for terrain generation
-- Generates multiple biomes (Plains, Forest, Mountains, Desert, Ice Plain, Flower Plains)
-- Places natural features (trees, cacti, tall grass, flowers)
-- Runs asynchronously in background threads
+### Networking (`client/src/network/`, `server/src/network/`, `shared/src/messages/`)
+Client-server communication via `bevy_renet`, multi-channel messaging, and state synchronization. See [NETWORK_SYSTEM.md](./docs/modules/NETWORK_SYSTEM.md) for details.
 
-**Key Components**:
-- Heightmap generation based on noise
-- Biome selection based on temperature/moisture
-- Feature placement (trees, vegetation)
-- Chunk-based generation (16x16x256 blocks)
+### Rendering (`client/src/world/rendering/`)
+Voxel meshing, texture atlasing, and efficient chunk rendering. See [RENDERING_SYSTEM.md](./docs/modules/RENDERING_SYSTEM.md) for details.
 
-### 2. Networking System
+### Player & Entities (`shared/src/players/`, `client/src/player/`, `server/src/mob/`)
+Player physics (AABB collision), inventory management, and mob AI. See [PLAYER_ENTITY_SYSTEMS.md](./docs/modules/PLAYER_ENTITY_SYSTEMS.md) for details.
 
-**Location**: `client/src/network/`, `server/src/network/`, `shared/src/messages/`
-
-- Uses `bevy_renet` for UDP-based networking
-- Multiple channels for different message types:
-  - Standard channel: General game messages
-  - Chunk data channel: Large world updates
-  - Auth channel: Authentication
-- LZ4 compression for large messages
-- Reliable ordered delivery
-
-**Key Features**:
-- Client prediction with server reconciliation
-- Buffered input system
-- Bandwidth management
-- Connection handling and cleanup
-
-### 3. Rendering System
-
-**Location**: `client/src/world/rendering/`
-
-- Greedy meshing algorithm for efficient voxel rendering
-- Dynamic render distance adjustment
-- Chunk-based rendering with frustum culling
-- Texture atlas for block faces
-- Wireframe debug mode
-
-**Optimization Techniques**:
-- Only render visible chunk faces
-- Batch rendering by chunk
-- Lazy mesh updates on block changes
-- Distance-based LOD (render distance)
-
-### 4. Physics System
-
-**Location**: `shared/src/players/`
-
-- AABB (Axis-Aligned Bounding Box) collision detection
-- Gravity and jumping mechanics
-- Flying mode support
-- Block collision resolution
-
-**Key Components**:
-- Player bounding box
-- Collision detection with blocks
-- Movement integration
-- Velocity damping
-
-### 5. Inventory System
-
-**Location**: `shared/src/players/data.rs`, `client/src/ui/hud/inventory/`
-
-- 36-slot inventory (4 rows of 9 slots)
-- 9-slot hotbar
-- Item stacking
-- Drag-and-drop UI
-- Server-synchronized state
-
-### 6. Save/Load System
-
-**Location**: `server/src/world/save.rs`, `server/src/world/load_from_file.rs`
-
-- RON (Rusty Object Notation) format for world data
-- Saves chunk data, player positions, inventories
-- Per-world save files
-- Automatic saving on interval
-
-### 7. Day/Night Cycle
-
-**Location**: `client/src/world/celestial.rs`, `client/src/world/time.rs`
-
-- Time synchronized between server and client
-- Dynamic lighting based on time of day
-- Atmospheric rendering with `bevy_atmosphere`
-- Celestial bodies (sun/moon)
+### Additional Systems
+- **Save/Load**: RON-based world persistence (`server/src/world/save.rs`)
+- **Day/Night Cycle**: Time synchronization and dynamic lighting (`client/src/world/celestial.rs`)
 
 ## Dependencies
 
