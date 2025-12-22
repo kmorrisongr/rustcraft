@@ -83,16 +83,8 @@ pub fn setup_materials(
         .assets_folder_path
         .join(&texture_path.path)
         .join("blocks/");
-    let items_path = paths
-        .assets_folder_path
-        .join(&texture_path.path)
-        .join("items/");
 
-    info!(
-        "Block textures : {}, items textures : {}",
-        blocks_path.display(),
-        items_path.display()
-    );
+    info!("Block textures : {}", blocks_path.display());
 
     if let Ok(dir) = fs::read_dir(blocks_path.clone()) {
         block_atlas_handles.handles = dir
@@ -119,21 +111,15 @@ pub fn setup_materials(
         );
     }
 
-    // Load item textures with fallback to block textures
-    // First, collect item-specific textures from items/ folder
-    let mut item_texture_names: std::collections::HashSet<String> =
-        std::collections::HashSet::new();
-
-    if let Ok(dir) = fs::read_dir(items_path.clone()) {
+    // Items use the same textures as blocks - load from blocks folder
+    if let Ok(dir) = fs::read_dir(blocks_path.clone()) {
         item_atlas_handles.handles = dir
-            .filter_map(|file| file.ok())
             .map(|file| {
-                let binding = file.path();
+                let binding = file.unwrap().path();
                 let filename = binding.file_stem().unwrap().to_str().unwrap();
-                item_texture_names.insert(filename.to_owned());
                 (
                     asset_server.load(
-                        items_path
+                        blocks_path
                             .join(filename)
                             .with_extension("png")
                             .to_string_lossy()
@@ -143,41 +129,10 @@ pub fn setup_materials(
                 )
             })
             .collect();
-        info!("Item textures loaded from items folder");
-    }
-
-    // Then, add block textures as fallback for items that don't have their own texture
-    if let Ok(dir) = fs::read_dir(blocks_path.clone()) {
-        let fallback_textures: Vec<_> = dir
-            .filter_map(|file| file.ok())
-            .filter_map(|file| {
-                let binding = file.path();
-                let filename = binding.file_stem().unwrap().to_str().unwrap().to_owned();
-                // Only add block texture if no item-specific texture exists
-                if !item_texture_names.contains(&filename) {
-                    Some((
-                        asset_server.load(
-                            blocks_path
-                                .join(&filename)
-                                .with_extension("png")
-                                .to_string_lossy()
-                                .into_owned(),
-                        ),
-                        filename,
-                    ))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        item_atlas_handles.handles.extend(fallback_textures);
-        info!("Block textures added as fallback for items");
-    }
-
-    if item_atlas_handles.handles.is_empty() {
+        info!("Item textures loaded from blocks folder");
+    } else {
         warn!(
-            "Item textures could not be loaded. This could crash the game. Checked: {:?} and {:?}",
-            items_path.display(),
+            "Item textures could not be loaded. This could crash the game : {:?}",
             blocks_path.display()
         );
     }
