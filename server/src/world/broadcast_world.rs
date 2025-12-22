@@ -79,14 +79,14 @@ pub fn broadcast_world_state(
 
 fn get_world_map_chunks_to_send(
     chunks: &mut ServerChunkWorldMap,
-    players: &HashMap<PlayerId, Player>,
+    _players: &HashMap<PlayerId, Player>,
     player: &Player,
     broadcast_render_distance: i32,
 ) -> HashMap<IVec3, ServerChunk> {
     // Send only chunks in render distance
     let mut map: HashMap<IVec3, ServerChunk> = HashMap::new();
 
-    let active_chunks = get_all_active_chunks(players, broadcast_render_distance, player);
+    let active_chunks = get_player_chunks_prioritized(player, broadcast_render_distance);
 
     // First, handle chunks that need to be updated (re-sent due to modifications)
     for &chunk_pos in &chunks.chunks_to_update {
@@ -134,6 +134,48 @@ fn get_items_stacks() -> Vec<ItemStackUpdateEvent> {
     //         },
     //     })
     //     .collect()
+}
+
+fn get_player_chunks_prioritized(player: &Player, radius: i32) -> Vec<IVec3> {
+    let player_chunk_pos = world_position_to_chunk_position(player.position);
+    let mut chunks = get_player_nearby_chunks_coords(player_chunk_pos, radius);
+
+    // Prioritize chunks based on player's view direction
+    let forward = player.camera_transform.forward();
+
+    chunks.sort_by(|&a, &b| {
+        let dir_a = (a - player_chunk_pos).as_vec3().normalize_or_zero();
+        let dir_b = (b - player_chunk_pos).as_vec3().normalize_or_zero();
+
+        // Calculate dot product with forward vector (higher = more in front)
+        let dot_a = forward.dot(dir_a);
+        let dot_b = forward.dot(dir_b);
+
+        // Distance from player
+        let dist_a = (a - player_chunk_pos).length_squared();
+        let dist_b = (b - player_chunk_pos).length_squared();
+
+        // Prioritize: closer chunks first, but favor chunks in view direction
+        // Using threshold of -0.3 allows wider angle (~108° from center vs 90°)
+        // Lower multiplier (500 vs 1000) creates smoother falloff for peripheral chunks
+        let score_a = if dot_a > -0.3 {
+            dist_a as f32 - (dot_a * 500.0) // In/near view: closer = lower score
+        } else {
+            dist_a as f32 + 5000.0 // Behind: higher score but not extreme
+        };
+
+        let score_b = if dot_b > -0.3 {
+            dist_b as f32 - (dot_b * 500.0)
+        } else {
+            dist_b as f32 + 5000.0
+        };
+
+        score_a
+            .partial_cmp(&score_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    chunks
 }
 
 pub fn get_all_active_chunks(
