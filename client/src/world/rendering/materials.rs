@@ -83,16 +83,8 @@ pub fn setup_materials(
         .assets_folder_path
         .join(&texture_path.path)
         .join("blocks/");
-    let items_path = paths
-        .assets_folder_path
-        .join(&texture_path.path)
-        .join("items/");
 
-    info!(
-        "Block textures : {}, items textures : {}",
-        blocks_path.display(),
-        items_path.display()
-    );
+    info!("Block textures : {}", blocks_path.display());
 
     if let Ok(dir) = fs::read_dir(blocks_path.clone()) {
         block_atlas_handles.handles = dir
@@ -119,14 +111,15 @@ pub fn setup_materials(
         );
     }
 
-    if let Ok(dir) = fs::read_dir(items_path.clone()) {
+    // Items use the same textures as blocks - load from blocks folder
+    if let Ok(dir) = fs::read_dir(blocks_path.clone()) {
         item_atlas_handles.handles = dir
             .map(|file| {
                 let binding = file.unwrap().path();
                 let filename = binding.file_stem().unwrap().to_str().unwrap();
                 (
                     asset_server.load(
-                        items_path
+                        blocks_path
                             .join(filename)
                             .with_extension("png")
                             .to_string_lossy()
@@ -136,11 +129,11 @@ pub fn setup_materials(
                 )
             })
             .collect();
-        info!("Ite textures loaded");
+        info!("Item textures loaded from blocks folder");
     } else {
         warn!(
             "Item textures could not be loaded. This could crash the game : {:?}",
-            items_path.display()
+            blocks_path.display()
         );
     }
 }
