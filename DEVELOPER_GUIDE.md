@@ -138,23 +138,12 @@ just generate-release-folder
 
 ### Module Structure
 
-The codebase follows a modular architecture:
+The codebase follows a modular architecture with client, server, and shared workspaces. For a complete directory structure, see [ARCHITECTURE.md](./ARCHITECTURE.md) → Project Structure.
 
-```
-client/src/
-  ├── camera/       # Camera systems
-  ├── entities/     # Entity management
-  ├── input/        # Input handling
-  ├── mob/          # Client-side mobs
-  ├── network/      # Networking
-  ├── player/       # Player logic
-  ├── ui/           # User interface
-  │   ├── hud/      # In-game UI
-  │   └── menus/    # Menu screens
-  ├── world/        # World rendering
-  ├── game.rs       # Game setup
-  └── main.rs       # Entry point
-```
+Key organizational principles:
+- **Client** (`client/src/`): Rendering, UI, input handling, client-side prediction
+- **Server** (`server/src/`): Game logic, world generation, authoritative state
+- **Shared** (`shared/src/`): Common types, messages, utilities
 
 ### File Naming Conventions
 

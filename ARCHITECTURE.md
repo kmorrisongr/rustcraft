@@ -362,12 +362,7 @@ Chunks → Mesh Generation → GPU Buffers → Rendered Frames
 
 ### Cargo Features
 
-The project uses Bevy's dynamic linking feature in development:
-```bash
-cargo build --features=bevy/dynamic_linking
-```
-
-This significantly speeds up incremental compilation.
+The project uses Bevy's dynamic linking feature in development for faster compilation. See [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) → Hot Reloading for usage instructions.
 
 ### Platform-Specific Paths
 
@@ -406,37 +401,21 @@ This significantly speeds up incremental compilation.
 
 ## Extending the Codebase
 
-### Adding a New Block Type
+For detailed step-by-step guides on extending the codebase, see the [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) → Common Development Tasks section.
 
-1. Add variant to `BlockId` enum in `shared/src/world/blocks.rs`
-2. Add texture mapping in client rendering code
-3. Add crafting recipes if needed
-4. Update block properties (solid, transparent, etc.)
-
-### Adding a New Mob Type
-
-1. Add variant to `MobType` enum in `shared/src/world/mobs.rs`
-2. Implement behavior in `server/src/mob/behavior.rs`
-3. Add rendering in `client/src/mob/`
-4. Add spawn logic
-
-### Adding New Network Messages
-
-1. Define message type in `shared/src/messages/`
-2. Implement serialization
-3. Add handler on server in `server/src/network/dispatcher.rs`
-4. Add handler on client in `client/src/network/`
-
-### Adding New UI Elements
-
-1. Create component in `client/src/ui/`
-2. Add setup system for spawning UI entities
-3. Add update system for UI logic
-4. Register systems in game state
+Key extension points:
+- **Blocks**: Add new block types in `shared/src/world/blocks.rs`
+- **Items**: Define new items in `shared/src/world/items.rs`
+- **Mobs**: Implement mob types and AI in `server/src/mob/`
+- **Network Messages**: Add message definitions in `shared/src/messages/`
+- **UI Components**: Create UI elements in `client/src/ui/`
+- **World Features**: Extend generation in `server/src/world/generation.rs`
 
 ## Further Reading
 
-- [Bevy Engine Documentation](https://docs.rs/bevy/)
-- [bevy_renet Documentation](https://docs.rs/bevy_renet/)
-- [ECS Pattern Overview](https://en.wikipedia.org/wiki/Entity_component_system)
-- [Voxel Rendering Techniques](https://0fps.net/2012/06/30/meshing-in-a-minecraft-game/)
+For comprehensive learning resources including Bevy tutorials, Rust guides, and voxel game development materials, see [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) → Resources.
+
+Technical references:
+- [Bevy Engine API Documentation](https://docs.rs/bevy/)
+- [bevy_renet Networking Library](https://docs.rs/bevy_renet/)
+- [ECS Architecture Pattern](https://en.wikipedia.org/wiki/Entity_component_system)
