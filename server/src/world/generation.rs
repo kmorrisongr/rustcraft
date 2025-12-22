@@ -411,7 +411,7 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
             for dy in 0..CHUNK_SIZE {
                 let y = CHUNK_SIZE * cy + dy;
 
-                if y > terrain_height && y > 62 {
+                if y > terrain_height && y > SEA_LEVEL {
                     break;
                 }
 
@@ -423,7 +423,7 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                     biome.sub_surface_block
                 } else if y == terrain_height {
                     biome.surface_block
-                } else if y <= 62 {
+                } else if y <= SEA_LEVEL {
                     BlockId::Water
                 } else {
                     panic!();
