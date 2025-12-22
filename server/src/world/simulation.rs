@@ -38,7 +38,6 @@ pub fn handle_player_inputs_system(
     let active_chunks = get_all_active_chunks(players, 1, first_player);
     for c in active_chunks {
         let chunk = chunks.map.get(&c);
-        let chunk = chunks.map.get(&c);
 
         if chunk.is_none() {
             // Check for any pending generation requests for this chunk
