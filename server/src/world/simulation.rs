@@ -9,7 +9,10 @@ use shared::{
     world::{ServerWorldMap, WorldSeed},
 };
 
-use crate::{network::extensions::SendGameMessageExtension, world::generation::generate_chunk};
+use crate::{
+    network::extensions::SendGameMessageExtension,
+    world::generation::{apply_pending_blocks, generate_chunk},
+};
 
 use super::broadcast_world::get_all_active_chunks;
 
@@ -36,27 +39,8 @@ pub fn handle_player_inputs_system(
         if chunk.is_none() {
             let mut chunk = generate_chunk(c, seed.0);
             
-            // Process pending blocks from neighboring chunks
-            for dx in -1..=1 {
-                for dy in -1..=1 {
-                    for dz in -1..=1 {
-                        if dx == 0 && dy == 0 && dz == 0 {
-                            continue;
-                        }
-                        
-                        let neighbor_pos = c + IVec3::new(dx, dy, dz);
-                        let inverse_offset = IVec3::new(-dx, -dy, -dz);
-                        
-                        if let Some(neighbor_chunk) = chunks.map.get(&neighbor_pos) {
-                            if let Some(pending_blocks) = neighbor_chunk.pending_blocks.get(&inverse_offset) {
-                                for (local_pos, block_data) in pending_blocks.iter() {
-                                    chunk.map.insert(*local_pos, *block_data);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // Apply pending blocks from neighboring chunks
+            apply_pending_blocks(&mut chunk, c, &chunks.map);
             
             info!("Generated chunk: {:?}", c);
             chunks.map.insert(c, chunk);

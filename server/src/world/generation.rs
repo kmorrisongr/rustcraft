@@ -3,6 +3,35 @@ use noise::{NoiseFn, Perlin};
 use shared::{world::*, CHUNK_SIZE};
 use std::collections::HashMap;
 
+/// Apply pending blocks from neighboring chunks to a newly generated chunk
+pub fn apply_pending_blocks(
+    chunk: &mut ServerChunk,
+    chunk_pos: IVec3,
+    chunks_map: &HashMap<IVec3, ServerChunk>,
+) {
+    // Process pending blocks from neighboring chunks
+    for dx in -1..=1 {
+        for dy in -1..=1 {
+            for dz in -1..=1 {
+                if dx == 0 && dy == 0 && dz == 0 {
+                    continue;
+                }
+                
+                let neighbor_pos = chunk_pos + IVec3::new(dx, dy, dz);
+                let inverse_offset = IVec3::new(-dx, -dy, -dz);
+                
+                if let Some(neighbor_chunk) = chunks_map.get(&neighbor_pos) {
+                    if let Some(pending_blocks) = neighbor_chunk.pending_blocks.get(&inverse_offset) {
+                        for (local_pos, block_data) in pending_blocks.iter() {
+                            chunk.map.insert(*local_pos, *block_data);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Helper function to place a block in the chunk or queue it for a neighboring chunk
 fn place_or_queue_block(
     chunk: &mut ServerChunk,
@@ -370,6 +399,7 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
             .unwrap()
             .as_millis() as u64,
         sent_to_clients: vec![],
+        pending_blocks: HashMap::new(),
     };
 
     for dx in 0..CHUNK_SIZE {
