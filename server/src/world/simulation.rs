@@ -31,13 +31,13 @@ pub fn handle_player_inputs_system(
     let chunks = &mut world_map.chunks;
 
     // Get first player for chunk prioritization
-    let first_player = players.values().next();
-    if first_player.is_none() {
+    let Some(first_player) = players.values().next() else {
         return;
-    }
+    };
 
-    let active_chunks = get_all_active_chunks(players, 1, first_player.unwrap());
+    let active_chunks = get_all_active_chunks(players, 1, first_player);
     for c in active_chunks {
+        let chunk = chunks.map.get(&c);
         let chunk = chunks.map.get(&c);
 
         if chunk.is_none() {
