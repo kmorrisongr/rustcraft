@@ -30,6 +30,9 @@ pub struct ServerChunk {
     /// Timestamp marking the last update this chunk has received
     pub ts: u64,
     pub sent_to_clients: Vec<PlayerId>,
+    /// Pending blocks that should be placed in neighboring chunks
+    /// Key: chunk position offset from this chunk, Value: map of local block positions to block data
+    pub pending_blocks: HashMap<IVec3, HashMap<IVec3, BlockData>>,
 }
 
 // #[derive(Resource)]
