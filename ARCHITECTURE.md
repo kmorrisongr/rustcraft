@@ -296,6 +296,10 @@ The project uses Bevy's dynamic linking feature in development for faster compil
 - Game data: `$HOME/.local/share/rustcraft`
 - Assets: `$HOME/.config/rustcraft`
 
+**macOS**:
+- Game data: `$HOME/Library/Application Support/rustcraft`
+- Assets: `$HOME/Library/Application Support/rustcraft/data`
+
 **Windows**:
 - Game data: `%AppData%/rustcraft`
 - Assets: `%AppData%/rustcraft/data`
