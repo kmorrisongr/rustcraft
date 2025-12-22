@@ -32,6 +32,25 @@ pub fn apply_pending_blocks(
     }
 }
 
+/// Push pending blocks from a newly generated chunk to existing neighboring chunks
+pub fn push_pending_blocks(
+    chunk: &ServerChunk,
+    chunk_pos: IVec3,
+    chunks_map: &mut HashMap<IVec3, ServerChunk>,
+) {
+    // For each set of pending blocks in this chunk
+    for (offset, pending_blocks) in chunk.pending_blocks.iter() {
+        let neighbor_pos = chunk_pos + *offset;
+        
+        // If the neighbor chunk already exists, apply the pending blocks to it
+        if let Some(neighbor_chunk) = chunks_map.get_mut(&neighbor_pos) {
+            for (local_pos, block_data) in pending_blocks.iter() {
+                neighbor_chunk.map.insert(*local_pos, *block_data);
+            }
+        }
+    }
+}
+
 /// Helper function to place a block in the chunk or queue it for a neighboring chunk
 fn place_or_queue_block(
     chunk: &mut ServerChunk,

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use shared::world::{ServerWorldMap, WorldSeed};
 
-use crate::world::generation::{apply_pending_blocks, generate_chunk};
+use crate::world::generation::{apply_pending_blocks, generate_chunk, push_pending_blocks};
 
 use super::broadcast_world::{get_all_active_chunks, BROADCAST_RENDER_DISTANCE};
 
@@ -21,7 +21,11 @@ pub fn background_world_generation_system(
             apply_pending_blocks(&mut chunk, c, &world_map.chunks.map);
             
             info!("Generated chunk: {:?}", c);
-            world_map.chunks.map.insert(c, chunk);
+            world_map.chunks.map.insert(c, chunk.clone());
+            
+            // Push pending blocks from this chunk to existing neighbors
+            push_pending_blocks(&chunk, c, &mut world_map.chunks.map);
+            
             generated += 1;
         }
 
