@@ -151,6 +151,14 @@ pub fn default_game_folder_paths() -> GameFolderPaths {
     }
 }
 
+#[cfg(target_os = "macos")]
+pub fn default_game_folder_paths() -> GameFolderPaths {
+    GameFolderPaths {
+        game_folder_path: "$HOME/Library/Application Support/rustcraft".into(),
+        assets_folder_path: "$HOME/Library/Application Support/rustcraft/data".into(),
+    }
+}
+
 pub trait ChannelResolvableExt {
     fn get_channel_id(&self) -> u8;
 }
