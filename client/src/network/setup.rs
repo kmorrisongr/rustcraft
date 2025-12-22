@@ -123,7 +123,9 @@ pub fn launch_local_server_system(
                 socket,
                 GameServerConfig {
                     world_name: world_name_clone,
-                    is_solo: true,                    broadcast_render_distance: 8,                },
+                    is_solo: true,
+                    broadcast_render_distance: 8,
+                },
                 cloned_paths,
             );
         });

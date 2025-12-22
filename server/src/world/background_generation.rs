@@ -17,8 +17,12 @@ pub fn background_world_generation_system(
     if first_player.is_none() {
         return; // No players, no need to generate chunks
     }
-    
-    let all_chunks = get_all_active_chunks(&world_map.players, config.broadcast_render_distance, first_player.unwrap());
+
+    let all_chunks = get_all_active_chunks(
+        &world_map.players,
+        config.broadcast_render_distance,
+        first_player.unwrap(),
+    );
     let mut generated = 0;
     for c in all_chunks {
         let chunk = world_map.chunks.map.get(&c);
