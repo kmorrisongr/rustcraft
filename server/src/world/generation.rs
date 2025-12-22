@@ -361,6 +361,34 @@ fn interpolated_height(
     interpolated_height.round() as i32
 }
 
+/// Helper function to attempt flora placement based on biome-specific thresholds
+/// Returns true if flora was placed, false otherwise
+fn try_place_flora<F>(
+    threshold: f32,
+    current_block: BlockId,
+    valid_surface_blocks: &[BlockId],
+    placement_fn: F,
+) -> bool
+where
+    F: FnOnce(),
+{
+    if threshold <= 0.0 {
+        return false;
+    }
+
+    if !valid_surface_blocks.contains(&current_block) {
+        return false;
+    }
+
+    let chance = rand::random::<f32>();
+    if chance < threshold {
+        placement_fn();
+        true
+    } else {
+        false
+    }
+}
+
 pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
     let perlin = Perlin::new(seed);
     let temp_perlin = Perlin::new(seed + 1);
@@ -441,115 +469,87 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
 
                 // TODO: this needs to be updated to allow the gen to place flowers at the bottom Y
                 // of a chunk, provided the top Y of the chunk below it is an acceptable surface block
-                // Add flowers if we are a grass block in certain biomes
-                let mut placed_flower = false;
-                let flower_chance_threshold = match biome_type {
+
+                // Determine flora placement thresholds based on biome
+                let flower_threshold = match biome_type {
                     BiomeType::FlowerPlains => 0.1,
                     BiomeType::Plains | BiomeType::Forest | BiomeType::MediumMountain => 0.02,
                     _ => 0.0,
                 };
-                match (flower_chance_threshold, block) {
-                    (threshold, BlockId::Grass) if threshold > 0.0 => {
-                        let flower_chance = rand::random::<f32>();
-                        if flower_chance < threshold {
-                            let flower_type = if rand::random::<f32>() < 0.5 {
-                                BlockId::Dandelion
-                            } else {
-                                BlockId::Poppy
-                            };
 
-                            chunk.map.insert(
-                                block_pos.with_y(block_pos.y + 1),
-                                BlockData::new(flower_type, BlockDirection::Front),
-                            );
-                            placed_flower = true;
-                        }
-                    }
-                    _ => {}
-                }
-                if (placed_flower) {
-                    continue;
-                }
-
-                let mut placed_tall_grass = false;
-                let tall_grass_chance_threshold = match biome_type {
+                let tall_grass_threshold = match biome_type {
                     BiomeType::HighMountainGrass | BiomeType::Desert | BiomeType::IcePlain => 0.0,
                     _ => 0.1,
                 };
-                match (tall_grass_chance_threshold, block) {
-                    (threshold, BlockId::Grass) if threshold > 0.0 => {
-                        let tall_grass_chance = rand::random::<f32>();
-                        if tall_grass_chance < threshold {
-                            chunk.map.insert(
-                                block_pos.with_y(block_pos.y + 1),
-                                BlockData::new(BlockId::TallGrass, BlockDirection::Front),
-                            );
-                            placed_tall_grass = true;
-                        }
-                    }
-                    _ => {}
-                }
-                if (placed_tall_grass) {
-                    continue;
-                }
 
-                let mut placed_tree = false;
-                let tree_chance_threshold = match biome_type {
+                let tree_threshold = match biome_type {
                     BiomeType::Forest => 0.06,
                     BiomeType::FlowerPlains | BiomeType::MediumMountain => 0.02,
                     _ => 0.0,
                 };
-                let valid_tree_position =
-                    dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
-                match (tree_chance_threshold, block, valid_tree_position) {
-                    (threshold, BlockId::Grass, true) if threshold > 0.0 => {
-                        let tree_chance = rand::random::<f32>();
-                        if tree_chance < threshold {
-                            if (biome_type == BiomeType::Forest && tree_chance < 0.01) {
-                                generate_big_tree(
-                                    &mut chunk,
-                                    dx,
-                                    dy + 1,
-                                    dz,
-                                    BlockId::OakLog,
-                                    BlockId::OakLeaves,
-                                );
-                            } else {
-                                generate_tree(
-                                    &mut chunk,
-                                    dx,
-                                    dy + 1,
-                                    dz,
-                                    BlockId::OakLog,
-                                    BlockId::OakLeaves,
-                                );
-                            }
-                            placed_tree = true;
-                        }
-                    }
-                    _ => {}
-                }
-                if (placed_tree) {
-                    continue;
-                }
 
-                let placed_cactus = false;
-                let cactus_chance_threshold = match biome_type {
+                let cactus_threshold = match biome_type {
                     BiomeType::Desert => 0.01,
                     _ => 0.0,
                 };
-                match (cactus_chance_threshold, block) {
-                    (threshold, BlockId::Sand) if threshold > 0.0 => {
-                        let cactus_chance = rand::random::<f32>();
-                        if cactus_chance < threshold {
-                            generate_cactus(&mut chunk, dx, dy + 1, dz, BlockId::Cactus);
-                        }
-                    }
-                    _ => {}
-                }
-                if (placed_cactus) {
+
+                // Try placing flora in priority order
+                if try_place_flora(flower_threshold, block, &[BlockId::Grass], || {
+                    let flower_type = if rand::random::<f32>() < 0.5 {
+                        BlockId::Dandelion
+                    } else {
+                        BlockId::Poppy
+                    };
+                    chunk.map.insert(
+                        block_pos.with_y(block_pos.y + 1),
+                        BlockData::new(flower_type, BlockDirection::Front),
+                    );
+                }) {
                     continue;
                 }
+
+                if try_place_flora(tall_grass_threshold, block, &[BlockId::Grass], || {
+                    chunk.map.insert(
+                        block_pos.with_y(block_pos.y + 1),
+                        BlockData::new(BlockId::TallGrass, BlockDirection::Front),
+                    );
+                }) {
+                    continue;
+                }
+
+                let valid_tree_position =
+                    dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
+                if valid_tree_position
+                    && try_place_flora(tree_threshold, block, &[BlockId::Grass], || {
+                        if biome_type == BiomeType::Forest
+                            && rand::random::<f32>() < 0.01 / tree_threshold
+                        {
+                            generate_big_tree(
+                                &mut chunk,
+                                dx,
+                                dy + 1,
+                                dz,
+                                BlockId::OakLog,
+                                BlockId::OakLeaves,
+                            );
+                        } else {
+                            generate_tree(
+                                &mut chunk,
+                                dx,
+                                dy + 1,
+                                dz,
+                                BlockId::OakLog,
+                                BlockId::OakLeaves,
+                            );
+                        }
+                    })
+                {
+                    continue;
+                }
+
+                try_place_flora(cactus_threshold, block, &[BlockId::Sand], || {
+                    generate_cactus(&mut chunk, dx, dy + 1, dz, BlockId::Cactus);
+                });
             }
         }
     }
