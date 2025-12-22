@@ -13,6 +13,11 @@ use shared::world::{
 use shared::{GameServerConfig, CHUNK_SIZE};
 use std::collections::HashMap;
 
+// Maximum number of chunks to send per tick per player
+const MAX_CHUNKS_PER_TICK: i32 = 50;
+// Scaling factor for chunk limit based on render distance
+const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
+
 pub fn broadcast_world_state(
     mut server: ResMut<RenetServer>,
     time: Res<ServerTime>,
@@ -100,7 +105,8 @@ fn get_world_map_chunks_to_send(
 
     // Scale chunk limit based on render distance to prevent bandwidth issues
     // with larger render distances while maintaining good performance
-    let chunk_limit = (broadcast_render_distance * 6).min(50) as usize;
+    let chunk_limit =
+        (broadcast_render_distance * CHUNKS_PER_RENDER_DISTANCE).min(MAX_CHUNKS_PER_TICK) as usize;
 
     for c in active_chunks {
         if map.len() >= chunk_limit {
