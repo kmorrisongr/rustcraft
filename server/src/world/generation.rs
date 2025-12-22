@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use noise::{NoiseFn, Perlin};
-use shared::{world::*, CHUNK_SIZE};
+use shared::{world::*, CHUNK_SIZE, SEA_LEVEL};
 use std::collections::HashMap;
 
 fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId, leaves: BlockId) {
@@ -435,117 +435,120 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                     .map
                     .insert(block_pos, BlockData::new(block, BlockDirection::Front));
 
-                // Add flora in biomes
-                if y == terrain_height && terrain_height > 62 {
-                    let above_surface_pos = IVec3::new(dx, terrain_height + 1, dz);
+                if (block_pos.y + 1 >= CHUNK_SIZE) {
+                    continue;
+                }
 
-                    // Add flowers
-                    let flower_chance = rand::random::<f32>();
-                    match biome_type {
-                        BiomeType::FlowerPlains => {
-                            // High probability for flowers in Flower Plains
-                            if flower_chance < 0.1 {
-                                let flower_type = if rand::random::<f32>() < 0.5 {
-                                    BlockId::Dandelion
-                                } else {
-                                    BlockId::Poppy
-                                };
+                // TODO: this needs to be updated to allow the gen to place flowers at the bottom Y
+                // of a chunk, provided the top Y of the chunk below it is an acceptable surface block
+                // Add flowers if we are a grass block in certain biomes
+                let mut placed_flower = false;
+                let flower_chance_threshold = match biome_type {
+                    BiomeType::FlowerPlains => 0.1,
+                    BiomeType::Plains | BiomeType::Forest | BiomeType::MediumMountain => 0.02,
+                    _ => 0.0,
+                };
+                match (flower_chance_threshold, block) {
+                    (threshold, BlockId::Grass) if threshold > 0.0 => {
+                        let flower_chance = rand::random::<f32>();
+                        if flower_chance < threshold {
+                            let flower_type = if rand::random::<f32>() < 0.5 {
+                                BlockId::Dandelion
+                            } else {
+                                BlockId::Poppy
+                            };
 
-                                chunk.map.insert(
-                                    block_pos.with_y(block_pos.y + 1),
-                                    BlockData::new(flower_type, BlockDirection::Front),
-                                );
-                            }
+                            chunk.map.insert(
+                                block_pos.with_y(block_pos.y + 1),
+                                BlockData::new(flower_type, BlockDirection::Front),
+                            );
+                            placed_flower = true;
                         }
-                        BiomeType::Plains | BiomeType::Forest | BiomeType::MediumMountain => {
-                            // Low probability for flowers in Plains, Forest, Medium Mountain
-                            if flower_chance < 0.02 {
-                                let flower_type = if rand::random::<f32>() < 0.5 {
-                                    BlockId::Dandelion
-                                } else {
-                                    BlockId::Poppy
-                                };
-
-                                chunk.map.insert(
-                                    block_pos.with_y(block_pos.y + 1),
-                                    BlockData::new(flower_type, BlockDirection::Front),
-                                );
-                            }
-                        }
-                        _ => {}
                     }
+                    _ => {}
+                }
+                if (placed_flower) {
+                    continue;
+                }
 
-                    // Add tall grass
-                    if biome_type != BiomeType::HighMountainGrass
-                        && biome_type != BiomeType::Desert
-                        && biome_type != BiomeType::IcePlain
-                    {
+                let mut placed_tall_grass = false;
+                let tall_grass_chance_threshold = match biome_type {
+                    BiomeType::HighMountainGrass | BiomeType::Desert | BiomeType::IcePlain => 0.0,
+                    _ => 0.1,
+                };
+                match (tall_grass_chance_threshold, block) {
+                    (threshold, BlockId::Grass) if threshold > 0.0 => {
                         let tall_grass_chance = rand::random::<f32>();
-                        if tall_grass_chance < 0.10 {
+                        if tall_grass_chance < threshold {
                             chunk.map.insert(
                                 block_pos.with_y(block_pos.y + 1),
                                 BlockData::new(BlockId::TallGrass, BlockDirection::Front),
                             );
+                            placed_tall_grass = true;
                         }
                     }
+                    _ => {}
+                }
+                if (placed_tall_grass) {
+                    continue;
+                }
 
-                    // Add trees
-                    // Only generate trees if trunk is at least 1 block away from chunk edges.
-                    // This prevents trees from looking incomplete when their leaves would extend
-                    // beyond chunk boundaries and get clipped.
-                    let is_valid_tree_position = dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
-                    
-                    if is_valid_tree_position {
+                let mut placed_tree = false;
+                let tree_chance_threshold = match biome_type {
+                    BiomeType::Forest => 0.06,
+                    BiomeType::FlowerPlains | BiomeType::MediumMountain => 0.02,
+                    _ => 0.0,
+                };
+                let valid_tree_position =
+                    dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
+                match (tree_chance_threshold, block, valid_tree_position) {
+                    (threshold, BlockId::Grass, true) if threshold > 0.0 => {
                         let tree_chance = rand::random::<f32>();
-                        match biome_type {
-                            BiomeType::Forest => {
-                                // High probability for trees in Forest
-                                if tree_chance < 0.06 && !chunk.map.contains_key(&above_surface_pos) {
-                                    if tree_chance < 0.01 {
-                                        generate_big_tree(
-                                            &mut chunk,
-                                            dx,
-                                            dy + 1,
-                                            dz,
-                                            BlockId::OakLog,
-                                            BlockId::OakLeaves,
-                                        );
-                                    } else {
-                                        generate_tree(
-                                            &mut chunk,
-                                            dx,
-                                            dy + 1,
-                                            dz,
-                                            BlockId::OakLog,
-                                            BlockId::OakLeaves,
-                                        );
-                                    }
-                                }
+                        if tree_chance < threshold {
+                            if (biome_type == BiomeType::Forest && tree_chance < 0.01) {
+                                generate_big_tree(
+                                    &mut chunk,
+                                    dx,
+                                    dy + 1,
+                                    dz,
+                                    BlockId::OakLog,
+                                    BlockId::OakLeaves,
+                                );
+                            } else {
+                                generate_tree(
+                                    &mut chunk,
+                                    dx,
+                                    dy + 1,
+                                    dz,
+                                    BlockId::OakLog,
+                                    BlockId::OakLeaves,
+                                );
                             }
-                            BiomeType::FlowerPlains | BiomeType::MediumMountain => {
-                                // Medium probability for trees in Flower Plains and Medium Mountain
-                                if tree_chance < 0.02 && !chunk.map.contains_key(&above_surface_pos) {
-                                    generate_tree(
-                                        &mut chunk,
-                                        dx,
-                                        dy + 1,
-                                        dz,
-                                        BlockId::OakLog,
-                                        BlockId::OakLeaves,
-                                    );
-                                }
-                            }
-                            _ => {}
+                            placed_tree = true;
                         }
                     }
+                    _ => {}
+                }
+                if (placed_tree) {
+                    continue;
+                }
 
-                    // Add cactus in Desert
-                    if biome_type == BiomeType::Desert {
+                let placed_cactus = false;
+                let cactus_chance_threshold = match biome_type {
+                    BiomeType::Desert => 0.01,
+                    _ => 0.0,
+                };
+                match (cactus_chance_threshold, block) {
+                    (threshold, BlockId::Sand) if threshold > 0.0 => {
                         let cactus_chance = rand::random::<f32>();
-                        if cactus_chance < 0.01 && !chunk.map.contains_key(&above_surface_pos) {
+                        if cactus_chance < threshold {
                             generate_cactus(&mut chunk, dx, dy + 1, dz, BlockId::Cactus);
                         }
                     }
+                    _ => {}
+                }
+                if (placed_cactus) {
+                    continue;
                 }
             }
         }
