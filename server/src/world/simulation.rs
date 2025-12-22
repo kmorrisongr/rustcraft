@@ -6,7 +6,7 @@ use bevy_renet::renet::{ClientId, RenetServer};
 use log::info;
 use shared::{
     messages::{NetworkAction, PlayerFrameInput, PlayerUpdateEvent},
-    players::{simulation::simulate_player_actions, blocks::CallerType},
+    players::{blocks::CallerType, simulation::simulate_player_actions},
     world::{ServerWorldMap, WorldSeed},
 };
 
