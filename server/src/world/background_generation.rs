@@ -4,13 +4,15 @@ use shared::world::{ServerWorldMap, WorldSeed};
 
 use crate::world::generation::generate_chunk;
 
-use super::broadcast_world::{get_all_active_chunks, BROADCAST_RENDER_DISTANCE};
+use super::broadcast_world::get_all_active_chunks;
+use shared::GameServerConfig;
 
 pub fn background_world_generation_system(
     mut world_map: ResMut<ServerWorldMap>,
     seed: Res<WorldSeed>,
+    config: Res<GameServerConfig>,
 ) {
-    let all_chunks = get_all_active_chunks(&world_map.players, BROADCAST_RENDER_DISTANCE);
+    let all_chunks = get_all_active_chunks(&world_map.players, config.broadcast_render_distance);
     let mut generated = 0;
     for c in all_chunks {
         let chunk = world_map.chunks.map.get(&c);

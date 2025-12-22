@@ -20,6 +20,9 @@ struct Args {
 
     #[arg(short, long)]
     game_folder_path: Option<String>,
+
+    #[arg(short, long, default_value_t = 8)]
+    render_distance: i32,
 }
 
 fn main() {
@@ -31,6 +34,7 @@ fn main() {
         GameServerConfig {
             world_name: args.world,
             is_solo: false,
+            broadcast_render_distance: args.render_distance,
         },
         get_game_folder_paths(args.game_folder_path, None),
     );

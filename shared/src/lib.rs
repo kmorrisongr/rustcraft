@@ -30,6 +30,7 @@ pub struct SpecialFlag {
 pub struct GameServerConfig {
     pub world_name: String,
     pub is_solo: bool,
+    pub broadcast_render_distance: i32,
 }
 
 const MAX_MEMORY: usize = 128 * 1024 * 1024;

@@ -10,15 +10,14 @@ use shared::players::Player;
 use shared::world::{
     world_position_to_chunk_position, ServerChunk, ServerChunkWorldMap, ServerWorldMap,
 };
-use shared::CHUNK_SIZE;
+use shared::{GameServerConfig, CHUNK_SIZE};
 use std::collections::HashMap;
-
-pub const BROADCAST_RENDER_DISTANCE: i32 = 1;
 
 pub fn broadcast_world_state(
     mut server: ResMut<RenetServer>,
     time: Res<ServerTime>,
     mut world_map: ResMut<ServerWorldMap>,
+    config: Res<GameServerConfig>,
 ) {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -40,7 +39,7 @@ pub fn broadcast_world_state(
 
         for (id, mob) in mobs.iter() {
             if mob.position.distance(player.position)
-                < (BROADCAST_RENDER_DISTANCE * CHUNK_SIZE) as f32
+                < (config.broadcast_render_distance * CHUNK_SIZE) as f32
             {
                 server.send_game_message(
                     *client,
@@ -55,7 +54,12 @@ pub fn broadcast_world_state(
         let msg = WorldUpdate {
             tick: time.0,
             time: ts,
-            new_map: get_world_map_chunks_to_send(chunks, players, &player),
+            new_map: get_world_map_chunks_to_send(
+                chunks,
+                players,
+                &player,
+                config.broadcast_render_distance,
+            ),
             mobs: mobs.clone(),
             item_stacks: get_items_stacks(),
         };
@@ -77,11 +81,12 @@ fn get_world_map_chunks_to_send(
     chunks: &mut ServerChunkWorldMap,
     players: &HashMap<PlayerId, Player>,
     player: &Player,
+    broadcast_render_distance: i32,
 ) -> HashMap<IVec3, ServerChunk> {
     // Send only chunks in render distance
     let mut map: HashMap<IVec3, ServerChunk> = HashMap::new();
 
-    let active_chunks = get_all_active_chunks(players, BROADCAST_RENDER_DISTANCE);
+    let active_chunks = get_all_active_chunks(players, broadcast_render_distance);
 
     // First, handle chunks that need to be updated (re-sent due to modifications)
     for &chunk_pos in &chunks.chunks_to_update {
