@@ -136,6 +136,11 @@ fn get_items_stacks() -> Vec<ItemStackUpdateEvent> {
     //     .collect()
 }
 
+// Constants for chunk prioritization based on view direction
+const VIEW_ANGLE_THRESHOLD: f32 = -0.3; // ~108° from center vs 90°
+const VIEW_DIRECTION_WEIGHT: f32 = 500.0; // Lower value = smoother falloff for peripheral chunks
+const BEHIND_PENALTY: f32 = 5000.0; // Penalty for chunks behind the player
+
 fn get_player_chunks_prioritized(player: &Player, radius: i32) -> Vec<IVec3> {
     let player_chunk_pos = world_position_to_chunk_position(player.position);
     let mut chunks = get_player_nearby_chunks_coords(player_chunk_pos, radius);
@@ -156,18 +161,16 @@ fn get_player_chunks_prioritized(player: &Player, radius: i32) -> Vec<IVec3> {
         let dist_b = (b - player_chunk_pos).length_squared();
 
         // Prioritize: closer chunks first, but favor chunks in view direction
-        // Using threshold of -0.3 allows wider angle (~108° from center vs 90°)
-        // Lower multiplier (500 vs 1000) creates smoother falloff for peripheral chunks
-        let score_a = if dot_a > -0.3 {
-            dist_a as f32 - (dot_a * 500.0) // In/near view: closer = lower score
+        let score_a = if dot_a > VIEW_ANGLE_THRESHOLD {
+            dist_a as f32 - (dot_a * VIEW_DIRECTION_WEIGHT) // In/near view: closer = lower score
         } else {
-            dist_a as f32 + 5000.0 // Behind: higher score but not extreme
+            dist_a as f32 + BEHIND_PENALTY // Behind: higher score but not extreme
         };
 
-        let score_b = if dot_b > -0.3 {
-            dist_b as f32 - (dot_b * 500.0)
+        let score_b = if dot_b > VIEW_ANGLE_THRESHOLD {
+            dist_b as f32 - (dot_b * VIEW_DIRECTION_WEIGHT)
         } else {
-            dist_b as f32 + 5000.0
+            dist_b as f32 + BEHIND_PENALTY
         };
 
         score_a
@@ -214,18 +217,16 @@ pub fn get_all_active_chunks(
         let dist_b = (b - player_chunk_pos).length_squared();
 
         // Prioritize: closer chunks first, but favor chunks in view direction
-        // Using threshold of -0.3 allows wider angle (~108° from center vs 90°)
-        // Lower multiplier (500 vs 1000) creates smoother falloff for peripheral chunks
-        let score_a = if dot_a > -0.3 {
-            dist_a as f32 - (dot_a * 500.0) // In/near view: closer = lower score
+        let score_a = if dot_a > VIEW_ANGLE_THRESHOLD {
+            dist_a as f32 - (dot_a * VIEW_DIRECTION_WEIGHT) // In/near view: closer = lower score
         } else {
-            dist_a as f32 + 5000.0 // Behind: higher score but not extreme
+            dist_a as f32 + BEHIND_PENALTY // Behind: higher score but not extreme
         };
 
-        let score_b = if dot_b > -0.3 {
-            dist_b as f32 - (dot_b * 500.0)
+        let score_b = if dot_b > VIEW_ANGLE_THRESHOLD {
+            dist_b as f32 - (dot_b * VIEW_DIRECTION_WEIGHT)
         } else {
-            dist_b as f32 + 5000.0
+            dist_b as f32 + BEHIND_PENALTY
         };
 
         score_a
