@@ -20,6 +20,7 @@ Minecraft game clone written in Rust, using the Bevy game engine.
 - [How to Build](#how-to-build)
     - [Prerequisites](#prerequisites)
     - [Running the Project](#running-the-project)
+- [Developer Overview](#developer-overview)
 - [Contributing](#contributing)
     - [Guidelines](#guidelines)
 
@@ -175,6 +176,12 @@ just generate-release-folder
 
 ./release/bin/rustcraft-server  # (optional) do this only to test multiplayer features
 ```
+
+<br>
+
+# Developer Overview
+
+For a guided tour of the workspace layout, core systems, and common extension points, see [docs/developer-overview.md](./docs/developer-overview.md).
 
 <br>
 
