@@ -125,6 +125,7 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
         chunks: ServerChunkWorldMap {
             map: world_data.map,
             chunks_to_update: Vec::new(),
+            generation_requests: HashMap::new(),
         },
         players: HashMap::new(),
         mobs: world_data.mobs,

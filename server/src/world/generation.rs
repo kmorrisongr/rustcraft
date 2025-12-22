@@ -389,7 +389,96 @@ where
     }
 }
 
-pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
+/// Helper function to check if flora should be placed based on threshold and surface block.
+/// Returns true if the roll succeeds, false otherwise.
+fn should_place_flora(
+    threshold: f32,
+    current_block: BlockId,
+    valid_surface_blocks: &[BlockId],
+) -> bool {
+    if threshold <= 0.0 {
+        return false;
+    }
+
+    if !valid_surface_blocks.contains(&current_block) {
+        return false;
+    }
+
+    rand::random::<f32>() < threshold
+}
+
+/// Fulfills a flora generation request by placing the appropriate flora type at the given position.
+fn fulfill_flora_request(chunk: &mut ServerChunk, request: &FloraRequest) {
+    let local_pos = IVec3::new(request.local_x, 0, request.local_z);
+
+    match request.flora_type {
+        FloraType::Flower => {
+            let flower_type = if rand::random::<f32>() < 0.5 {
+                BlockId::Dandelion
+            } else {
+                BlockId::Poppy
+            };
+            chunk.map.insert(
+                local_pos,
+                BlockData::new(flower_type, BlockDirection::Front),
+            );
+        }
+        FloraType::TallGrass => {
+            chunk.map.insert(
+                local_pos,
+                BlockData::new(BlockId::TallGrass, BlockDirection::Front),
+            );
+        }
+        FloraType::Tree => {
+            generate_tree(
+                chunk,
+                request.local_x,
+                0,
+                request.local_z,
+                BlockId::OakLog,
+                BlockId::OakLeaves,
+            );
+        }
+        FloraType::BigTree => {
+            generate_big_tree(
+                chunk,
+                request.local_x,
+                0,
+                request.local_z,
+                BlockId::OakLog,
+                BlockId::OakLeaves,
+            );
+        }
+        FloraType::Cactus => {
+            generate_cactus(chunk, request.local_x, 0, request.local_z, BlockId::Cactus);
+        }
+    }
+}
+
+/// Result of chunk generation containing the generated chunk and any pending
+/// generation requests for the chunk above.
+pub struct ChunkGenerationResult {
+    /// The generated chunk
+    pub chunk: ServerChunk,
+    /// Generation requests to be fulfilled by the chunk above (y + 1)
+    pub requests_for_chunk_above: Vec<FloraRequest>,
+}
+
+/// Generates a chunk at the given position.
+///
+/// # Arguments
+/// * `chunk_pos` - The chunk position in chunk coordinates
+/// * `seed` - The world seed for procedural generation
+/// * `pending_requests` - Optional list of pending flora generation requests from the chunk below.
+///   These are processed first before generating new flora.
+///
+/// # Returns
+/// A `ChunkGenerationResult` containing the generated chunk and any requests for the chunk above.
+pub fn generate_chunk(
+    chunk_pos: IVec3,
+    seed: u32,
+    pending_requests: Option<Vec<FloraRequest>>,
+) -> ChunkGenerationResult {
     let perlin = Perlin::new(seed);
     let temp_perlin = Perlin::new(seed + 1);
     let humidity_perlin = Perlin::new(seed + 2);
@@ -408,6 +497,16 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
             .as_millis() as u64,
         sent_to_clients: vec![],
     };
+
+    // Collection of generation requests for the chunk above
+    let mut requests_for_chunk_above: Vec<FloraRequest> = Vec::new();
+
+    // First, process any pending generation requests from the chunk below
+    if let Some(requests) = pending_requests {
+        for request in requests {
+            fulfill_flora_request(&mut chunk, &request);
+        }
+    }
 
     for dx in 0..CHUNK_SIZE {
         for dz in 0..CHUNK_SIZE {
@@ -463,13 +562,6 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                     .map
                     .insert(block_pos, BlockData::new(block, BlockDirection::Front));
 
-                if (block_pos.y + 1 >= CHUNK_SIZE) {
-                    continue;
-                }
-
-                // TODO: this needs to be updated to allow the gen to place flowers at the bottom Y
-                // of a chunk, provided the top Y of the chunk below it is an acceptable surface block
-
                 // Determine flora placement thresholds based on biome
                 let flower_threshold = match biome_type {
                     BiomeType::FlowerPlains => 0.1,
@@ -493,6 +585,58 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                     _ => 0.0,
                 };
 
+                let valid_tree_position =
+                    dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
+
+                // If we're at the top of the chunk (dy == CHUNK_SIZE - 1), create a generation
+                // request for the chunk above instead of placing flora directly
+                if block_pos.y + 1 >= CHUNK_SIZE {
+                    // Try to create generation requests for the chunk above
+                    if should_place_flora(flower_threshold, block, &[BlockId::Grass]) {
+                        requests_for_chunk_above.push(FloraRequest {
+                            local_x: dx,
+                            local_z: dz,
+                            flora_type: FloraType::Flower,
+                            biome_type,
+                        });
+                    } else if should_place_flora(tall_grass_threshold, block, &[BlockId::Grass]) {
+                        requests_for_chunk_above.push(FloraRequest {
+                            local_x: dx,
+                            local_z: dz,
+                            flora_type: FloraType::TallGrass,
+                            biome_type,
+                        });
+                    } else if valid_tree_position
+                        && should_place_flora(tree_threshold, block, &[BlockId::Grass])
+                    {
+                        // Determine if this should be a big tree based on biome and threshold
+                        // Note: tree_threshold > 0.0 is guaranteed by should_place_flora returning true
+                        let flora_type = if biome_type == BiomeType::Forest
+                            && tree_threshold > 0.0
+                            && rand::random::<f32>() < 0.01 / tree_threshold
+                        {
+                            FloraType::BigTree
+                        } else {
+                            FloraType::Tree
+                        };
+                        requests_for_chunk_above.push(FloraRequest {
+                            local_x: dx,
+                            local_z: dz,
+                            flora_type,
+                            biome_type,
+                        });
+                    } else if should_place_flora(cactus_threshold, block, &[BlockId::Sand]) {
+                        requests_for_chunk_above.push(FloraRequest {
+                            local_x: dx,
+                            local_z: dz,
+                            flora_type: FloraType::Cactus,
+                            biome_type,
+                        });
+                    }
+                    continue;
+                }
+
+                // Normal flora placement for blocks not at chunk top
                 // Try placing flora in priority order
                 if try_place_flora(flower_threshold, block, &[BlockId::Grass], || {
                     let flower_type = if rand::random::<f32>() < 0.5 {
@@ -517,11 +661,12 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                     continue;
                 }
 
-                let valid_tree_position =
-                    dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
                 if valid_tree_position
                     && try_place_flora(tree_threshold, block, &[BlockId::Grass], || {
+                        // Determine if this should be a big tree based on biome and threshold
+                        // Note: tree_threshold > 0.0 is guaranteed by try_place_flora calling this closure
                         if biome_type == BiomeType::Forest
+                            && tree_threshold > 0.0
                             && rand::random::<f32>() < 0.01 / tree_threshold
                         {
                             generate_big_tree(
@@ -553,5 +698,8 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
             }
         }
     }
-    chunk
+    ChunkGenerationResult {
+        chunk,
+        requests_for_chunk_above,
+    }
 }

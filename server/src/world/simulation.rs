@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_renet::renet::{ClientId, RenetServer};
+use log::info;
 use shared::{
     messages::{NetworkAction, PlayerFrameInput, PlayerUpdateEvent},
     players::{simulation::simulate_player_actions, blocks::CallerType},
@@ -34,9 +35,23 @@ pub fn handle_player_inputs_system(
         let chunk = chunks.map.get(&c);
 
         if chunk.is_none() {
-            let chunk = generate_chunk(c, seed.0);
+            // Check for any pending generation requests for this chunk
+            let pending_requests = chunks.generation_requests.remove(&c);
+
+            // Generate the chunk with any pending requests
+            let result = generate_chunk(c, seed.0, pending_requests);
             info!("Generated chunk: {:?}", c);
-            chunks.map.insert(c, chunk);
+            chunks.map.insert(c, result.chunk);
+
+            // Store any generation requests for the chunk above
+            if !result.requests_for_chunk_above.is_empty() {
+                let chunk_above = IVec3::new(c.x, c.y + 1, c.z);
+                chunks
+                    .generation_requests
+                    .entry(chunk_above)
+                    .or_default()
+                    .extend(result.requests_for_chunk_above);
+            }
         }
     }
 
