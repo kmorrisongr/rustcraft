@@ -35,9 +35,11 @@ pub enum FloraType {
 /// surface block and rolls successfully for flora generation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FloraRequest {
-    /// The local x position within the target chunk (0 to CHUNK_SIZE - 1)
+    /// The local x position within the target chunk.
+    /// Valid range: 0 to CHUNK_SIZE - 1 (uses i32 for consistency with chunk coordinate types)
     pub local_x: i32,
-    /// The local z position within the target chunk (0 to CHUNK_SIZE - 1)
+    /// The local z position within the target chunk.
+    /// Valid range: 0 to CHUNK_SIZE - 1 (uses i32 for consistency with chunk coordinate types)
     pub local_z: i32,
     /// The type of flora to generate
     pub flora_type: FloraType,

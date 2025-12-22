@@ -609,7 +609,10 @@ pub fn generate_chunk(
                     } else if valid_tree_position
                         && should_place_flora(tree_threshold, block, &[BlockId::Grass])
                     {
+                        // Determine if this should be a big tree based on biome and threshold
+                        // Note: tree_threshold > 0.0 is guaranteed by should_place_flora returning true
                         let flora_type = if biome_type == BiomeType::Forest
+                            && tree_threshold > 0.0
                             && rand::random::<f32>() < 0.01 / tree_threshold
                         {
                             FloraType::BigTree
@@ -660,7 +663,10 @@ pub fn generate_chunk(
 
                 if valid_tree_position
                     && try_place_flora(tree_threshold, block, &[BlockId::Grass], || {
+                        // Determine if this should be a big tree based on biome and threshold
+                        // Note: tree_threshold > 0.0 is guaranteed by try_place_flora calling this closure
                         if biome_type == BiomeType::Forest
+                            && tree_threshold > 0.0
                             && rand::random::<f32>() < 0.01 / tree_threshold
                         {
                             generate_big_tree(
