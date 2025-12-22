@@ -171,19 +171,19 @@ pub fn get_all_active_chunks(
         let dist_a = (a - player_chunk_pos).length_squared();
         let dist_b = (b - player_chunk_pos).length_squared();
 
-        // Prioritize: closer chunks first, but heavily favor chunks in view direction
-        // Formula: chunks in front (dot > 0) are prioritized, sorted by distance
-        // Chunks behind (dot < 0) come after, also sorted by distance
-        let score_a = if dot_a > 0.0 {
-            dist_a as f32 - (dot_a * 1000.0) // In view: closer = lower score
+        // Prioritize: closer chunks first, but favor chunks in view direction
+        // Using threshold of -0.3 allows wider angle (~108° from center vs 90°)
+        // Lower multiplier (500 vs 1000) creates smoother falloff for peripheral chunks
+        let score_a = if dot_a > -0.3 {
+            dist_a as f32 - (dot_a * 500.0) // In/near view: closer = lower score
         } else {
-            dist_a as f32 + 10000.0 // Behind: much higher score
+            dist_a as f32 + 5000.0 // Behind: higher score but not extreme
         };
 
-        let score_b = if dot_b > 0.0 {
-            dist_b as f32 - (dot_b * 1000.0)
+        let score_b = if dot_b > -0.3 {
+            dist_b as f32 - (dot_b * 500.0)
         } else {
-            dist_b as f32 + 10000.0
+            dist_b as f32 + 5000.0
         };
 
         score_a
