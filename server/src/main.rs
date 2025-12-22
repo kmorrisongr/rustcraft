@@ -2,6 +2,7 @@ use std::net::Ipv4Addr;
 
 use crate::init::acquire_socket_by_port;
 use clap::Parser;
+use shared::constants::DEFAULT_RENDER_DISTANCE;
 use shared::{get_game_folder_paths, GameServerConfig};
 
 mod init;
@@ -21,7 +22,7 @@ struct Args {
     #[arg(short, long)]
     game_folder_path: Option<String>,
 
-    #[arg(short, long, default_value_t = 8)]
+    #[arg(short, long, default_value_t = DEFAULT_RENDER_DISTANCE)]
     render_distance: i32,
 }
 
