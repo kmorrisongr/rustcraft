@@ -490,21 +490,39 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                     }
 
                     // Add trees
-                    let tree_chance = rand::random::<f32>();
-                    match biome_type {
-                        BiomeType::Forest => {
-                            // High probability for trees in Forest
-                            if tree_chance < 0.06 && !chunk.map.contains_key(&above_surface_pos) {
-                                if tree_chance < 0.01 {
-                                    generate_big_tree(
-                                        &mut chunk,
-                                        dx,
-                                        dy + 1,
-                                        dz,
-                                        BlockId::OakLog,
-                                        BlockId::OakLeaves,
-                                    );
-                                } else {
+                    // Only generate trees if trunk is at least 1 block away from chunk edges
+                    let is_valid_tree_position = dx >= 1 && dx < CHUNK_SIZE - 1 && dz >= 1 && dz < CHUNK_SIZE - 1;
+                    
+                    if is_valid_tree_position {
+                        let tree_chance = rand::random::<f32>();
+                        match biome_type {
+                            BiomeType::Forest => {
+                                // High probability for trees in Forest
+                                if tree_chance < 0.06 && !chunk.map.contains_key(&above_surface_pos) {
+                                    if tree_chance < 0.01 {
+                                        generate_big_tree(
+                                            &mut chunk,
+                                            dx,
+                                            dy + 1,
+                                            dz,
+                                            BlockId::OakLog,
+                                            BlockId::OakLeaves,
+                                        );
+                                    } else {
+                                        generate_tree(
+                                            &mut chunk,
+                                            dx,
+                                            dy + 1,
+                                            dz,
+                                            BlockId::OakLog,
+                                            BlockId::OakLeaves,
+                                        );
+                                    }
+                                }
+                            }
+                            BiomeType::FlowerPlains | BiomeType::MediumMountain => {
+                                // Medium probability for trees in Flower Plains and Medium Mountain
+                                if tree_chance < 0.02 && !chunk.map.contains_key(&above_surface_pos) {
                                     generate_tree(
                                         &mut chunk,
                                         dx,
@@ -515,21 +533,8 @@ pub fn generate_chunk(chunk_pos: IVec3, seed: u32) -> ServerChunk {
                                     );
                                 }
                             }
+                            _ => {}
                         }
-                        BiomeType::FlowerPlains | BiomeType::MediumMountain => {
-                            // Medium probability for trees in Flower Plains and Medium Mountain
-                            if tree_chance < 0.02 && !chunk.map.contains_key(&above_surface_pos) {
-                                generate_tree(
-                                    &mut chunk,
-                                    dx,
-                                    dy + 1,
-                                    dz,
-                                    BlockId::OakLog,
-                                    BlockId::OakLeaves,
-                                );
-                            }
-                        }
-                        _ => {}
                     }
 
                     // Add cactus in Desert
