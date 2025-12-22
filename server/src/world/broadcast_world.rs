@@ -13,6 +13,9 @@ use shared::world::{
 use shared::{GameServerConfig, CHUNK_SIZE};
 use std::collections::HashMap;
 
+/// Maximum number of chunks to send to a client per update
+const MAX_CHUNKS_PER_UPDATE: usize = 50;
+
 pub fn broadcast_world_state(
     mut server: ResMut<RenetServer>,
     time: Res<ServerTime>,
@@ -99,7 +102,7 @@ fn get_world_map_chunks_to_send(
     }
 
     for c in active_chunks {
-        if map.len() >= 50 {
+        if map.len() >= MAX_CHUNKS_PER_UPDATE {
             break;
         }
 
@@ -159,12 +162,11 @@ pub fn get_all_active_chunks(
     let player_chunk_pos = world_position_to_chunk_position(requesting_player.position);
     let forward = requesting_player.camera_transform.forward();
 
-    // Only partially sort the chunks we'll actually use (first 50 for broadcast)
+    // Only partially sort the chunks we'll actually use
     // This significantly improves performance when there are many chunks
-    const MAX_CHUNKS_TO_SEND: usize = 50;
-    let sort_count = chunks.len().min(MAX_CHUNKS_TO_SEND);
+    let sort_count = chunks.len().min(MAX_CHUNKS_PER_UPDATE);
 
-    if sort_count > 0 && chunks.len() > 1 {
+    if chunks.len() > 1 {
         chunks.select_nth_unstable_by(sort_count - 1, |&a, &b| {
             let dir_a = (a - player_chunk_pos).as_vec3().normalize_or_zero();
             let dir_b = (b - player_chunk_pos).as_vec3().normalize_or_zero();
