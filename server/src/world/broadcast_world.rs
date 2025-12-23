@@ -16,7 +16,7 @@ use std::collections::HashMap;
 /// Maximum number of chunks to send to a client per update
 const MAX_CHUNKS_PER_UPDATE: usize = 50;
 
-// Chunk prioritization constants used by get_all_active_chunks and get_player_chunks_prioritized
+// Chunk prioritization constants for get_all_active_chunks
 /// Dot product threshold for considering a chunk as "in front" of the player.
 /// -0.3 allows a wider viewing angle (~108° from center vs 90° for 0.0).
 /// This ensures chunks slightly behind the player are still prioritized.
