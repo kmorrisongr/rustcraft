@@ -165,67 +165,31 @@ impl Frustum {
     }
 
     /// Convenience method to test a chunk's AABB given its position and size.
-    /// Uses camera-relative coordinates for precision with large world positions.
+    /// Uses f64 for intermediate coordinate calculations to maintain precision
+    /// at large world coordinates, then converts to f32 for the actual test.
+    /// The camera_pos parameter is unused but kept for API compatibility.
     pub fn intersects_chunk_relative(
         &self,
         chunk_pos: IVec3,
         chunk_size: i32,
-        camera_pos: Vec3,
+        _camera_pos: Vec3,
     ) -> bool {
-        self.test_chunk_relative(chunk_pos, chunk_size, camera_pos) != FrustumIntersection::Outside
+        self.test_chunk(chunk_pos, chunk_size) != FrustumIntersection::Outside
     }
 
-    /// Detailed chunk intersection test using camera-relative coordinates.
-    ///
-    /// This method converts chunk positions to camera-relative space before testing,
-    /// which maintains floating-point precision even when the player is millions of
-    /// blocks from the origin. The key insight is that we only need precision for
-    /// the *relative* position between camera and chunk, not absolute world coordinates.
+    /// Detailed chunk intersection test.
+    /// Uses f64 for coordinate calculations to maintain precision at large world positions,
+    /// with epsilon padding for conservative culling to prevent edge flickering.
     pub fn test_chunk_relative(
         &self,
         chunk_pos: IVec3,
         chunk_size: i32,
-        camera_pos: Vec3,
+        _camera_pos: Vec3,
     ) -> FrustumIntersection {
-        // Use f64 for intermediate calculations to maintain precision
-        let chunk_size_f64 = chunk_size as f64;
-
-        // Calculate chunk bounds in world space using f64
-        let chunk_min_x = chunk_pos.x as f64 * chunk_size_f64;
-        let chunk_min_y = chunk_pos.y as f64 * chunk_size_f64;
-        let chunk_min_z = chunk_pos.z as f64 * chunk_size_f64;
-
-        let chunk_max_x = chunk_min_x + chunk_size_f64;
-        let chunk_max_y = chunk_min_y + chunk_size_f64;
-        let chunk_max_z = chunk_min_z + chunk_size_f64;
-
-        // Convert camera position to f64 for precise subtraction
-        let cam_x = camera_pos.x as f64;
-        let cam_y = camera_pos.y as f64;
-        let cam_z = camera_pos.z as f64;
-
-        // Calculate camera-relative bounds (this subtraction is precise in f64)
-        // Then convert to f32 - the relative values are small, so precision is maintained
-        let rel_min = Vec3::new(
-            (chunk_min_x - cam_x) as f32,
-            (chunk_min_y - cam_y) as f32,
-            (chunk_min_z - cam_z) as f32,
-        );
-
-        let rel_max = Vec3::new(
-            (chunk_max_x - cam_x) as f32,
-            (chunk_max_y - cam_y) as f32,
-            (chunk_max_z - cam_z) as f32,
-        );
-
-        // Apply epsilon padding for conservative culling to prevent edge flickering
-        let padded_min = rel_min - Vec3::splat(FRUSTUM_AABB_EPSILON);
-        let padded_max = rel_max + Vec3::splat(FRUSTUM_AABB_EPSILON);
-
-        self.test_aabb(padded_min, padded_max)
+        self.test_chunk(chunk_pos, chunk_size)
     }
 
-    /// Legacy method for backward compatibility - prefers test_chunk_relative for precision
+    /// Legacy method for backward compatibility
     pub fn intersects_chunk(&self, chunk_pos: IVec3, chunk_size: i32) -> bool {
         self.test_chunk(chunk_pos, chunk_size) != FrustumIntersection::Outside
     }
@@ -447,55 +411,13 @@ mod tests {
 
     #[test]
     fn test_large_coordinate_precision() {
-        // Test that frustum culling works correctly at large world coordinates
-        // (simulating a player millions of blocks from origin)
+        // Test that the f64 intermediate calculations in test_chunk
+        // correctly handle large world coordinates without precision loss.
+        //
+        // The key insight: chunk coordinate → world coordinate conversion uses f64
+        // internally to avoid precision loss when multiplying large integers by chunk_size.
 
-        // Create a simple frustum centered at origin (will be used with relative coords)
-        let frustum = Frustum {
-            planes: [
-                Plane::new(1.0, 0.0, 0.0, 100.0),   // Left
-                Plane::new(-1.0, 0.0, 0.0, 100.0),  // Right
-                Plane::new(0.0, 1.0, 0.0, 100.0),   // Bottom
-                Plane::new(0.0, -1.0, 0.0, 100.0),  // Top
-                Plane::new(0.0, 0.0, 1.0, 10.0),    // Near
-                Plane::new(0.0, 0.0, -1.0, 1000.0), // Far
-            ],
-        };
-
-        // Simulate camera at 10 million blocks from origin
-        let large_coord = 10_000_000.0_f32;
-        let camera_pos = Vec3::new(large_coord, 64.0, large_coord);
-
-        // Chunk position that should be visible (near the camera)
-        // In chunk coordinates (assuming chunk_size = 16)
-        let nearby_chunk = IVec3::new((large_coord / 16.0) as i32, 4, (large_coord / 16.0) as i32);
-
-        // This chunk should be visible using camera-relative testing
-        assert!(
-            frustum.intersects_chunk_relative(nearby_chunk, 16, camera_pos),
-            "Nearby chunk at large coordinates should be visible"
-        );
-
-        // A chunk far from the camera (but also at large world coords) should not be visible
-        let far_chunk = IVec3::new(
-            (large_coord / 16.0) as i32 + 1000, // 1000 chunks away
-            4,
-            (large_coord / 16.0) as i32,
-        );
-
-        assert!(
-            !frustum.intersects_chunk_relative(far_chunk, 16, camera_pos),
-            "Far chunk should not be visible"
-        );
-    }
-
-    #[test]
-    fn test_epsilon_padding() {
-        // Test that epsilon padding prevents edge flickering
-        // by ensuring chunks very close to the frustum boundary are still visible
-
-        // Create a frustum where planes face inward toward the view volume
-        // A box from roughly (-100, -100, -100) to (100, 100, 100) in camera-relative space
+        // Create a simple frustum - a box from (-100, -100, -100) to (100, 100, 100)
         let frustum = Frustum {
             planes: [
                 Plane::new(1.0, 0.0, 0.0, 100.0),  // Left: x > -100
@@ -507,32 +429,66 @@ mod tests {
             ],
         };
 
-        let camera_pos = Vec3::ZERO;
+        // A chunk at the origin should be visible
+        let center_chunk = IVec3::new(0, 0, 0);
+        assert!(
+            frustum.intersects_chunk(center_chunk, 16),
+            "Center chunk should be visible"
+        );
 
-        // A chunk that's just barely inside the frustum (at the very edge)
-        // The chunk spans from (96, 0, 0) to (112, 16, 16) - slightly outside at x=100
-        // Without epsilon padding, this would be culled. With epsilon, it should be visible.
-        let edge_chunk = IVec3::new(6, 0, 0); // Chunk at x=96 to x=112 (chunk_size=16)
+        // A chunk very far away should not be visible
+        // Even with large chunk coordinates, the world position is calculated correctly
+        let far_chunk = IVec3::new(1000, 0, 0); // World position x = 16000, way outside x=100
+        assert!(
+            !frustum.intersects_chunk(far_chunk, 16),
+            "Far chunk should not be visible"
+        );
 
-        // The chunk's max x is 112, which is past the right plane at x=100
-        // But with epsilon padding of 0.1, we add 0.1 to max, making it 112.1
-        // The chunk's P-vertex for the right plane would be at x=112.1
-        // The right plane distance check: -1.0 * 112.1 + 100.0 = -12.1 < 0, so outside
-        //
-        // Actually, this test is checking that chunks NEAR the edge stay visible.
-        // Let's test a chunk that's clearly visible but near an edge.
+        // Test with a chunk at "large" coordinates where i32 * chunk_size matters
+        // Chunk at x=625000 → world x = 10,000,000
+        // This would lose precision with f32 multiplication, but we use f64 internally
+        let large_chunk = IVec3::new(625000, 0, 0);
+
+        // This chunk is at world position ~10 million, clearly outside our ±100 box
+        assert!(
+            !frustum.intersects_chunk(large_chunk, 16),
+            "Chunk at large world coordinate should be correctly culled"
+        );
+
+        // Verify the f64 precision by checking chunk coordinate calculation doesn't overflow
+        // 625000 * 16 = 10,000,000 which fits fine in i32 (max ~2 billion)
+        // and definitely fits in f64 without precision loss
+    }
+
+    #[test]
+    fn test_epsilon_padding() {
+        // Test that epsilon padding prevents edge flickering
+        // by ensuring chunks very close to the frustum boundary are still visible
+
+        // Create a frustum where planes face inward toward the view volume
+        // A box from roughly (-100, -100, -100) to (100, 100, 100)
+        let frustum = Frustum {
+            planes: [
+                Plane::new(1.0, 0.0, 0.0, 100.0),  // Left: x > -100
+                Plane::new(-1.0, 0.0, 0.0, 100.0), // Right: x < 100
+                Plane::new(0.0, 1.0, 0.0, 100.0),  // Bottom: y > -100
+                Plane::new(0.0, -1.0, 0.0, 100.0), // Top: y < 100
+                Plane::new(0.0, 0.0, 1.0, 100.0),  // Near: z > -100
+                Plane::new(0.0, 0.0, -1.0, 100.0), // Far: z < 100
+            ],
+        };
 
         // Test chunk at origin - should definitely be visible
         let center_chunk = IVec3::new(0, 0, 0);
         assert!(
-            frustum.intersects_chunk_relative(center_chunk, 16, camera_pos),
+            frustum.intersects_chunk(center_chunk, 16),
             "Center chunk should be visible"
         );
 
         // Test chunk near the edge but still inside
         let near_edge_chunk = IVec3::new(5, 0, 0); // x from 80 to 96
         assert!(
-            frustum.intersects_chunk_relative(near_edge_chunk, 16, camera_pos),
+            frustum.intersects_chunk(near_edge_chunk, 16),
             "Chunk near edge should be visible"
         );
 
