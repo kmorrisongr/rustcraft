@@ -16,6 +16,11 @@ use std::collections::HashMap;
 /// Maximum number of chunks to send to a client per update
 const MAX_CHUNKS_PER_UPDATE: usize = 50;
 
+// Scaling factor for chunk limit based on render distance
+// With the default render distance of 8, this gives 48 chunks per tick
+// The factor of 6 provides a good balance between initial load speed and bandwidth usage
+const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
+
 // Chunk prioritization constants for get_all_active_chunks
 /// Dot product threshold for considering a chunk as "in front" of the player.
 /// -0.3 allows a wider viewing angle (~108° from center vs 90° for 0.0).
@@ -134,8 +139,15 @@ fn get_world_map_chunks_to_send(
     // Send only chunks in render distance
     let mut map: HashMap<IVec3, ServerChunk> = HashMap::new();
 
+    // Scale chunk limit based on render distance to prevent bandwidth issues
+    // with larger render distances while maintaining good performance
+    // Use saturating multiplication to prevent overflow with very large render distances
+    let chunk_limit = broadcast_render_distance
+        .saturating_mul(CHUNKS_PER_RENDER_DISTANCE)
+        .min(MAX_CHUNKS_PER_UPDATE as i32) as usize;
+
     let active_chunks =
-        get_player_chunks_prioritized(player, broadcast_render_distance, MAX_CHUNKS_PER_UPDATE);
+        get_player_chunks_prioritized(player, broadcast_render_distance, chunk_limit);
 
     // First, handle chunks that need to be updated (re-sent due to modifications)
     for &chunk_pos in &chunks.chunks_to_update {
@@ -149,7 +161,7 @@ fn get_world_map_chunks_to_send(
 
     for c in active_chunks {
         // Should not be necessary due to prior generation, but double-check
-        if map.len() >= MAX_CHUNKS_PER_UPDATE {
+        if map.len() >= chunk_limit {
             break;
         }
 
