@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, Val};
+use bevy::ui::{AlignItems, Display, FlexDirection, JustifyContent, Node, UiRect, Val};
 
 // Common styles for buttons
 pub const NORMAL_BUTTON: Color = Color::srgb(0.3, 0.3, 0.3);
@@ -14,6 +14,11 @@ pub const BACKGROUND_COLOR: Color = Color::srgb(0.5, 0.5, 0.5);
 // Common text color
 pub const TEXT_COLOR: Color = Color::WHITE;
 
+/// Default font size for menu text
+pub const MENU_FONT_SIZE: f32 = 20.0;
+/// Default font size for chat text
+pub const CHAT_FONT_SIZE: f32 = 17.0;
+
 // Button styles
 pub fn big_button_style() -> Node {
     Node {
@@ -26,27 +31,6 @@ pub fn big_button_style() -> Node {
     }
 }
 
-// pub fn long_button_style() -> Node {
-//     Node {
-//         width: Val::Percent(80.0), // Wider than the standard button
-//         height: Val::Px(65.0),
-//         margin: UiRect::all(Val::Px(20.0)),
-//         justify_content: JustifyContent::Center,
-//         align_items: AlignItems::Center,
-//         ..Default::default()
-//     }
-// }
-
-// pub fn grid_button_style(grid_span: usize) -> Node {
-//     let mut style = big_button_style();
-
-//     // Convert `usize` to `u16` safely
-//     style.grid_column = GridPlacement::span(
-//         grid_span.try_into().expect("grid_span must fit into a u16"), // This ensures the value is safe for `u16`
-//     );
-//     style
-// }
-
 // Text styles
 pub fn text_font(font: Handle<Font>, font_size: f32) -> TextFont {
     TextFont {
@@ -56,18 +40,6 @@ pub fn text_font(font: Handle<Font>, font_size: f32) -> TextFont {
     }
 }
 
-// Styles for Nodes or Containers
-// pub fn container_style(flex_direction: FlexDirection) -> Node {
-//     Node {
-//         flex_direction,
-//         align_items: AlignItems::Center,
-//         justify_content: JustifyContent::Center,
-//         width: Val::Percent(100.0),
-//         height: Val::Percent(100.0),
-//         ..Default::default()
-//     }
-// }
-
 pub fn background_image_style() -> Node {
     Node {
         width: Val::Percent(100.0),
@@ -75,6 +47,55 @@ pub fn background_image_style() -> Node {
         align_items: AlignItems::Center,
         justify_content: JustifyContent::Center,
         flex_direction: FlexDirection::Column,
+        ..Default::default()
+    }
+}
+
+/// Common button style used in menu lists (solo, multi, etc.)
+/// Creates a centered flex column button with border
+pub fn menu_list_button_style() -> Node {
+    Node {
+        display: Display::Flex,
+        flex_direction: FlexDirection::Column,
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        border: UiRect::all(Val::Px(2.)),
+        height: Val::Px(40.0),
+        ..Default::default()
+    }
+}
+
+/// Button style for icon buttons in list items (play, delete, etc.)
+pub fn icon_button_style() -> Node {
+    Node {
+        display: Display::Flex,
+        flex_direction: FlexDirection::Column,
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        border: UiRect::all(Val::Px(2.)),
+        height: Val::Percent(80.),
+        ..Default::default()
+    }
+}
+
+/// Style for icon images within buttons
+pub fn icon_image_style() -> Node {
+    Node {
+        height: Val::Percent(100.),
+        ..Default::default()
+    }
+}
+
+/// Common style for list item rows (server entries, world entries)
+pub fn list_item_row_style() -> Node {
+    Node {
+        flex_direction: FlexDirection::Row,
+        align_items: AlignItems::Center,
+        column_gap: Val::Px(5.),
+        width: Val::Percent(100.),
+        height: Val::Vh(10.),
+        padding: UiRect::horizontal(Val::Percent(2.)),
+        border: UiRect::all(Val::Px(2.)),
         ..Default::default()
     }
 }
