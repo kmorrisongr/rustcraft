@@ -53,7 +53,7 @@ fn get_chunk_render_score(chunk_pos: IVec3, player_chunk_pos: IVec3, forward: Ve
     let direction_from_player = (chunk_pos - player_chunk_pos).as_vec3().normalize_or_zero();
     let direction_dot_product = forward.dot(direction_from_player);
     let distance_from_player = (chunk_pos - player_chunk_pos).length_squared();
-    
+
     // Add vertical distance penalty to prioritize chunks at player's Y level
     let y_distance = (chunk_pos.y - player_chunk_pos.y).abs();
     let vertical_penalty = y_distance as f32 * VERTICAL_DISTANCE_MULTIPLIER;
