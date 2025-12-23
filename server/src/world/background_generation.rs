@@ -4,13 +4,25 @@ use shared::world::{ServerWorldMap, WorldSeed};
 
 use crate::world::generation::generate_chunk;
 
-use super::broadcast_world::{get_all_active_chunks, BROADCAST_RENDER_DISTANCE};
+use super::broadcast_world::get_all_active_chunks;
+use shared::GameServerConfig;
 
 pub fn background_world_generation_system(
     mut world_map: ResMut<ServerWorldMap>,
     seed: Res<WorldSeed>,
+    config: Res<GameServerConfig>,
 ) {
-    let all_chunks = get_all_active_chunks(&world_map.players, BROADCAST_RENDER_DISTANCE);
+    // Get first player for chunk prioritization (or default if no players)
+    let first_player = world_map.players.values().next();
+    if first_player.is_none() {
+        return; // No players, no need to generate chunks
+    }
+
+    let all_chunks = get_all_active_chunks(
+        &world_map.players,
+        config.broadcast_render_distance,
+        first_player.unwrap(),
+    );
     let mut generated = 0;
     for c in all_chunks {
         let chunk = world_map.chunks.map.get(&c);

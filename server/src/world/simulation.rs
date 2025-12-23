@@ -6,7 +6,7 @@ use bevy_renet::renet::{ClientId, RenetServer};
 use log::info;
 use shared::{
     messages::{NetworkAction, PlayerFrameInput, PlayerUpdateEvent},
-    players::{simulation::simulate_player_actions, blocks::CallerType},
+    players::{blocks::CallerType, simulation::simulate_player_actions},
     world::{ServerWorldMap, WorldSeed},
 };
 
@@ -30,7 +30,12 @@ pub fn handle_player_inputs_system(
     let players = &mut world_map.players;
     let chunks = &mut world_map.chunks;
 
-    let active_chunks = get_all_active_chunks(players, 1);
+    // Get first player for chunk prioritization
+    let Some(first_player) = players.values().next() else {
+        return;
+    };
+
+    let active_chunks = get_all_active_chunks(players, 1, first_player);
     for c in active_chunks {
         let chunk = chunks.map.get(&c);
 
