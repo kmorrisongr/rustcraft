@@ -72,6 +72,9 @@ fn update_chunk(
         let new_entity = commands
             .spawn((
                 chunk_t,
+                // Chunks spawn as Visible to avoid pop-in artifacts. The frustum_cull_chunks_system
+                // will update visibility on the same frame (both run in PostUpdate), so out-of-view
+                // chunks are only visible for a single frame, which is imperceptible to players.
                 Visibility::Visible,
                 ChunkEntity {
                     chunk_pos: *chunk_pos,
