@@ -160,6 +160,7 @@ fn get_world_map_chunks_to_send(
     }
 
     for c in active_chunks {
+        // Should not be necessary due to prior generation, but double-check
         if map.len() >= chunk_limit {
             break;
         }
