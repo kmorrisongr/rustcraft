@@ -148,7 +148,7 @@ app.add_systems(Update, (
 
 ## Benefits
 
-1. **Performance:** Avoids expensive mesh generation for chunks not in view
+1. **Performance:** Avoids submitting and rendering chunk meshes that are outside the camera view, reducing GPU work
 2. **Scalability:** Performance improvement scales with view distance
 3. **Precision:** Normalized planes and double-precision chunk positions prevent culling errors
 4. **Efficiency:** P-vertex optimization minimizes per-chunk computation
