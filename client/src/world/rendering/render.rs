@@ -150,35 +150,28 @@ pub fn world_render_system(
         ));
 
         // Get camera info for priority calculation
-        let (camera_pos, camera_forward, frustum) = if let Ok((camera_transform, projection)) =
-            camera_query.single()
-        {
-            let view_matrix = camera_transform.compute_matrix().inverse();
-            let projection_matrix = match projection {
-                Projection::Perspective(persp) => persp.get_clip_from_view(),
-                Projection::Orthographic(ortho) => ortho.get_clip_from_view(),
-                Projection::Custom(custom) => custom.get_clip_from_view(),
-            };
-            let view_projection = projection_matrix * view_matrix;
-            let frustum = super::frustum::Frustum::from_view_projection_matrix(&view_projection);
+        let (camera_pos, camera_forward, frustum) = match camera_query.single() {
+            Ok((camera_transform, projection)) => {
+                let view_matrix = camera_transform.compute_matrix().inverse();
+                let projection_matrix = match projection {
+                    Projection::Perspective(persp) => persp.get_clip_from_view(),
+                    Projection::Orthographic(ortho) => ortho.get_clip_from_view(),
+                    Projection::Custom(custom) => custom.get_clip_from_view(),
+                };
+                let view_projection = projection_matrix * view_matrix;
+                let frustum =
+                    super::frustum::Frustum::from_view_projection_matrix(&view_projection);
 
-            // Camera forward is the negative Z axis in camera space
-            let forward = camera_transform.forward().as_vec3();
+                // Camera forward is the negative Z axis in camera space
+                let forward = camera_transform.forward().as_vec3();
 
-            (camera_transform.translation, forward, frustum)
-        } else {
-            // Fallback if camera not available
-            let default_frustum = super::frustum::Frustum {
-                planes: [
-                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
-                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
-                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
-                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
-                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
-                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
-                ],
-            };
-            (player_pos, Vec3::NEG_Z, default_frustum)
+                (camera_transform.translation, forward, frustum)
+            }
+            Err(_) => {
+                // If the camera is not available, skip frustum-based prioritization for now.
+                // This avoids constructing a degenerate fallback frustum with invalid planes.
+                return;
+            }
         };
 
         let mut chunks_to_reload = Vec::from_iter(chunks_to_reload);
