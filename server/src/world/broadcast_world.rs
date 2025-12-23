@@ -8,7 +8,8 @@ use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerId, ServerToClientMessage, WorldUpdate};
 use shared::players::Player;
 use shared::world::{
-    world_position_to_chunk_position, ServerChunk, ServerChunkWorldMap, ServerWorldMap,
+    world_position_to_chunk_position, BlockTransparency, ServerChunk, ServerChunkWorldMap,
+    ServerWorldMap,
 };
 use shared::{GameServerConfig, CHUNK_SIZE};
 use std::collections::HashMap;
@@ -170,10 +171,18 @@ fn get_world_map_chunks_to_send(
         }
     }
 
+    let player_chunk_pos = world_position_to_chunk_position(player.position);
+
     for c in active_chunks {
         // Should not be necessary due to prior generation, but double-check
         if map.len() >= chunk_limit {
             break;
+        }
+
+        // Check if the chunk is occluded by solid chunks between it and the player
+        // Do this before borrowing mutably to avoid borrow checker issues
+        if is_chunk_occluded(c, player_chunk_pos, &chunks.map) {
+            continue;
         }
 
         let chunk = chunks.map.get_mut(&c);
@@ -289,4 +298,78 @@ fn get_player_nearby_chunks_coords(
     }
 
     chunks
+}
+
+/// Check if a chunk is mostly opaque (can occlude other chunks)
+///
+/// A chunk is considered opaque if it has a high ratio of solid, non-transparent blocks.
+/// Water, flowers, and tall grass do not count as occluding.
+fn is_chunk_opaque(chunk: &ServerChunk) -> bool {
+    if chunk.map.is_empty() {
+        return false;
+    }
+
+    let mut opaque_count = 0;
+    let total_count = chunk.map.len();
+
+    for block_data in chunk.map.values() {
+        let transparency = block_data.id.get_visibility();
+        // Only solid blocks count as opaque; transparent, liquid, and decorations don't occlude
+        if transparency == BlockTransparency::Solid {
+            opaque_count += 1;
+        }
+    }
+
+    // Chunk is considered opaque if at least 50% of blocks are solid
+    // This threshold helps identify chunks that would visually block other chunks
+    opaque_count as f32 / total_count as f32 > 0.5
+}
+
+/// Check if a chunk is occluded by solid chunks between it and the player
+///
+/// Uses a simple raycast approach to check if there's an opaque chunk blocking
+/// the view from the player's position to the target chunk.
+fn is_chunk_occluded(
+    target_chunk: IVec3,
+    player_chunk: IVec3,
+    chunks: &HashMap<IVec3, ServerChunk>,
+) -> bool {
+    // Don't occlude the player's own chunk or immediately adjacent chunks
+    let distance = (target_chunk - player_chunk).length_squared();
+    if distance <= 2 {
+        return false;
+    }
+
+    // Direction from player to target chunk
+    let direction = (target_chunk - player_chunk).as_vec3().normalize_or_zero();
+    if direction == Vec3::ZERO {
+        return false;
+    }
+
+    // Step along the ray from player to target chunk
+    let max_steps = (target_chunk - player_chunk).abs().max_element() as usize;
+    
+    for step in 1..max_steps {
+        let t = step as f32 / max_steps as f32;
+        let ray_pos = player_chunk.as_vec3() + direction * t * (target_chunk - player_chunk).as_vec3().length();
+        let chunk_pos = IVec3::new(
+            ray_pos.x.round() as i32,
+            ray_pos.y.round() as i32,
+            ray_pos.z.round() as i32,
+        );
+
+        // Skip if this is the target chunk itself
+        if chunk_pos == target_chunk {
+            continue;
+        }
+
+        // Check if there's an opaque chunk at this position
+        if let Some(chunk) = chunks.get(&chunk_pos) {
+            if is_chunk_opaque(chunk) {
+                return true;
+            }
+        }
+    }
+
+    false
 }
