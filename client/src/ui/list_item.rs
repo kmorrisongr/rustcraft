@@ -68,21 +68,30 @@ pub fn spawn_list_item_row(commands: &mut Commands, config: ListItemConfig) -> L
         .id();
 
     // Spawn secondary text if provided
-    if let Some(secondary) = config.secondary_text {
-        commands.spawn((
-            Text::new(secondary),
-            TextFont {
-                font: config.asset_server.load(super::assets::FONT_PATH),
-                font_size: 15.,
-                ..Default::default()
-            },
-            secondary_text_color(),
-        ));
+    let secondary_txt = if let Some(secondary) = config.secondary_text {
+        Some(
+            commands
+                .spawn((
+                    Text::new(secondary),
+                    TextFont {
+                        font: config.asset_server.load(super::assets::FONT_PATH),
+                        font_size: 15.,
+                        ..Default::default()
+                    },
+                    TextColor(Color::srgb(0.4, 0.4, 0.4)),
+                ))
+                .id(),
+        )
+    } else {
+        None
+    };
+
+    let mut children = vec![play_btn, delete_btn, txt];
+    if let Some(sec) = secondary_txt {
+        children.push(sec);
     }
 
-    commands
-        .entity(row)
-        .add_children(&[play_btn, delete_btn, txt]);
+    commands.entity(row).add_children(&children);
 
     ListItemEntities {
         row,
