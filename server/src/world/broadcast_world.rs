@@ -13,13 +13,60 @@ use shared::world::{
 use shared::{GameServerConfig, CHUNK_SIZE};
 use std::collections::HashMap;
 
-// Maximum number of chunks to send per tick per player
-// This cap prevents excessive bandwidth usage even with very large render distances
-const MAX_CHUNKS_PER_TICK: i32 = 50;
+/// Maximum number of chunks to send to a client per update
+const MAX_CHUNKS_PER_UPDATE: usize = 50;
+
 // Scaling factor for chunk limit based on render distance
 // With the default render distance of 8, this gives 48 chunks per tick
 // The factor of 6 provides a good balance between initial load speed and bandwidth usage
 const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
+
+// Chunk prioritization constants for get_all_active_chunks
+/// Dot product threshold for considering a chunk as "in front" of the player.
+/// -0.3 allows a wider viewing angle (~108° from center vs 90° for 0.0).
+/// This ensures chunks slightly behind the player are still prioritized.
+const FORWARD_DOT_THRESHOLD: f32 = -0.3;
+
+/// Multiplier for view direction bias when chunks are in front of the player.
+/// A value of 500.0 creates a smooth falloff for peripheral chunks,
+/// balancing between distance and view direction importance.
+const VIEW_DIRECTION_MULTIPLIER: f32 = 500.0;
+
+/// Penalty added to chunks behind the player to deprioritize them.
+/// 5000.0 creates a noticeable but not extreme deprioritization,
+/// allowing chunks behind to still be loaded but with lower priority.
+const BEHIND_PLAYER_PENALTY: f32 = 5000.0;
+
+/// Calculate a score for chunk prioritization based on distance and view direction.
+/// # Arguments
+/// * `chunk_pos` - Position of the chunk being evaluated.
+/// * `player_chunk_pos` - Chunk the player is currently in.
+/// * `forward` - Player's forward view direction.
+fn get_chunk_render_score(chunk_pos: IVec3, player_chunk_pos: IVec3, forward: Vec3) -> f32 {
+    let direction_from_player = (chunk_pos - player_chunk_pos).as_vec3().normalize_or_zero();
+    let direction_dot_product = forward.dot(direction_from_player);
+    let distance_from_player = (chunk_pos - player_chunk_pos).length_squared();
+
+    if direction_dot_product > FORWARD_DOT_THRESHOLD {
+        distance_from_player as f32 - (direction_dot_product * VIEW_DIRECTION_MULTIPLIER)
+    } else {
+        distance_from_player as f32 + BEHIND_PLAYER_PENALTY
+    }
+}
+
+fn order_chunks_by_render_score(
+    a: &IVec3,
+    b: &IVec3,
+    player_chunk_pos: IVec3,
+    forward: Vec3,
+) -> std::cmp::Ordering {
+    let score_a = get_chunk_render_score(*a, player_chunk_pos, forward);
+    let score_b = get_chunk_render_score(*b, player_chunk_pos, forward);
+
+    score_a
+        .partial_cmp(&score_b)
+        .unwrap_or(std::cmp::Ordering::Equal)
+}
 
 pub fn broadcast_world_state(
     mut server: ResMut<RenetServer>,
@@ -64,7 +111,6 @@ pub fn broadcast_world_state(
             time: ts,
             new_map: get_world_map_chunks_to_send(
                 chunks,
-                players,
                 &player,
                 config.broadcast_render_distance,
             ),
@@ -87,14 +133,21 @@ pub fn broadcast_world_state(
 
 fn get_world_map_chunks_to_send(
     chunks: &mut ServerChunkWorldMap,
-    players: &HashMap<PlayerId, Player>,
     player: &Player,
     broadcast_render_distance: i32,
 ) -> HashMap<IVec3, ServerChunk> {
     // Send only chunks in render distance
     let mut map: HashMap<IVec3, ServerChunk> = HashMap::new();
 
-    let active_chunks = get_all_active_chunks(players, broadcast_render_distance, player);
+    // Scale chunk limit based on render distance to prevent bandwidth issues
+    // with larger render distances while maintaining good performance
+    // Use saturating multiplication to prevent overflow with very large render distances
+    let chunk_limit = broadcast_render_distance
+        .saturating_mul(CHUNKS_PER_RENDER_DISTANCE)
+        .min(MAX_CHUNKS_PER_UPDATE as i32) as usize;
+
+    let active_chunks =
+        get_player_chunks_prioritized(player, broadcast_render_distance, chunk_limit);
 
     // First, handle chunks that need to be updated (re-sent due to modifications)
     for &chunk_pos in &chunks.chunks_to_update {
@@ -105,13 +158,6 @@ fn get_world_map_chunks_to_send(
             }
         }
     }
-
-    // Scale chunk limit based on render distance to prevent bandwidth issues
-    // with larger render distances while maintaining good performance
-    // Use saturating multiplication to prevent overflow with very large render distances
-    let chunk_limit = broadcast_render_distance
-        .saturating_mul(CHUNKS_PER_RENDER_DISTANCE)
-        .min(MAX_CHUNKS_PER_TICK) as usize;
 
     for c in active_chunks {
         if map.len() >= chunk_limit {
@@ -151,6 +197,27 @@ fn get_items_stacks() -> Vec<ItemStackUpdateEvent> {
     //     .collect()
 }
 
+/// Get chunk coordinates around a player prioritized by view direction
+///
+/// Resulting vector is partially sorted to prioritize chunks in front of the player
+/// up to max_chunks.
+fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize) -> Vec<IVec3> {
+    let player_chunk_pos = world_position_to_chunk_position(player.position);
+    let mut chunks = get_player_nearby_chunks_coords(player_chunk_pos, radius);
+
+    // Prioritize chunks based on player's view direction
+    let forward = player.camera_transform.forward();
+
+    let sort_count = chunks.len().min(max_chunks);
+    if chunks.len() > 1 {
+        chunks.select_nth_unstable_by(sort_count - 1, |a, b| {
+            order_chunks_by_render_score(a, b, player_chunk_pos, *forward)
+        });
+    }
+
+    chunks
+}
+
 pub fn get_all_active_chunks(
     players: &HashMap<PlayerId, Player>,
     radius: i32,
@@ -174,41 +241,22 @@ pub fn get_all_active_chunks(
     let player_chunk_pos = world_position_to_chunk_position(requesting_player.position);
     let forward = requesting_player.camera_transform.forward();
 
-    chunks.sort_by(|&a, &b| {
-        let dir_a = (a - player_chunk_pos).as_vec3().normalize_or_zero();
-        let dir_b = (b - player_chunk_pos).as_vec3().normalize_or_zero();
+    // Only partially sort the chunks we'll actually use
+    // This significantly improves performance when there are many chunks
+    let sort_count = chunks.len().min(MAX_CHUNKS_PER_UPDATE);
 
-        // Calculate dot product with forward vector (higher = more in front)
-        let dot_a = forward.dot(dir_a);
-        let dot_b = forward.dot(dir_b);
-
-        // Distance from player
-        let dist_a = (a - player_chunk_pos).length_squared();
-        let dist_b = (b - player_chunk_pos).length_squared();
-
-        // Prioritize: closer chunks first, but favor chunks in view direction
-        // Using threshold of -0.3 allows wider angle (~108° from center vs 90°)
-        // Lower multiplier (500 vs 1000) creates smoother falloff for peripheral chunks
-        let score_a = if dot_a > -0.3 {
-            dist_a as f32 - (dot_a * 500.0) // In/near view: closer = lower score
-        } else {
-            dist_a as f32 + 5000.0 // Behind: higher score but not extreme
-        };
-
-        let score_b = if dot_b > -0.3 {
-            dist_b as f32 - (dot_b * 500.0)
-        } else {
-            dist_b as f32 + 5000.0
-        };
-
-        score_a
-            .partial_cmp(&score_b)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    if chunks.len() > 1 {
+        chunks.select_nth_unstable_by(sort_count - 1, |a, b| {
+            order_chunks_by_render_score(a, b, player_chunk_pos, *forward)
+        });
+    }
 
     chunks
 }
 
+/// Get all chunk coordinates within a spherical radius around the player's chunk position
+///
+/// Resulting vector is not sorted in any way.
 fn get_player_nearby_chunks_coords(
     player_chunk_position: IVec3,
     render_distance: i32,
@@ -227,9 +275,6 @@ fn get_player_nearby_chunks_coords(
             }
         }
     }
-
-    // let's sort by distance to player
-    chunks.sort_by_key(|&c| (c - player_chunk_position).length_squared());
 
     chunks
 }
