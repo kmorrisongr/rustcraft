@@ -37,6 +37,13 @@ const VIEW_DIRECTION_MULTIPLIER: f32 = 500.0;
 /// allowing chunks behind to still be loaded but with lower priority.
 const BEHIND_PLAYER_PENALTY: f32 = 5000.0;
 
+/// Multiplier for vertical distance penalty when prioritizing chunks.
+/// A value of 100.0 ensures chunks at the player's Y level are prioritized over
+/// chunks far above or below, preventing underground chunks from rendering first
+/// when the player is above ground. This creates a top-down rendering preference
+/// relative to the player's vertical position.
+const VERTICAL_DISTANCE_MULTIPLIER: f32 = 100.0;
+
 /// Calculate a score for chunk prioritization based on distance and view direction.
 /// # Arguments
 /// * `chunk_pos` - Position of the chunk being evaluated.
@@ -47,10 +54,14 @@ fn get_chunk_render_score(chunk_pos: IVec3, player_chunk_pos: IVec3, forward: Ve
     let direction_dot_product = forward.dot(direction_from_player);
     let distance_from_player = (chunk_pos - player_chunk_pos).length_squared();
 
+    // Add vertical distance penalty to prioritize chunks at player's Y level
+    let y_distance = (chunk_pos.y - player_chunk_pos.y).abs();
+    let vertical_penalty = y_distance as f32 * VERTICAL_DISTANCE_MULTIPLIER;
+
     if direction_dot_product > FORWARD_DOT_THRESHOLD {
-        distance_from_player as f32 - (direction_dot_product * VIEW_DIRECTION_MULTIPLIER)
+        distance_from_player as f32 - (direction_dot_product * VIEW_DIRECTION_MULTIPLIER) + vertical_penalty
     } else {
-        distance_from_player as f32 + BEHIND_PLAYER_PENALTY
+        distance_from_player as f32 + BEHIND_PLAYER_PENALTY + vertical_penalty
     }
 }
 
