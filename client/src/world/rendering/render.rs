@@ -102,7 +102,8 @@ pub fn world_render_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     mut first_chunk_received: ResMut<FirstChunkReceived>,
-    player_pos: Query<&Transform, With<CurrentPlayerMarker>>,
+    player_query: Query<&Transform, With<CurrentPlayerMarker>>,
+    camera_query: Query<(&Transform, &Projection), With<Camera3d>>,
 ) {
     for event in ev_render.read() {
         queued_events.events.insert(*event);
@@ -140,22 +141,70 @@ pub fn world_render_system(
             }
         }
 
-        let player_pos = player_pos
-            .single()
-            .expect("Player should exist")
-            .translation;
+        let player_transform = player_query.single().expect("Player should exist");
+        let player_pos = player_transform.translation;
         let player_chunk_pos = global_block_to_chunk_pos(&IVec3::new(
             player_pos.x as i32,
             player_pos.y as i32,
             player_pos.z as i32,
         ));
 
+        // Get camera info for priority calculation
+        let (camera_pos, camera_forward, frustum) = if let Ok((camera_transform, projection)) =
+            camera_query.single()
+        {
+            let view_matrix = camera_transform.compute_matrix().inverse();
+            let projection_matrix = match projection {
+                Projection::Perspective(persp) => persp.get_clip_from_view(),
+                Projection::Orthographic(ortho) => ortho.get_clip_from_view(),
+                Projection::Custom(custom) => custom.get_clip_from_view(),
+            };
+            let view_projection = projection_matrix * view_matrix;
+            let frustum = super::frustum::Frustum::from_view_projection_matrix(&view_projection);
+
+            // Camera forward is the negative Z axis in camera space
+            let forward = camera_transform.forward().as_vec3();
+
+            (camera_transform.translation, forward, frustum)
+        } else {
+            // Fallback if camera not available
+            let default_frustum = super::frustum::Frustum {
+                planes: [
+                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
+                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
+                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
+                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
+                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
+                    super::frustum::Plane::new(0.0, 0.0, 0.0, 1000000.0),
+                ],
+            };
+            (player_pos, Vec3::NEG_Z, default_frustum)
+        };
+
         let mut chunks_to_reload = Vec::from_iter(chunks_to_reload);
 
-        // Sort chunks by distance to player - closer chunks are meshed first
+        // Sort chunks by priority score (lower = higher priority)
+        // This ensures: player chunk first, then visible chunks in front, then partial, then behind
         chunks_to_reload.sort_by(|a, b| {
-            a.distance_squared(player_chunk_pos)
-                .cmp(&b.distance_squared(player_chunk_pos))
+            let priority_a = super::frustum::calculate_chunk_priority(
+                *a,
+                CHUNK_SIZE,
+                camera_pos,
+                camera_forward,
+                &frustum,
+                player_chunk_pos,
+            );
+            let priority_b = super::frustum::calculate_chunk_priority(
+                *b,
+                CHUNK_SIZE,
+                camera_pos,
+                camera_forward,
+                &frustum,
+                player_chunk_pos,
+            );
+            priority_a
+                .partial_cmp(&priority_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         for pos in chunks_to_reload {
