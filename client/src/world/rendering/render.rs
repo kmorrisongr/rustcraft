@@ -6,6 +6,7 @@ use bevy::{
     asset::Assets,
     math::IVec3,
     prelude::*,
+    render::camera::CameraProjection,
     tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
 };
 use shared::{
@@ -21,6 +22,12 @@ use crate::{
 use crate::world::{ClientChunk, ClientWorldMap};
 
 use super::meshing::ChunkMeshResponse;
+
+/// Marker component for chunk entities to enable frustum culling visibility updates
+#[derive(Component)]
+pub struct ChunkEntity {
+    pub chunk_pos: IVec3,
+}
 
 #[derive(Debug)]
 pub struct MeshingTask {
@@ -63,7 +70,13 @@ fn update_chunk(
         );
 
         let new_entity = commands
-            .spawn((chunk_t, Visibility::Visible))
+            .spawn((
+                chunk_t,
+                Visibility::Visible,
+                ChunkEntity {
+                    chunk_pos: *chunk_pos,
+                },
+            ))
             .with_children(|root| {
                 if let Some(new_solid_mesh) = new_meshes.solid_mesh {
                     root.spawn((
@@ -131,7 +144,7 @@ pub fn world_render_system(
             .single()
             .expect("Player should exist")
             .translation;
-        let player_pos = global_block_to_chunk_pos(&IVec3::new(
+        let player_chunk_pos = global_block_to_chunk_pos(&IVec3::new(
             player_pos.x as i32,
             player_pos.y as i32,
             player_pos.z as i32,
@@ -139,9 +152,10 @@ pub fn world_render_system(
 
         let mut chunks_to_reload = Vec::from_iter(chunks_to_reload);
 
+        // Sort chunks by distance to player - closer chunks are meshed first
         chunks_to_reload.sort_by(|a, b| {
-            (a.distance_squared(player_pos) - b.distance_squared(player_pos))
-                .cmp(&a.distance_squared(player_pos))
+            a.distance_squared(player_chunk_pos)
+                .cmp(&b.distance_squared(player_chunk_pos))
         });
 
         for pos in chunks_to_reload {
@@ -204,4 +218,39 @@ pub fn world_render_system(
     });
 
     queued_events.events.clear();
+}
+
+/// System to update chunk visibility based on view frustum culling.
+/// This runs every frame to show/hide chunks based on the current camera view.
+pub fn frustum_cull_chunks_system(
+    camera_query: Query<(&Transform, &Projection), With<Camera3d>>,
+    mut chunk_query: Query<(&ChunkEntity, &mut Visibility)>,
+) {
+    // Get the camera transform and projection
+    let Ok((camera_transform, projection)) = camera_query.single() else {
+        return;
+    };
+
+    // Build the view-projection matrix
+    let view_matrix = camera_transform.compute_matrix().inverse();
+    let projection_matrix = match projection {
+        Projection::Perspective(persp) => persp.get_clip_from_view(),
+        Projection::Orthographic(ortho) => ortho.get_clip_from_view(),
+        Projection::Custom(custom) => custom.get_clip_from_view(),
+    };
+    let view_projection = projection_matrix * view_matrix;
+
+    // Extract the frustum
+    let frustum = super::frustum::Frustum::from_view_projection_matrix(&view_projection);
+
+    // Update visibility for each chunk entity
+    for (chunk_entity, mut visibility) in chunk_query.iter_mut() {
+        let is_visible = frustum.intersects_chunk(chunk_entity.chunk_pos, CHUNK_SIZE);
+
+        *visibility = if is_visible {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
 }

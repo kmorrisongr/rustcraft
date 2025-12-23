@@ -1,3 +1,5 @@
+pub mod frustum;
+pub mod frustum_debug;
 pub mod materials;
 pub mod meshing;
 pub mod render;
