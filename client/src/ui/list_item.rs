@@ -12,7 +12,7 @@ use super::{
 
 /// Configuration for building a list item row
 pub struct ListItemConfig<'a> {
-    pub asset_server: &'a Res<'a, AssetServer>,
+    pub asset_server: &'a Res<AssetServer>,
     pub primary_text: String,
     pub secondary_text: Option<String>,
 }
