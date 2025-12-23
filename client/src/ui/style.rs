@@ -11,8 +11,9 @@ pub const PRESSED_BUTTON: Color = Color::srgb(0.2, 0.2, 0.2);
 pub const BACKGROUND_COLOR: Color = Color::srgb(0.5, 0.5, 0.5);
 // pub const BUTTON_BORDER_COLOR: Color = Color::BLACK;
 
-// Common text color
+// Common text colors
 pub const TEXT_COLOR: Color = Color::WHITE;
+pub const SECONDARY_TEXT_COLOR: Color = Color::srgb(0.4, 0.4, 0.4);
 
 /// Default font size for menu text
 pub const MENU_FONT_SIZE: f32 = 20.0;
