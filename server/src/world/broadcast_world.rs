@@ -134,7 +134,8 @@ fn get_world_map_chunks_to_send(
     // Send only chunks in render distance
     let mut map: HashMap<IVec3, ServerChunk> = HashMap::new();
 
-    let active_chunks = get_player_chunks_prioritized(player, broadcast_render_distance);
+    let active_chunks =
+        get_player_chunks_prioritized(player, broadcast_render_distance, MAX_CHUNKS_PER_UPDATE);
 
     // First, handle chunks that need to be updated (re-sent due to modifications)
     for &chunk_pos in &chunks.chunks_to_update {
@@ -147,6 +148,7 @@ fn get_world_map_chunks_to_send(
     }
 
     for c in active_chunks {
+        // Should not be necessary due to prior generation, but double-check
         if map.len() >= MAX_CHUNKS_PER_UPDATE {
             break;
         }
@@ -184,14 +186,23 @@ fn get_items_stacks() -> Vec<ItemStackUpdateEvent> {
     //     .collect()
 }
 
-fn get_player_chunks_prioritized(player: &Player, radius: i32) -> Vec<IVec3> {
+/// Get chunk coordinates around a player prioritized by view direction
+///
+/// Resulting vector is partially sorted to prioritize chunks in front of the player
+/// up to max_chunks.
+fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize) -> Vec<IVec3> {
     let player_chunk_pos = world_position_to_chunk_position(player.position);
     let mut chunks = get_player_nearby_chunks_coords(player_chunk_pos, radius);
 
     // Prioritize chunks based on player's view direction
     let forward = player.camera_transform.forward();
 
-    chunks.sort_by(|a, b| order_chunks_by_render_score(a, b, player_chunk_pos, *forward));
+    let sort_count = chunks.len().min(max_chunks);
+    if chunks.len() > 1 {
+        chunks.select_nth_unstable_by(sort_count - 1, |a, b| {
+            order_chunks_by_render_score(a, b, player_chunk_pos, *forward)
+        });
+    }
 
     chunks
 }
