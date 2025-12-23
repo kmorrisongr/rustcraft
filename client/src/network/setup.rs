@@ -4,7 +4,6 @@ use bevy_renet::netcode::{
 };
 use bevy_renet::{renet::RenetClient, RenetClientPlugin};
 use rand::Rng;
-use shared::constants::DEFAULT_RENDER_DISTANCE;
 use shared::messages::mob::MobUpdateEvent;
 use shared::{get_shared_renet_config, GameServerConfig, STC_AUTH_CHANNEL};
 
@@ -125,7 +124,7 @@ pub fn launch_local_server_system(
                 GameServerConfig {
                     world_name: world_name_clone,
                     is_solo: true,
-                    broadcast_render_distance: DEFAULT_RENDER_DISTANCE,
+                    broadcast_render_distance: 8,
                 },
                 cloned_paths,
             );
