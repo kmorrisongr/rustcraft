@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::style::{CHAT_FONT_SIZE, MENU_FONT_SIZE, SECONDARY_TEXT_COLOR, TEXT_COLOR};
+use super::style::{CHAT_FONT_SIZE, MENU_FONT_SIZE, SECONDARY_FONT_SIZE, SECONDARY_TEXT_COLOR, TEXT_COLOR};
 
 // Path to fonts
 pub const FONT_PATH: &str = "./fonts/RustCraftRegular-Bmg3.otf";
@@ -71,6 +71,11 @@ pub fn menu_text_font(asset_server: &Res<AssetServer>) -> TextFont {
 /// Creates a TextFont for chat text (17px)
 pub fn chat_text_font(asset_server: &Res<AssetServer>) -> TextFont {
     game_text_font(asset_server, CHAT_FONT_SIZE)
+}
+
+/// Creates a TextFont for secondary text (15px)
+pub fn secondary_text_font(asset_server: &Res<AssetServer>) -> TextFont {
+    game_text_font(asset_server, SECONDARY_FONT_SIZE)
 }
 
 /// Creates a white TextColor (most common text color)

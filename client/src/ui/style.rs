@@ -19,6 +19,8 @@ pub const SECONDARY_TEXT_COLOR: Color = Color::srgb(0.4, 0.4, 0.4);
 pub const MENU_FONT_SIZE: f32 = 20.0;
 /// Default font size for chat text
 pub const CHAT_FONT_SIZE: f32 = 17.0;
+/// Default font size for secondary text
+pub const SECONDARY_FONT_SIZE: f32 = 15.0;
 
 // Button styles
 pub fn big_button_style() -> Node {
