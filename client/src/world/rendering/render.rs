@@ -271,6 +271,7 @@ pub fn world_render_system(
 
 /// System to update chunk visibility based on view frustum culling.
 /// This runs every frame to show/hide chunks based on the current camera view.
+/// Uses camera-relative coordinates for precision with large world positions.
 pub fn frustum_cull_chunks_system(
     camera_query: Query<(&Transform, &Projection), With<Camera3d>>,
     mut chunk_query: Query<(&ChunkEntity, &mut Visibility)>,
@@ -280,21 +281,29 @@ pub fn frustum_cull_chunks_system(
         return;
     };
 
-    // Build the view-projection matrix
-    let view_matrix = camera_transform.compute_matrix().inverse();
+    let camera_pos = camera_transform.translation;
+
+    // Build the view-projection matrix for camera-relative frustum
+    // We use an identity translation for the view matrix since we'll test
+    // chunks in camera-relative space
+    let camera_rotation = camera_transform.rotation;
+    let view_matrix_relative =
+        Mat4::from_rotation_translation(camera_rotation, Vec3::ZERO).inverse();
+
     let projection_matrix = match projection {
         Projection::Perspective(persp) => persp.get_clip_from_view(),
         Projection::Orthographic(ortho) => ortho.get_clip_from_view(),
         Projection::Custom(custom) => custom.get_clip_from_view(),
     };
-    let view_projection = projection_matrix * view_matrix;
+    let view_projection = projection_matrix * view_matrix_relative;
 
-    // Extract the frustum
+    // Extract the frustum (now in camera-relative space)
     let frustum = super::frustum::Frustum::from_view_projection_matrix(&view_projection);
 
-    // Update visibility for each chunk entity
+    // Update visibility for each chunk entity using camera-relative testing
     for (chunk_entity, mut visibility) in chunk_query.iter_mut() {
-        let is_visible = frustum.intersects_chunk(chunk_entity.chunk_pos, CHUNK_SIZE);
+        let is_visible =
+            frustum.intersects_chunk_relative(chunk_entity.chunk_pos, CHUNK_SIZE, camera_pos);
 
         *visibility = if is_visible {
             Visibility::Visible
