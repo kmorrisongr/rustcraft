@@ -292,9 +292,8 @@ pub fn frustum_cull_chunks_system(
     // Extract the frustum in world space
     let frustum = super::frustum::Frustum::from_view_projection_matrix(&view_projection);
 
-    // Near-field optimization threshold
-    // Chunks within this radius are always rendered without frustum culling.
-    // Rationale: 48 blocks (3 chunks) represents the immediate vicinity where:
+    // Near-field optimization threshold: Chunks within this radius are always rendered
+    // without frustum culling. Rationale for 48 blocks (3 chunks):
     // 1. Chunks are very likely to be visible regardless of view direction
     // 2. CPU cost of frustum testing exceeds the benefit of potential culling
     // 3. Corresponds roughly to the player's immediate interaction radius

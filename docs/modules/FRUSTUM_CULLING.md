@@ -144,13 +144,13 @@ let is_visible = if distance_sq < NEAR_FIELD_DISTANCE_SQ {
 
 **Rationale for 48-block (3-chunk) threshold:**
 
-1. **High visibility likelihood:** Chunks within 3 chunks (48 blocks) of the camera are almost always visible regardless of view direction, making frustum testing redundant.
+1. **High visibility likelihood:** Chunks within 3 chunks (48 blocks) of the camera's position are almost always visible regardless of view direction, making frustum testing redundant.
 
 2. **CPU cost vs. benefit trade-off:** The computational cost of performing frustum intersection tests on these very close chunks typically exceeds the GPU savings from potentially culling them (which rarely happens).
 
 3. **Player interaction radius:** This distance roughly corresponds to the player's immediate interaction and perception range, where visual continuity is most critical.
 
-4. **Empirical consideration:** A 90° field of view covers approximately ±45° from center. At this angle, chunks 3 units away laterally are still within view. Testing them wastes CPU cycles for minimal benefit.
+4. **Empirical consideration:** A typical 90° horizontal field of view covers approximately ±45° from center. At this angle, chunks 3 units away laterally from the camera are still likely within view (exact visibility depends on camera orientation and position within the chunk). Testing them wastes CPU cycles for minimal benefit.
 
 **Performance impact:** This optimization reduces CPU overhead by ~5-10% in typical gameplay scenarios where the player is on the surface or in open areas, with negligible effect on GPU workload since these chunks would be rendered anyway.
 
