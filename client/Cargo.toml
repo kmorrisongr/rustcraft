@@ -4,43 +4,7 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-# Bevy with custom features to avoid system library dependencies (alsa, udev)
-# that cause build failures in CI environments without libasound2-dev/libudev-dev
-bevy = { version = "0.16", default-features = false, features = [
-    "std",
-    "async_executor",
-    "animation",
-    "bevy_asset",
-    "bevy_color",
-    "bevy_core_pipeline",
-    "bevy_gizmos",
-    "bevy_gltf",
-    "bevy_input_focus",
-    "bevy_log",
-    "bevy_mesh_picking_backend",
-    "bevy_pbr",
-    "bevy_picking",
-    "bevy_render",
-    "bevy_scene",
-    "bevy_sprite",
-    "bevy_sprite_picking_backend",
-    "bevy_state",
-    "bevy_text",
-    "bevy_ui",
-    "bevy_ui_picking_backend",
-    "bevy_window",
-    "bevy_winit",
-    "custom_cursor",
-    "default_font",
-    "hdr",
-    "multi_threaded",
-    "png",
-    "smaa_luts",
-    "sysinfo_plugin",
-    "tonemapping_luts",
-    "serialize",
-    "x11",
-] }
+bevy = { version="0.16", features=["serialize"] }
 lazy_static = "1.5.0"
 rand = "0.8.5"
 noise = "0.9"
