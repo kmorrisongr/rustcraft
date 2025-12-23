@@ -123,6 +123,10 @@ impl Frustum {
 
     /// Tests if an axis-aligned bounding box intersects or is inside the frustum
     /// Returns detailed intersection status (Outside, Intersects, or Inside)
+    ///
+    /// This is a hot-path function called for every chunk each frame.
+    /// No heap allocations occur - all data is stack-based.
+    #[inline]
     pub fn test_aabb(&self, min: Vec3, max: Vec3) -> FrustumIntersection {
         let mut all_inside = true;
 
@@ -160,6 +164,7 @@ impl Frustum {
     }
 
     /// Simple boolean test - returns true if AABB is at least partially visible
+    #[inline]
     pub fn intersects_aabb(&self, min: Vec3, max: Vec3) -> bool {
         self.test_aabb(min, max) != FrustumIntersection::Outside
     }
@@ -168,6 +173,7 @@ impl Frustum {
     /// Uses f64 for intermediate coordinate calculations to maintain precision
     /// at large world coordinates, then converts to f32 for the actual test.
     /// The camera_pos parameter is unused but kept for API compatibility.
+    #[inline]
     pub fn intersects_chunk_relative(
         &self,
         chunk_pos: IVec3,
@@ -180,6 +186,7 @@ impl Frustum {
     /// Detailed chunk intersection test.
     /// Uses f64 for coordinate calculations to maintain precision at large world positions,
     /// with epsilon padding for conservative culling to prevent edge flickering.
+    #[inline]
     pub fn test_chunk_relative(
         &self,
         chunk_pos: IVec3,
@@ -190,11 +197,17 @@ impl Frustum {
     }
 
     /// Legacy method for backward compatibility
+    #[inline]
     pub fn intersects_chunk(&self, chunk_pos: IVec3, chunk_size: i32) -> bool {
         self.test_chunk(chunk_pos, chunk_size) != FrustumIntersection::Outside
     }
 
-    /// Legacy detailed chunk intersection test (without camera-relative precision)
+    /// Detailed chunk intersection test.
+    /// Uses f64 for coordinate calculations to maintain precision at large world positions,
+    /// with epsilon padding for conservative culling to prevent edge flickering.
+    ///
+    /// This is a hot-path function - no heap allocations, all stack-based.
+    #[inline]
     pub fn test_chunk(&self, chunk_pos: IVec3, chunk_size: i32) -> FrustumIntersection {
         // Convert chunk position to world space using doubles to avoid precision loss
         let chunk_world_x = chunk_pos.x as f64 * chunk_size as f64;

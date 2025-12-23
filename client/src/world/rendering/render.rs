@@ -271,6 +271,10 @@ pub fn world_render_system(
 
 /// System to update chunk visibility based on view frustum culling.
 /// This runs every frame to show/hide chunks based on the current camera view.
+///
+/// Optimization: Chunks within the "near field" (NEAR_FIELD_DISTANCE_SQ) skip
+/// frustum testing entirely - the GPU's hardware rasterizer + Z-buffer is often
+/// faster than CPU visibility checks for nearby geometry.
 pub fn frustum_cull_chunks_system(
     camera_query: Query<(&Transform, &Projection), With<Camera3d>>,
     mut chunk_query: Query<(&ChunkEntity, &mut Visibility)>,
@@ -295,11 +299,28 @@ pub fn frustum_cull_chunks_system(
     // Extract the frustum in world space
     let frustum = super::frustum::Frustum::from_view_projection_matrix(&view_projection);
 
+    // Near-field threshold (squared distance)
+    const NEAR_FIELD_DISTANCE_SQ: f32 = 48.0 * 48.0;
+    let chunk_size_f32 = CHUNK_SIZE as f32;
+
     // Update visibility for each chunk entity
-    // Use camera-relative testing for precision at large world coordinates
     for (chunk_entity, mut visibility) in chunk_query.iter_mut() {
-        let is_visible =
-            frustum.intersects_chunk_relative(chunk_entity.chunk_pos, CHUNK_SIZE, camera_pos);
+        // Calculate chunk center for distance check
+        let chunk_center = Vec3::new(
+            (chunk_entity.chunk_pos.x as f32 + 0.5) * chunk_size_f32,
+            (chunk_entity.chunk_pos.y as f32 + 0.5) * chunk_size_f32,
+            (chunk_entity.chunk_pos.z as f32 + 0.5) * chunk_size_f32,
+        );
+
+        let distance_sq = camera_pos.distance_squared(chunk_center);
+
+        // Near-field optimization: skip frustum test for nearby chunks
+        // The GPU's hardware rasterizer handles these efficiently
+        let is_visible = if distance_sq < NEAR_FIELD_DISTANCE_SQ {
+            true // Always render near-field chunks
+        } else {
+            frustum.intersects_chunk_relative(chunk_entity.chunk_pos, CHUNK_SIZE, camera_pos)
+        };
 
         *visibility = if is_visible {
             Visibility::Visible
