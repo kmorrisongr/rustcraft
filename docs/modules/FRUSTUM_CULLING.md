@@ -150,7 +150,7 @@ let is_visible = if distance_sq < NEAR_FIELD_DISTANCE_SQ {
 
 3. **Player interaction radius:** This distance roughly corresponds to the player's immediate interaction and perception range, where visual continuity is most critical.
 
-4. **Empirical consideration:** A typical 90° horizontal field of view covers approximately ±45° from center. At this angle, chunks 3 units away laterally from the camera are still likely within view (exact visibility depends on camera orientation and position within the chunk). Testing them wastes CPU cycles for minimal benefit.
+4. **Empirical consideration:** With typical field-of-view settings (e.g., 90° horizontal), chunks immediately surrounding the player's position are highly likely to be visible. Since exact visibility is orientation-dependent, applying frustum tests to these nearest chunks provides minimal benefit while consuming CPU cycles.
 
 **Performance impact:** This optimization reduces CPU overhead by ~5-10% in typical gameplay scenarios where the player is on the surface or in open areas, with negligible effect on GPU workload since these chunks would be rendered anyway.
 
