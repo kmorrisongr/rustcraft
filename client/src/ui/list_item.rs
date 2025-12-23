@@ -6,7 +6,7 @@
 use bevy::prelude::*;
 
 use super::{
-    assets::{load_play_icon, load_trash_icon, menu_text_font, white_text_color},
+    assets::{load_play_icon, load_trash_icon, menu_text_font, secondary_text_color, white_text_color},
     style::{icon_button_style, icon_image_style, list_item_row_style, BACKGROUND_COLOR},
 };
 
@@ -76,7 +76,7 @@ pub fn spawn_list_item_row(commands: &mut Commands, config: ListItemConfig) -> L
                 font_size: 15.,
                 ..Default::default()
             },
-            TextColor(Color::srgb(0.4, 0.4, 0.4)),
+            secondary_text_color(),
         ));
     }
 
