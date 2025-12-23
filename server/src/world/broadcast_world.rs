@@ -32,6 +32,37 @@ const VIEW_DIRECTION_MULTIPLIER: f32 = 500.0;
 /// allowing chunks behind to still be loaded but with lower priority.
 const BEHIND_PLAYER_PENALTY: f32 = 5000.0;
 
+/// Calculate a score for chunk prioritization based on distance and view direction.
+/// # Arguments
+/// * `chunk_pos` - Position of the chunk being evaluated.
+/// * `player_chunk_pos` - Chunk the player is currently in.
+/// * `forward` - Player's forward view direction.
+fn get_chunk_render_score(chunk_pos: IVec3, player_chunk_pos: IVec3, forward: Vec3) -> f32 {
+    let direction_from_player = (chunk_pos - player_chunk_pos).as_vec3().normalize_or_zero();
+    let direction_dot_product = forward.dot(direction_from_player);
+    let distance_from_player = (chunk_pos - player_chunk_pos).length_squared();
+
+    if direction_dot_product > FORWARD_DOT_THRESHOLD {
+        distance_from_player as f32 - (direction_dot_product * VIEW_DIRECTION_MULTIPLIER)
+    } else {
+        distance_from_player as f32 + BEHIND_PLAYER_PENALTY
+    }
+}
+
+fn order_chunks_by_render_score(
+    a: &IVec3,
+    b: &IVec3,
+    player_chunk_pos: IVec3,
+    forward: Vec3,
+) -> std::cmp::Ordering {
+    let score_a = get_chunk_render_score(*a, player_chunk_pos, forward);
+    let score_b = get_chunk_render_score(*b, player_chunk_pos, forward);
+
+    score_a
+        .partial_cmp(&score_b)
+        .unwrap_or(std::cmp::Ordering::Equal)
+}
+
 pub fn broadcast_world_state(
     mut server: ResMut<RenetServer>,
     time: Res<ServerTime>,
@@ -155,11 +186,6 @@ fn get_items_stacks() -> Vec<ItemStackUpdateEvent> {
     //     .collect()
 }
 
-// Constants for chunk prioritization based on view direction
-const VIEW_ANGLE_THRESHOLD: f32 = -0.3; // ~108° from center vs 90°
-const VIEW_DIRECTION_WEIGHT: f32 = 500.0; // Lower value = smoother falloff for peripheral chunks
-const BEHIND_PENALTY: f32 = 5000.0; // Penalty for chunks behind the player
-
 fn get_player_chunks_prioritized(player: &Player, radius: i32) -> Vec<IVec3> {
     let player_chunk_pos = world_position_to_chunk_position(player.position);
     let mut chunks = get_player_nearby_chunks_coords(player_chunk_pos, radius);
@@ -167,35 +193,7 @@ fn get_player_chunks_prioritized(player: &Player, radius: i32) -> Vec<IVec3> {
     // Prioritize chunks based on player's view direction
     let forward = player.camera_transform.forward();
 
-    chunks.sort_by(|&a, &b| {
-        let dir_a = (a - player_chunk_pos).as_vec3().normalize_or_zero();
-        let dir_b = (b - player_chunk_pos).as_vec3().normalize_or_zero();
-
-        // Calculate dot product with forward vector (higher = more in front)
-        let dot_a = forward.dot(dir_a);
-        let dot_b = forward.dot(dir_b);
-
-        // Distance from player
-        let dist_a = (a - player_chunk_pos).length_squared();
-        let dist_b = (b - player_chunk_pos).length_squared();
-
-        // Prioritize: closer chunks first, but favor chunks in view direction
-        let score_a = if dot_a > VIEW_ANGLE_THRESHOLD {
-            dist_a as f32 - (dot_a * VIEW_DIRECTION_WEIGHT) // In/near view: closer = lower score
-        } else {
-            dist_a as f32 + BEHIND_PENALTY // Behind: higher score but not extreme
-        };
-
-        let score_b = if dot_b > VIEW_ANGLE_THRESHOLD {
-            dist_b as f32 - (dot_b * VIEW_DIRECTION_WEIGHT)
-        } else {
-            dist_b as f32 + BEHIND_PENALTY
-        };
-
-        score_a
-            .partial_cmp(&score_b)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    chunks.sort_by(|a, b| order_chunks_by_render_score(a, b, player_chunk_pos, *forward));
 
     chunks
 }
@@ -228,34 +226,8 @@ pub fn get_all_active_chunks(
     let sort_count = chunks.len().min(MAX_CHUNKS_PER_UPDATE);
 
     if chunks.len() > 1 {
-        chunks.select_nth_unstable_by(sort_count - 1, |&a, &b| {
-            let dir_a = (a - player_chunk_pos).as_vec3().normalize_or_zero();
-            let dir_b = (b - player_chunk_pos).as_vec3().normalize_or_zero();
-
-            // Calculate dot product with forward vector (higher = more in front)
-            let dot_a = forward.dot(dir_a);
-            let dot_b = forward.dot(dir_b);
-
-            // Distance from player
-            let dist_a = (a - player_chunk_pos).length_squared();
-            let dist_b = (b - player_chunk_pos).length_squared();
-
-            // Prioritize: closer chunks first, but favor chunks in view direction
-            let score_a = if dot_a > FORWARD_DOT_THRESHOLD {
-                dist_a as f32 - (dot_a * VIEW_DIRECTION_MULTIPLIER) // In/near view: closer = lower score
-            } else {
-                dist_a as f32 + BEHIND_PLAYER_PENALTY // Behind: higher score but not extreme
-            };
-
-            let score_b = if dot_b > FORWARD_DOT_THRESHOLD {
-                dist_b as f32 - (dot_b * VIEW_DIRECTION_MULTIPLIER)
-            } else {
-                dist_b as f32 + BEHIND_PLAYER_PENALTY
-            };
-
-            score_a
-                .partial_cmp(&score_b)
-                .unwrap_or(std::cmp::Ordering::Equal)
+        chunks.select_nth_unstable_by(sort_count - 1, |a, b| {
+            order_chunks_by_render_score(a, b, player_chunk_pos, *forward)
         });
     }
 
