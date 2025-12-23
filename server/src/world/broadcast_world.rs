@@ -106,7 +106,6 @@ pub fn broadcast_world_state(
             time: ts,
             new_map: get_world_map_chunks_to_send(
                 chunks,
-                players,
                 &player,
                 config.broadcast_render_distance,
             ),
@@ -129,7 +128,6 @@ pub fn broadcast_world_state(
 
 fn get_world_map_chunks_to_send(
     chunks: &mut ServerChunkWorldMap,
-    _players: &HashMap<PlayerId, Player>,
     player: &Player,
     broadcast_render_distance: i32,
 ) -> HashMap<IVec3, ServerChunk> {
