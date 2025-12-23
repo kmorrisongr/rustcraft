@@ -232,6 +232,9 @@ pub fn get_all_active_chunks(
     chunks
 }
 
+/// Get all chunk coordinates within a spherical radius around the player's chunk position
+///
+/// Resulting vector is not sorted in any way.
 fn get_player_nearby_chunks_coords(
     player_chunk_position: IVec3,
     render_distance: i32,
@@ -250,9 +253,6 @@ fn get_player_nearby_chunks_coords(
             }
         }
     }
-
-    // let's sort by distance to player
-    chunks.sort_by_key(|&c| (c - player_chunk_position).length_squared());
 
     chunks
 }
