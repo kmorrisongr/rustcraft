@@ -292,8 +292,14 @@ pub fn frustum_cull_chunks_system(
     // Extract the frustum in world space
     let frustum = super::frustum::Frustum::from_view_projection_matrix(&view_projection);
 
-    // Near-field threshold (squared distance)
-    const NEAR_FIELD_DISTANCE_SQ: f32 = 48.0 * 48.0;
+    // Near-field optimization threshold
+    // Chunks within this radius are always rendered without frustum culling.
+    // Rationale: 48 blocks (3 chunks) represents the immediate vicinity where:
+    // 1. Chunks are very likely to be visible regardless of view direction
+    // 2. CPU cost of frustum testing exceeds the benefit of potential culling
+    // 3. Corresponds roughly to the player's immediate interaction radius
+    // This avoids redundant CPU work for chunks that would rarely be culled anyway.
+    const NEAR_FIELD_DISTANCE_SQ: f32 = 48.0 * 48.0; // (3 chunks * 16 blocks/chunk)^2
     let chunk_size_f32 = CHUNK_SIZE as f32;
 
     // Update visibility for each chunk entity
@@ -307,10 +313,10 @@ pub fn frustum_cull_chunks_system(
 
         let distance_sq = camera_pos.distance_squared(chunk_center);
 
-        // Near-field optimization: skip frustum test for nearby chunks
-        // The GPU's hardware rasterizer handles these efficiently
+        // Near-field optimization: skip frustum culling for very close chunks.
+        // This avoids redundant CPU work since nearby chunks are almost always visible.
         let is_visible = if distance_sq < NEAR_FIELD_DISTANCE_SQ {
-            true // Always render near-field chunks
+            true // Always render chunks within near-field radius
         } else {
             frustum.intersects_chunk_relative(chunk_entity.chunk_pos, CHUNK_SIZE, camera_pos)
         };
