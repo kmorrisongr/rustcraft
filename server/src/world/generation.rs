@@ -3,8 +3,8 @@ use noise::{NoiseFn, Perlin};
 use shared::{world::*, CHUNK_SIZE, SEA_LEVEL};
 use std::collections::HashMap;
 
-// Re-export determine_biome from shared
-use shared::world::determine_biome;
+// Re-export shared biome functions
+use shared::world::{calculate_temperature_humidity, determine_biome};
 
 fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId, leaves: BlockId) {
     // create trunk
@@ -480,11 +480,8 @@ pub fn generate_chunk(
             let x = CHUNK_SIZE * cx + dx;
             let z = CHUNK_SIZE * cz + dz;
 
-            // calculate temperature and humidity
-            let temperature =
-                (temp_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-            let humidity =
-                (humidity_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
+            // calculate temperature and humidity using shared function
+            let (temperature, humidity) = calculate_temperature_humidity(x, z, seed);
 
             // get biome regarding the two values
             let biome_type = determine_biome(temperature, humidity);

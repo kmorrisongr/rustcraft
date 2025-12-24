@@ -1,7 +1,6 @@
 use crate::player::CurrentPlayerMarker;
 use bevy::prelude::*;
-use noise::{NoiseFn, Perlin};
-use shared::world::{determine_biome, BiomeType, WorldSeed};
+use shared::world::{calculate_biome_at_position, BiomeType, WorldSeed};
 
 #[derive(Component)]
 pub struct BiomeText;
@@ -28,21 +27,6 @@ pub fn biome_text_update_system(
     for entity in query.iter() {
         *writer.text(entity, 0) = format!("Biome: {}", biome_name);
     }
-}
-
-/// Calculate the biome at a given world position using the same logic as world generation
-fn calculate_biome_at_position(x: i32, z: i32, seed: u32) -> BiomeType {
-    // Use the same noise generators as the server world generation
-    let temp_perlin = Perlin::new(seed + 1);
-    let humidity_perlin = Perlin::new(seed + 2);
-    let biome_scale = 0.01;
-
-    // Calculate temperature and humidity at this position
-    let temperature = (temp_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-    let humidity = (humidity_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-
-    // Determine biome using shared logic
-    determine_biome(temperature, humidity)
 }
 
 /// Format biome type as a human-readable string
