@@ -14,10 +14,10 @@ runs:
         rustup toolchain install nightly
         rustup default nightly
 
-        IFS=',' read -ra comps <<< "${{ inputs.components }}"
-        for comp in "${comps[@]}"; do
+        components_normalized="$(printf "%s\n" "${{ inputs.components }}" | tr ',' '\n')"
+        while IFS= read -r comp; do
           comp_trimmed="$(echo "$comp" | xargs)"
           if [ -n "$comp_trimmed" ]; then
             rustup component add "$comp_trimmed" --toolchain nightly
           fi
-        done
+        done <<< "$components_normalized"
