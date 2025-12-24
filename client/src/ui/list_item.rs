@@ -22,8 +22,6 @@ pub struct ListItemEntities {
     pub row: Entity,
     pub play_button: Entity,
     pub delete_button: Entity,
-    #[allow(dead_code)]
-    pub text: Entity,
 }
 
 /// Spawns a list item row with play and delete buttons
@@ -93,6 +91,5 @@ pub fn spawn_list_item_row(commands: &mut Commands, config: ListItemConfig) -> L
         row,
         play_button: play_btn,
         delete_button: delete_btn,
-        text: txt,
     }
 }
