@@ -277,9 +277,7 @@ fn advance_to_game_on_preload(
     for signal in signals.read() {
         match signal {
             PreloadSignal::TexturesReady => gate.textures_ready = true,
-            PreloadSignal::ServerReady => {
-                // Gate is updated directly in emit_server_ready_signal to prevent race conditions
-            }
+            PreloadSignal::ServerReady => {} // Gate updated in emit_server_ready_signal
         }
     }
 
