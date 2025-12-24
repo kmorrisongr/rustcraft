@@ -195,6 +195,51 @@ pub fn get_biome_data(biome_type: BiomeType) -> Biome {
     }
 }
 
+/// Determines the biome type based on temperature and humidity values.
+/// This function is used by both server (for world generation) and client (for biome display).
+///
+/// # Arguments
+/// * `temperature` - Temperature value between 0.0 and 1.0
+/// * `humidity` - Humidity value between 0.0 and 1.0
+///
+/// # Returns
+/// The biome type corresponding to the given temperature and humidity
+pub fn determine_biome(temperature: f64, humidity: f64) -> BiomeType {
+    let ocean_percentage: f64 = 0.33;
+    if humidity > (1.0 - (ocean_percentage / 3.0)) {
+        return BiomeType::DeepOcean;
+    }
+    if humidity > (1.0 - 2.0 * (ocean_percentage / 3.0)) {
+        return BiomeType::Ocean;
+    }
+    if humidity > (1.0 - ocean_percentage) {
+        return BiomeType::ShallowOcean;
+    }
+    if temperature > 0.6 {
+        if humidity > (1.0 - ocean_percentage) / 2.0 {
+            BiomeType::Forest
+        } else {
+            BiomeType::Desert
+        }
+    } else if temperature > 0.3 {
+        if humidity > 2.0 * (1.0 - ocean_percentage) / 3.0 {
+            BiomeType::FlowerPlains
+        } else if humidity > (1.0 - ocean_percentage) / 3.0 {
+            BiomeType::Plains
+        } else {
+            BiomeType::MediumMountain
+        }
+    } else if temperature >= 0.0 {
+        if humidity > (1.0 - ocean_percentage) / 2.0 {
+            BiomeType::IcePlain
+        } else {
+            BiomeType::HighMountainGrass
+        }
+    } else {
+        panic!("Invalid temperature value: {}", temperature);
+    }
+}
+
 pub trait WorldMap {
     fn get_block_mut_by_coordinates(&mut self, position: &IVec3) -> Option<&mut BlockData>;
     fn get_block_by_coordinates(&self, position: &IVec3) -> Option<&BlockData>;

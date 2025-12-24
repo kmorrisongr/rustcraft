@@ -3,6 +3,9 @@ use noise::{NoiseFn, Perlin};
 use shared::{world::*, CHUNK_SIZE, SEA_LEVEL};
 use std::collections::HashMap;
 
+// Re-export determine_biome from shared
+use shared::world::determine_biome;
+
 fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId, leaves: BlockId) {
     // create trunk
     let trunk_height = 3 + rand::random::<u8>() % 3; // random height between 3 and 5
@@ -252,42 +255,6 @@ fn generate_cactus(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, cactus: Bloc
                 BlockData::new(cactus, BlockDirection::Front),
             );
         }
-    }
-}
-
-pub fn determine_biome(temperature: f64, humidity: f64) -> BiomeType {
-    let ocean_percentage: f64 = 0.33;
-    if humidity > (1.0 - (ocean_percentage / 3.0)) {
-        return BiomeType::DeepOcean;
-    }
-    if humidity > (1.0 - 2.0 * (ocean_percentage / 3.0)) {
-        return BiomeType::Ocean;
-    }
-    if humidity > (1.0 - ocean_percentage) {
-        return BiomeType::ShallowOcean;
-    }
-    if temperature > 0.6 {
-        if humidity > (1.0 - ocean_percentage) / 2.0 {
-            BiomeType::Forest
-        } else {
-            BiomeType::Desert
-        }
-    } else if temperature > 0.3 {
-        if humidity > 2.0 * (1.0 - ocean_percentage) / 3.0 {
-            BiomeType::FlowerPlains
-        } else if humidity > (1.0 - ocean_percentage) / 3.0 {
-            BiomeType::Plains
-        } else {
-            BiomeType::MediumMountain
-        }
-    } else if temperature >= 0.0 {
-        if humidity > (1.0 - ocean_percentage) / 2.0 {
-            BiomeType::IcePlain
-        } else {
-            BiomeType::HighMountainGrass
-        }
-    } else {
-        panic!();
     }
 }
 
