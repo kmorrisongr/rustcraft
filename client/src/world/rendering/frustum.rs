@@ -169,7 +169,8 @@ impl Frustum {
         self.test_aabb(min, max) != FrustumIntersection::Outside
     }
 
-    /// Legacy method for backward compatibility
+    /// Convenience method to test a chunk's AABB given its position and size.
+    /// Returns true if the chunk is at least partially visible in the frustum.
     #[inline]
     pub fn intersects_chunk(&self, chunk_pos: IVec3, chunk_size: i32) -> bool {
         self.test_chunk(chunk_pos, chunk_size) != FrustumIntersection::Outside
