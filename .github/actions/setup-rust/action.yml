@@ -14,7 +14,7 @@ runs:
           ~/.cargo/registry
           ~/.cargo/git
           ${{ github.workspace }}/target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain*') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
     - shell: bash
