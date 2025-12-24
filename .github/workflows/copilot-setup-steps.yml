@@ -46,5 +46,8 @@ jobs:
             libexpat1-dev \
             zlib1g-dev
 
-      - name: Install Rust (nightly)
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install Rust (nightly with Cranelift)
+        run: |
+          rustup toolchain install nightly
+          rustup default nightly
+          rustup component add rustc-codegen-cranelift-preview --toolchain nightly

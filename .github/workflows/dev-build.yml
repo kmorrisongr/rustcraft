@@ -43,14 +43,11 @@ jobs:
       with:
         python-version: '3.x'
 
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
-
-    - name: Add rustc-codegen-cranelift-preview
-      run: rustup component add rustc-codegen-cranelift-preview --toolchain nightly
+    - name: Install Rust (nightly with Cranelift)
+      run: |
+        rustup toolchain install nightly
+        rustup default nightly
+        rustup component add rustc-codegen-cranelift-preview --toolchain nightly
 
     - name: Install just
       run: cargo install just
@@ -93,14 +90,11 @@ jobs:
       with:
         python-version: '3.x'
 
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
-
-    - name: Add rustc-codegen-cranelift-preview
-      run: rustup component add rustc-codegen-cranelift-preview --toolchain nightly
+    - name: Install Rust (nightly with Cranelift)
+      run: |
+        rustup toolchain install nightly
+        rustup default nightly
+        rustup component add rustc-codegen-cranelift-preview --toolchain nightly
 
     - name: Install just
       run: cargo install just
