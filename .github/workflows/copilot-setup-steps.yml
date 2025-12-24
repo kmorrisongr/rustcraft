@@ -1,0 +1,57 @@
+# Copilot Setup Steps
+# This workflow is used by GitHub Copilot Coding Agent to set up the environment
+# before running build commands. It installs system dependencies required by the
+# Bevy game engine on Ubuntu.
+
+name: "Copilot Setup Steps"
+
+# Automatically run the setup steps when they are changed to allow for easy validation, and
+# allow manual testing through the repository's "Actions" tab
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    # Set the permissions to the lowest permissions possible needed for your steps.
+    # Copilot will be given its own token for its operations.
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install system dependencies for Bevy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libasound2-dev \
+            libudev-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libssl-dev \
+            libwayland-dev \
+            libdbus-1-dev \
+            cmake \
+            libfreetype6-dev \
+            libexpat1-dev \
+            zlib1g-dev
+
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@nightly
