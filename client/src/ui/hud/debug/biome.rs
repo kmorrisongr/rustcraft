@@ -13,7 +13,7 @@ pub fn biome_text_update_system(
     mut writer: TextUiWriter,
     world_seed: Res<WorldSeed>,
 ) {
-    let Ok(player_transform) = player.get_single() else {
+    let Ok(player_transform) = player.single() else {
         return;
     };
 
