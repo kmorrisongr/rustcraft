@@ -1,3 +1,4 @@
+use super::biome::BiomeText;
 use super::loaded_stats::TimeText;
 use super::loaded_stats::{BlocksNumberText, ChunksNumberText};
 use super::targeted_block::BlockText;
@@ -97,6 +98,7 @@ pub fn setup_hud(mut commands: Commands) {
         )
     };
     let coords_text = commands.spawn((CoordsText, default_text_bundle())).id();
+    let biome_text = commands.spawn((BiomeText, default_text_bundle())).id();
     let blocks_number_text = commands
         .spawn((BlocksNumberText, default_text_bundle()))
         .id();
@@ -117,6 +119,7 @@ pub fn setup_hud(mut commands: Commands) {
     commands.entity(root).add_children(&[
         text_fps,
         coords_text,
+        biome_text,
         blocks_number_text,
         chunks_number_text,
         block_text,

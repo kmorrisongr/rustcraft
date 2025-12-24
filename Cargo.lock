@@ -4754,6 +4754,7 @@ dependencies = [
  "bincode",
  "log",
  "lz4",
+ "noise",
  "rand",
  "serde",
 ]
