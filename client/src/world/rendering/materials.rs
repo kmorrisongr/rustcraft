@@ -174,9 +174,9 @@ pub fn create_all_atlases(
         .iter()
         .any(|id| matches!(asset_server.get_load_state(*id), Some(LoadState::Failed(_))));
 
-    let mut textures_ready = true;
+    let textures_ready = if all_loaded {
+        let mut textures_ready = true;
 
-    if all_loaded {
         if material_resource.blocks.is_none() {
             if let Some(blocks) = build_texture_atlas(
                 &mut atlases.0,
@@ -229,14 +229,17 @@ pub fn create_all_atlases(
                 textures_ready = false;
             }
         }
-    }
+
+        textures_ready
+    } else {
+        true
+    };
 
     // Compute new_ready once at the end based on all conditions
     let new_ready = if any_failed {
         warn!("Texture loading failed; check asset paths and filenames");
         false
     } else if !all_loaded {
-        // Still loading or not ready
         false
     } else {
         textures_ready
