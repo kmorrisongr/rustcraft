@@ -1,5 +1,6 @@
 use super::{MenuButtonAction, MenuState, ScrollingList};
 use crate::ui::assets::*;
+use crate::ui::list_item::{spawn_list_item_row, ListItemConfig};
 use crate::ui::style::*;
 use crate::world::ClientWorldMap;
 use crate::{constants::SAVE_PATH, GameState, LoadWorldEvent};
@@ -61,34 +62,12 @@ pub fn solo_menu_setup(
     _paths: Res<GameFolderPaths>,
 ) {
     let background_image = load_background_image(&assets_server);
-    let font = load_font(&assets_server);
     let button_background_image = load_button_background_large_image(&assets_server);
 
-    let txt_font = TextFont {
-        font: font.clone(),
-        font_size: 20.,
-        ..default()
-    };
+    let txt_font = menu_text_font(&assets_server);
+    let txt_color = white_text_color();
 
-    let txt_color = TextColor(Color::WHITE);
-
-    // let txt_font_inactive = TextFont {
-    //     font,
-    //     font_size: 20.,
-    //     ..default()
-    // };
-
-    // let txt_color_inactive = TextColor(Color::srgb(0.3, 0.3, 0.3));
-
-    let btn_style = Node {
-        display: Display::Flex,
-        flex_direction: FlexDirection::Column,
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        border: UiRect::all(Val::Px(2.)),
-        height: Val::Px(40.0),
-        ..Default::default()
-    };
+    let btn_style = menu_list_button_style();
 
     commands
         .spawn((
@@ -278,97 +257,37 @@ fn add_world_item(
     list: &mut WorldList,
     list_entity: Entity,
     world_map: &mut ClientWorldMap,
-    paths: &Res<GameFolderPaths>,
+    _paths: &Res<GameFolderPaths>,
 ) {
     info!(
         "Adding world to list : name = {:?}, entity={:?}",
         name, list_entity
     );
 
-    let base_path = paths.assets_folder_path.display();
-
-    // udpate the name of the world_map
+    // update the name of the world_map
     world_map.name = name.clone();
 
-    let btn_style = Node {
-        display: Display::Flex,
-        flex_direction: FlexDirection::Column,
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        border: UiRect::all(Val::Px(2.)),
-        height: Val::Percent(80.),
-        ..default()
-    };
+    let entities = spawn_list_item_row(
+        commands,
+        ListItemConfig {
+            asset_server,
+            primary_text: &name,
+            secondary_text: None,
+        },
+    );
 
-    let img_style = Node {
-        height: Val::Percent(100.),
-        ..default()
-    };
-
-    let world = commands
-        .spawn((
-            BorderColor(BACKGROUND_COLOR),
-            Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(5.),
-                width: Val::Percent(100.),
-                height: Val::Vh(10.),
-                padding: UiRect::horizontal(Val::Percent(2.)),
-                border: UiRect::all(Val::Px(2.)),
-                ..default()
-            },
-        ))
-        .id();
-
-    let play_btn = commands
-        .spawn((
-            MultiplayerButtonAction::Load(world),
-            (Button, btn_style.clone()),
-        ))
-        .with_children(|btn| {
-            let icon = asset_server.load(format!("{base_path}/graphics/play.png"));
-            btn.spawn((ImageNode::new(icon), img_style.clone()));
-        })
-        .id();
-
-    let delete_btn = commands
-        .spawn((
-            MultiplayerButtonAction::Delete(world),
-            (Button, btn_style.clone()),
-        ))
-        .with_children(|btn| {
-            let icon = asset_server.load(format!("{base_path}/graphics/trash.png"));
-            btn.spawn((ImageNode::new(icon), img_style.clone()));
-        })
-        .id();
-
-    let txt = commands
-        .spawn((
-            (
-                Text::new(format!("{name}\n")),
-                TextFont {
-                    font: asset_server.load("./fonts/RustCraftRegular-Bmg3.otf"),
-                    font_size: 20.,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ),
-            Node {
-                display: Display::Flex,
-                flex_direction: FlexDirection::Column,
-                ..default()
-            },
-        ))
-        .id();
-
+    // Add action components to buttons
     commands
-        .entity(world)
-        .add_children(&[play_btn, delete_btn, txt]);
+        .entity(entities.play_button)
+        .insert(MultiplayerButtonAction::Load(entities.row));
+    commands
+        .entity(entities.delete_button)
+        .insert(MultiplayerButtonAction::Delete(entities.row));
 
-    commands.entity(list_entity).add_children(&[world]);
+    commands.entity(list_entity).add_children(&[entities.row]);
 
-    list.worlds.insert(world, WorldItem { name: name.clone() });
+    list.worlds
+        .insert(entities.row, WorldItem { name: name.clone() });
 }
 
 fn generate_new_world_name(world_list: &WorldList) -> String {
