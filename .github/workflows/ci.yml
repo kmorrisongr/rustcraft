@@ -40,11 +40,8 @@ jobs:
           libexpat1-dev \
           zlib1g-dev
 
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - name: Install Rust (nightly with Cranelift)
+      uses: ./.github/actions/setup-rust
 
     - name: Build the project
       run: RUSTFLAGS="-D warnings" cargo build --all-targets --release
@@ -56,12 +53,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
+    - name: Install Rust (nightly with rustfmt and Cranelift)
+      uses: ./.github/actions/setup-rust
       with:
-        toolchain: stable
-        override: true
-        components: rustfmt
-
+        components: |
+          rustfmt
     - name: Check code formatting
       run: cargo fmt --all -- --check
