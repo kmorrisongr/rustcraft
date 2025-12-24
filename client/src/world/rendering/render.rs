@@ -6,6 +6,7 @@ use bevy::{
     asset::Assets,
     math::IVec3,
     prelude::*,
+    render::camera::CameraProjection,
     tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
 };
 use shared::{
@@ -21,6 +22,12 @@ use crate::{
 use crate::world::{ClientChunk, ClientWorldMap};
 
 use super::meshing::ChunkMeshResponse;
+
+/// Marker component for chunk entities to enable frustum culling visibility updates
+#[derive(Component)]
+pub struct ChunkEntity {
+    pub chunk_pos: IVec3,
+}
 
 #[derive(Debug)]
 pub struct MeshingTask {
@@ -63,7 +70,16 @@ fn update_chunk(
         );
 
         let new_entity = commands
-            .spawn((chunk_t, Visibility::Visible))
+            .spawn((
+                chunk_t,
+                // Chunks spawn as Visible to avoid pop-in artifacts. The frustum_cull_chunks_system
+                // will update visibility on the same frame (both run in PostUpdate), so out-of-view
+                // chunks are only visible for a single frame, which is imperceptible to players.
+                Visibility::Visible,
+                ChunkEntity {
+                    chunk_pos: *chunk_pos,
+                },
+            ))
             .with_children(|root| {
                 if let Some(new_solid_mesh) = new_meshes.solid_mesh {
                     root.spawn((
@@ -89,7 +105,8 @@ pub fn world_render_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     mut first_chunk_received: ResMut<FirstChunkReceived>,
-    player_pos: Query<&Transform, With<CurrentPlayerMarker>>,
+    player_query: Query<&Transform, With<CurrentPlayerMarker>>,
+    camera_query: Query<(&Transform, &Projection), With<Camera3d>>,
 ) {
     for event in ev_render.read() {
         queued_events.events.insert(*event);
@@ -127,21 +144,63 @@ pub fn world_render_system(
             }
         }
 
-        let player_pos = player_pos
-            .single()
-            .expect("Player should exist")
-            .translation;
-        let player_pos = global_block_to_chunk_pos(&IVec3::new(
+        let player_transform = player_query.single().expect("Player should exist");
+        let player_pos = player_transform.translation;
+        let player_chunk_pos = global_block_to_chunk_pos(&IVec3::new(
             player_pos.x as i32,
             player_pos.y as i32,
             player_pos.z as i32,
         ));
 
+        // Get camera info for priority calculation
+        let (camera_pos, camera_forward, frustum) = match camera_query.single() {
+            Ok((camera_transform, projection)) => {
+                let view_matrix = camera_transform.compute_matrix().inverse();
+                let projection_matrix = match projection {
+                    Projection::Perspective(persp) => persp.get_clip_from_view(),
+                    Projection::Orthographic(ortho) => ortho.get_clip_from_view(),
+                    Projection::Custom(custom) => custom.get_clip_from_view(),
+                };
+                let view_projection = projection_matrix * view_matrix;
+                let frustum =
+                    super::frustum::Frustum::from_view_projection_matrix(&view_projection);
+
+                // Camera forward is the negative Z axis in camera space
+                let forward = camera_transform.forward().as_vec3();
+
+                (camera_transform.translation, forward, frustum)
+            }
+            Err(_) => {
+                // If the camera is not available, skip frustum-based prioritization for now.
+                // This avoids constructing a degenerate fallback frustum with invalid planes.
+                return;
+            }
+        };
+
         let mut chunks_to_reload = Vec::from_iter(chunks_to_reload);
 
+        // Sort chunks by priority score (lower = higher priority)
+        // This ensures: player chunk first, then visible chunks in front, then partial, then behind
         chunks_to_reload.sort_by(|a, b| {
-            (a.distance_squared(player_pos) - b.distance_squared(player_pos))
-                .cmp(&a.distance_squared(player_pos))
+            let priority_a = super::frustum::calculate_chunk_priority(
+                *a,
+                CHUNK_SIZE,
+                camera_pos,
+                camera_forward,
+                &frustum,
+                player_chunk_pos,
+            );
+            let priority_b = super::frustum::calculate_chunk_priority(
+                *b,
+                CHUNK_SIZE,
+                camera_pos,
+                camera_forward,
+                &frustum,
+                player_chunk_pos,
+            );
+            priority_a
+                .partial_cmp(&priority_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         for pos in chunks_to_reload {
@@ -204,4 +263,70 @@ pub fn world_render_system(
     });
 
     queued_events.events.clear();
+}
+
+/// System to update chunk visibility based on view frustum culling.
+/// This runs every frame to show/hide chunks based on the current camera view.
+///
+/// Optimization: Chunks within the "near field" (NEAR_FIELD_DISTANCE_SQ) skip
+/// frustum testing entirely - the GPU's hardware rasterizer + Z-buffer is often
+/// faster than CPU visibility checks for nearby geometry.
+pub fn frustum_cull_chunks_system(
+    camera_query: Query<(&Transform, &Projection), With<Camera3d>>,
+    mut chunk_query: Query<(&ChunkEntity, &mut Visibility)>,
+) {
+    // Get the camera transform and projection
+    let Ok((camera_transform, projection)) = camera_query.single() else {
+        return;
+    };
+
+    let camera_pos = camera_transform.translation;
+
+    // Build the view-projection matrix in world space
+    let view_matrix = camera_transform.compute_matrix().inverse();
+
+    let projection_matrix = match projection {
+        Projection::Perspective(persp) => persp.get_clip_from_view(),
+        Projection::Orthographic(ortho) => ortho.get_clip_from_view(),
+        Projection::Custom(custom) => custom.get_clip_from_view(),
+    };
+    let view_projection = projection_matrix * view_matrix;
+
+    // Extract the frustum in world space
+    let frustum = super::frustum::Frustum::from_view_projection_matrix(&view_projection);
+
+    // Near-field optimization threshold: Chunks within this radius are always rendered
+    // without frustum culling. Rationale for 48 blocks (3 chunks):
+    // 1. Chunks are very likely to be visible regardless of view direction
+    // 2. CPU cost of frustum testing exceeds the benefit of potential culling
+    // 3. Corresponds roughly to the player's immediate interaction radius
+    // This avoids redundant CPU work for chunks that would rarely be culled anyway.
+    const NEAR_FIELD_DISTANCE_SQ: f32 = 48.0 * 48.0; // (3 chunks * 16 blocks/chunk)^2
+    let chunk_size_f32 = CHUNK_SIZE as f32;
+
+    // Update visibility for each chunk entity
+    for (chunk_entity, mut visibility) in chunk_query.iter_mut() {
+        // Calculate chunk center for distance check
+        let chunk_center = Vec3::new(
+            (chunk_entity.chunk_pos.x as f32 + 0.5) * chunk_size_f32,
+            (chunk_entity.chunk_pos.y as f32 + 0.5) * chunk_size_f32,
+            (chunk_entity.chunk_pos.z as f32 + 0.5) * chunk_size_f32,
+        );
+
+        let distance_sq = camera_pos.distance_squared(chunk_center);
+
+        // Near-field optimization: skip frustum culling for very close chunks.
+        // This avoids redundant CPU work since nearby chunks are almost always visible.
+        let is_visible = if distance_sq < NEAR_FIELD_DISTANCE_SQ {
+            true // Always render chunks within near-field radius
+        } else {
+            frustum.intersects_chunk(chunk_entity.chunk_pos, CHUNK_SIZE)
+        };
+
+        *visibility = if is_visible {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
 }

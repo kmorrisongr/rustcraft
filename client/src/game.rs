@@ -191,7 +191,7 @@ pub fn game_plugin(app: &mut App) {
         .add_observer(observe_on_step)
         .add_systems(
             PostUpdate,
-            (world_render_system).run_if(in_state(GameState::Game)),
+            (world_render_system, frustum_cull_chunks_system).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             Update,
