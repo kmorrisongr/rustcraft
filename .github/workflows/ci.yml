@@ -56,7 +56,9 @@ jobs:
     - name: Install Rust (nightly with rustfmt and Cranelift)
       uses: ./.github/actions/setup-rust
       with:
-        components: "rustfmt, rustc-codegen-cranelift-preview"
+        components: |
+          rustfmt
+          rustc-codegen-cranelift-preview
 
     - name: Check code formatting
       run: cargo fmt --all -- --check
