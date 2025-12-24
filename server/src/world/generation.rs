@@ -481,10 +481,10 @@ pub fn generate_chunk(
             let z = CHUNK_SIZE * cz + dz;
 
             // calculate temperature and humidity using shared function
-            let (temperature, humidity) = calculate_temperature_humidity(x, z, seed);
+            let climate = calculate_temperature_humidity(x, z, seed);
 
             // get biome regarding the two values
-            let biome_type = determine_biome(temperature, humidity);
+            let biome_type = determine_biome(climate.temperature, climate.humidity);
             let biome = get_biome_data(biome_type);
 
             // get terrain height

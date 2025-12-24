@@ -1,6 +1,6 @@
 use crate::player::CurrentPlayerMarker;
 use bevy::prelude::*;
-use shared::world::{calculate_biome_at_position, BiomeType, WorldSeed};
+use shared::world::{calculate_biome_at_position, WorldSeed};
 
 #[derive(Component)]
 pub struct BiomeText;
@@ -22,25 +22,7 @@ pub fn biome_text_update_system(
         world_seed.0,
     );
 
-    let biome_name = format_biome_name(biome_type);
-
     for entity in query.iter() {
-        *writer.text(entity, 0) = format!("Biome: {}", biome_name);
-    }
-}
-
-/// Format biome type as a human-readable string
-fn format_biome_name(biome_type: BiomeType) -> &'static str {
-    match biome_type {
-        BiomeType::Plains => "Plains",
-        BiomeType::Forest => "Forest",
-        BiomeType::MediumMountain => "Medium Mountain",
-        BiomeType::HighMountainGrass => "High Mountain Grass",
-        BiomeType::Desert => "Desert",
-        BiomeType::IcePlain => "Ice Plain",
-        BiomeType::FlowerPlains => "Flower Plains",
-        BiomeType::ShallowOcean => "Shallow Ocean",
-        BiomeType::Ocean => "Ocean",
-        BiomeType::DeepOcean => "Deep Ocean",
+        *writer.text(entity, 0) = format!("Biome: {}", biome_type.name());
     }
 }

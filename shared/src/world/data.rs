@@ -111,6 +111,24 @@ pub enum BiomeType {
     DeepOcean,
 }
 
+impl BiomeType {
+    /// Returns the human-readable name of the biome
+    pub fn name(&self) -> &'static str {
+        match self {
+            BiomeType::Plains => "Plains",
+            BiomeType::Forest => "Forest",
+            BiomeType::MediumMountain => "Medium Mountain",
+            BiomeType::HighMountainGrass => "High Mountain Grass",
+            BiomeType::Desert => "Desert",
+            BiomeType::IcePlain => "Ice Plain",
+            BiomeType::FlowerPlains => "Flower Plains",
+            BiomeType::ShallowOcean => "Shallow Ocean",
+            BiomeType::Ocean => "Ocean",
+            BiomeType::DeepOcean => "Deep Ocean",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Biome {
     pub biome_type: BiomeType,
@@ -240,6 +258,15 @@ pub fn determine_biome(temperature: f64, humidity: f64) -> BiomeType {
     }
 }
 
+/// Temperature and humidity values for biome calculation
+#[derive(Debug, Clone, Copy)]
+pub struct BiomeClimate {
+    /// Temperature value between 0.0 and 1.0
+    pub temperature: f64,
+    /// Humidity value between 0.0 and 1.0
+    pub humidity: f64,
+}
+
 /// Calculates the temperature and humidity at a given world position using Perlin noise.
 /// This ensures the client and server use identical noise generation parameters.
 ///
@@ -249,8 +276,8 @@ pub fn determine_biome(temperature: f64, humidity: f64) -> BiomeType {
 /// * `seed` - World seed
 ///
 /// # Returns
-/// A tuple of (temperature, humidity), both values between 0.0 and 1.0
-pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> (f64, f64) {
+/// A BiomeClimate struct with temperature and humidity values, both between 0.0 and 1.0
+pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate {
     use noise::{NoiseFn, Perlin};
     
     // These constants must match the server's world generation
@@ -264,7 +291,10 @@ pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> (f64, f64) {
     let temperature = (temp_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
     let humidity = (humidity_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
     
-    (temperature, humidity)
+    BiomeClimate {
+        temperature,
+        humidity,
+    }
 }
 
 /// Calculates the biome at a given world position.
@@ -278,8 +308,8 @@ pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> (f64, f64) {
 /// # Returns
 /// The biome type at the given position
 pub fn calculate_biome_at_position(x: i32, z: i32, seed: u32) -> BiomeType {
-    let (temperature, humidity) = calculate_temperature_humidity(x, z, seed);
-    determine_biome(temperature, humidity)
+    let climate = calculate_temperature_humidity(x, z, seed);
+    determine_biome(climate.temperature, climate.humidity)
 }
 
 pub trait WorldMap {
