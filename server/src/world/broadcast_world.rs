@@ -59,7 +59,8 @@ fn get_chunk_render_score(chunk_pos: IVec3, player_chunk_pos: IVec3, forward: Ve
     let vertical_penalty = y_distance as f32 * VERTICAL_DISTANCE_MULTIPLIER;
 
     if direction_dot_product > FORWARD_DOT_THRESHOLD {
-        distance_from_player as f32 - (direction_dot_product * VIEW_DIRECTION_MULTIPLIER) + vertical_penalty
+        distance_from_player as f32 - (direction_dot_product * VIEW_DIRECTION_MULTIPLIER)
+            + vertical_penalty
     } else {
         distance_from_player as f32 + BEHIND_PLAYER_PENALTY + vertical_penalty
     }
