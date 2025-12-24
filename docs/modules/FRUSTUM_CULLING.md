@@ -138,7 +138,7 @@ const NEAR_FIELD_DISTANCE_SQ: f32 = 48.0 * 48.0; // (3 chunks * 16 blocks/chunk)
 let is_visible = if distance_sq < NEAR_FIELD_DISTANCE_SQ {
     true // Always render chunks within near-field radius
 } else {
-    frustum.intersects_chunk_relative(chunk_entity.chunk_pos, CHUNK_SIZE, camera_pos)
+    frustum.intersects_chunk(chunk_entity.chunk_pos, CHUNK_SIZE)
 };
 ```
 
