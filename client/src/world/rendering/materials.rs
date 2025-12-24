@@ -150,9 +150,8 @@ pub fn create_all_atlases(
     mut preload_signals: EventWriter<PreloadSignal>,
 ) {
     let was_ready = loading.textures_loaded;
-    let mut new_ready = loading.textures_loaded;
 
-    if new_ready {
+    if loading.textures_loaded {
         return;
     }
 
@@ -171,7 +170,11 @@ pub fn create_all_atlases(
         .iter()
         .all(|id| matches!(asset_server.get_load_state(*id), Some(LoadState::Loaded)));
 
-    if all_loaded {
+    let any_failed = all_handles
+        .iter()
+        .any(|id| matches!(asset_server.get_load_state(*id), Some(LoadState::Failed(_))));
+
+    let textures_ready = if all_loaded {
         let mut textures_ready = true;
 
         if material_resource.blocks.is_none() {
@@ -227,19 +230,19 @@ pub fn create_all_atlases(
             }
         }
 
-        new_ready = textures_ready;
-    }
-    let any_failed = all_handles
-        .iter()
-        .any(|id| matches!(asset_server.get_load_state(*id), Some(LoadState::Failed(_))));
+        textures_ready
+    } else {
+        false
+    };
 
-    if any_failed {
-        new_ready = false;
+    let new_ready = if any_failed {
         warn!("Texture loading failed; check asset paths and filenames");
+        false
     } else if !all_loaded {
-        // Still loading or not ready
-        new_ready = false;
-    }
+        false
+    } else {
+        textures_ready
+    };
 
     if new_ready && !was_ready {
         preload_signals.write(PreloadSignal::TexturesReady);
