@@ -235,7 +235,6 @@ pub fn create_all_atlases(
         false
     };
 
-    // Compute new_ready once at the end based on all conditions
     let new_ready = if any_failed {
         warn!("Texture loading failed; check asset paths and filenames");
         false
