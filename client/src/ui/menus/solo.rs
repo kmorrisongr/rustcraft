@@ -271,7 +271,7 @@ fn add_world_item(
         commands,
         ListItemConfig {
             asset_server,
-            primary_text: name.clone(),
+            primary_text: &name,
             secondary_text: None,
         },
     );

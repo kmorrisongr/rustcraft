@@ -227,8 +227,8 @@ pub fn add_server_item(
         commands,
         ListItemConfig {
             asset_server,
-            primary_text: name.clone(),
-            secondary_text: Some(ip.clone()),
+            primary_text: &name,
+            secondary_text: Some(&ip),
         },
     );
 
