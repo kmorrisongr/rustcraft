@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 
-use super::style::{CHAT_FONT_SIZE, MENU_FONT_SIZE, SECONDARY_FONT_SIZE, SECONDARY_TEXT_COLOR, TEXT_COLOR};
+use super::style::{
+    CHAT_FONT_SIZE, MENU_FONT_SIZE, SECONDARY_FONT_SIZE, SECONDARY_TEXT_COLOR, TEXT_COLOR,
+};
 
 // Path to fonts
 pub const FONT_PATH: &str = "./fonts/RustCraftRegular-Bmg3.otf";
