@@ -279,18 +279,20 @@ pub struct BiomeClimate {
 /// A BiomeClimate struct with temperature and humidity values, both between 0.0 and 1.0
 pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate {
     use noise::{NoiseFn, Perlin};
-    
+
     // These constants must match the server's world generation
     const BIOME_SCALE: f64 = 0.01;
     const TEMP_SEED_OFFSET: u32 = 1;
     const HUMIDITY_SEED_OFFSET: u32 = 2;
-    
+
     let temp_perlin = Perlin::new(seed + TEMP_SEED_OFFSET);
     let humidity_perlin = Perlin::new(seed + HUMIDITY_SEED_OFFSET);
-    
-    let temperature = (temp_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
-    let humidity = (humidity_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
-    
+
+    let temperature =
+        (temp_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
+    let humidity =
+        (humidity_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
+
     BiomeClimate {
         temperature,
         humidity,

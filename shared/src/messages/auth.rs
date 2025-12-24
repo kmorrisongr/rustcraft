@@ -20,7 +20,7 @@ pub struct AuthRegisterResponse {
     pub tick: u64,
     pub timestamp_ms: u64,
     pub players: Vec<PlayerSpawnEvent>, // all players (including the new one)
-    pub world_seed: u32, // World seed for biome calculation
+    pub world_seed: u32,                // World seed for biome calculation
 }
 
 impl From<AuthRegisterResponse> for ServerToClientMessage {
