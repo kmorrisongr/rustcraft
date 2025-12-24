@@ -58,7 +58,5 @@ jobs:
       with:
         components: |
           rustfmt
-          rustc-codegen-cranelift-preview
-
     - name: Check code formatting
       run: cargo fmt --all -- --check
