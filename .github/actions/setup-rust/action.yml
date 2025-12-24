@@ -1,5 +1,5 @@
 name: "Setup Rust (nightly + components)"
-description: "Install Rust nightly toolchain and specified components following project README"
+description: "Install Rust nightly toolchain and newline-separated components following project README"
 inputs:
   components:
     description: "Comma-separated list of components to install (default: rustc-codegen-cranelift-preview)"
