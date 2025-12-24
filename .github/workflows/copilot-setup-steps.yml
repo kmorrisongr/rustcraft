@@ -47,7 +47,4 @@ jobs:
             zlib1g-dev
 
       - name: Install Rust (nightly with Cranelift)
-        run: |
-          rustup toolchain install nightly
-          rustup default nightly
-          rustup component add rustc-codegen-cranelift-preview --toolchain nightly
+        uses: ./.github/actions/setup-rust

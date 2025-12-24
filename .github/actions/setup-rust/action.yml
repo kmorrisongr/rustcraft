@@ -1,0 +1,23 @@
+name: "Setup Rust (nightly + components)"
+description: "Install Rust nightly toolchain and specified components following project README"
+inputs:
+  components:
+    description: "Comma-separated list of components to install (default: rustc-codegen-cranelift-preview)"
+    required: false
+    default: "rustc-codegen-cranelift-preview"
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly
+        rustup default nightly
+
+        IFS=',' read -ra comps <<< "${{ inputs.components }}"
+        for comp in "${comps[@]}"; do
+          comp_trimmed="$(echo "$comp" | xargs)"
+          if [ -n "$comp_trimmed" ]; then
+            rustup component add "$comp_trimmed" --toolchain nightly
+          fi
+        done

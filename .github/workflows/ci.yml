@@ -41,10 +41,7 @@ jobs:
           zlib1g-dev
 
     - name: Install Rust (nightly with Cranelift)
-      run: |
-        rustup toolchain install nightly
-        rustup default nightly
-        rustup component add rustc-codegen-cranelift-preview --toolchain nightly
+      uses: ./.github/actions/setup-rust
 
     - name: Build the project
       run: RUSTFLAGS="-D warnings" cargo build --all-targets --release
@@ -57,11 +54,9 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Install Rust (nightly with rustfmt and Cranelift)
-      run: |
-        rustup toolchain install nightly
-        rustup default nightly
-        rustup component add rustfmt --toolchain nightly
-        rustup component add rustc-codegen-cranelift-preview --toolchain nightly
+      uses: ./.github/actions/setup-rust
+      with:
+        components: "rustfmt, rustc-codegen-cranelift-preview"
 
     - name: Check code formatting
       run: cargo fmt --all -- --check
