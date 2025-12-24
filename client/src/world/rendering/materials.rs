@@ -232,7 +232,7 @@ pub fn create_all_atlases(
 
         textures_ready
     } else {
-        true
+        false
     };
 
     // Compute new_ready once at the end based on all conditions
