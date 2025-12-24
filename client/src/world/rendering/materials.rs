@@ -226,9 +226,7 @@ pub fn create_all_atlases(
             }
         }
 
-        new_ready = textures_ready
-            && material_resource.blocks.is_some()
-            && material_resource.items.is_some();
+        new_ready = textures_ready;
     }
     let any_failed = all_handles
         .iter()
