@@ -8,7 +8,7 @@ use crate::world::ClientWorldMap;
 #[derive(Resource, Default)]
 pub struct FrustumDebugSettings {
     pub enabled: bool,
-    pub show_culled_chunks: bool,
+    pub show_chunk_bounds: bool,
 }
 
 /// System to toggle frustum debug visualization with F8 key
@@ -26,11 +26,11 @@ pub fn toggle_frustum_debug(
     }
     
     if keyboard.just_pressed(KeyCode::F9) {
-        settings.show_culled_chunks = !settings.show_culled_chunks;
-        if settings.show_culled_chunks {
-            info!("Showing culled chunks");
+        settings.show_chunk_bounds = !settings.show_chunk_bounds;
+        if settings.show_chunk_bounds {
+            info!("Showing chunk bounds");
         } else {
-            info!("Hiding culled chunks");
+            info!("Hiding chunk bounds");
         }
     }
 }
@@ -72,7 +72,7 @@ pub fn display_frustum_stats(
             visible_chunks += 1;
             
             // Draw visible chunk bounds in green
-            if settings.show_culled_chunks {
+            if settings.show_chunk_bounds {
                 let min = Vec3::new(
                     (chunk_pos.x * CHUNK_SIZE) as f32,
                     (chunk_pos.y * CHUNK_SIZE) as f32,
@@ -89,7 +89,7 @@ pub fn display_frustum_stats(
             culled_chunks += 1;
             
             // Draw culled chunk bounds in red
-            if settings.show_culled_chunks {
+            if settings.show_chunk_bounds {
                 let min = Vec3::new(
                     (chunk_pos.x * CHUNK_SIZE) as f32,
                     (chunk_pos.y * CHUNK_SIZE) as f32,
