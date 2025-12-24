@@ -13,8 +13,8 @@ use super::{
 /// Configuration for building a list item row
 pub struct ListItemConfig<'a> {
     pub asset_server: &'a Res<'a, AssetServer>,
-    pub primary_text: String,
-    pub secondary_text: Option<String>,
+    pub primary_text: &'a str,
+    pub secondary_text: Option<&'a str>,
 }
 
 /// Result of spawning a list item, containing entity IDs for further customization
