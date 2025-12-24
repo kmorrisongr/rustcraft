@@ -320,7 +320,7 @@ pub fn frustum_cull_chunks_system(
         let is_visible = if distance_sq < NEAR_FIELD_DISTANCE_SQ {
             true // Always render chunks within near-field radius
         } else {
-            frustum.intersects_chunk_relative(chunk_entity.chunk_pos, CHUNK_SIZE, camera_pos)
+            frustum.intersects_chunk(chunk_entity.chunk_pos, CHUNK_SIZE)
         };
 
         *visibility = if is_visible {

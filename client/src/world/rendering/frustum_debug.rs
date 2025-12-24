@@ -66,7 +66,7 @@ pub fn display_frustum_stats(
     // Count visible and culled chunks
     for (chunk_pos, _chunk) in world_map.map.iter() {
         let is_visible =
-            frustum.intersects_chunk_relative(*chunk_pos, CHUNK_SIZE, camera_transform.translation);
+            frustum.intersects_chunk(*chunk_pos, CHUNK_SIZE);
         
         if is_visible {
             visible_chunks += 1;

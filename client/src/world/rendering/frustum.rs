@@ -169,33 +169,6 @@ impl Frustum {
         self.test_aabb(min, max) != FrustumIntersection::Outside
     }
 
-    /// Convenience method to test a chunk's AABB given its position and size.
-    /// Uses f64 for intermediate coordinate calculations to maintain precision
-    /// at large world coordinates, then converts to f32 for the actual test.
-    /// The camera_pos parameter is unused but kept for API compatibility.
-    #[inline]
-    pub fn intersects_chunk_relative(
-        &self,
-        chunk_pos: IVec3,
-        chunk_size: i32,
-        _camera_pos: Vec3,
-    ) -> bool {
-        self.test_chunk(chunk_pos, chunk_size) != FrustumIntersection::Outside
-    }
-
-    /// Detailed chunk intersection test.
-    /// Uses f64 for coordinate calculations to maintain precision at large world positions,
-    /// with epsilon padding for conservative culling to prevent edge flickering.
-    #[inline]
-    pub fn test_chunk_relative(
-        &self,
-        chunk_pos: IVec3,
-        chunk_size: i32,
-        _camera_pos: Vec3,
-    ) -> FrustumIntersection {
-        self.test_chunk(chunk_pos, chunk_size)
-    }
-
     /// Legacy method for backward compatibility
     #[inline]
     pub fn intersects_chunk(&self, chunk_pos: IVec3, chunk_size: i32) -> bool {
@@ -278,8 +251,8 @@ pub fn calculate_chunk_priority(
     // 1.0 = directly in front, 0.0 = perpendicular, -1.0 = directly behind
     let view_alignment = camera_forward.dot(to_chunk_normalized);
 
-    // Check frustum intersection using camera-relative method for precision
-    let frustum_result = frustum.test_chunk_relative(chunk_pos, chunk_size, camera_pos);
+    // Check frustum intersection
+    let frustum_result = frustum.test_chunk(chunk_pos, chunk_size);
 
     // Base priority is distance (closer = better)
     let distance_score = distance as f32;
