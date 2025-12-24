@@ -1,12 +1,5 @@
-# Copilot Setup Steps
-# This workflow is used by GitHub Copilot Coding Agent to set up the environment
-# before running build commands. It installs system dependencies required by the
-# Bevy game engine on Ubuntu.
-
 name: "Copilot Setup Steps"
 
-# Automatically run the setup steps when they are changed to allow for easy validation, and
-# allow manual testing through the repository's "Actions" tab
 on:
   workflow_dispatch:
   push:
