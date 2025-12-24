@@ -222,6 +222,7 @@ pub fn create_all_atlases(
                 material_resource.items = Some(items);
                 atlases.1.loaded = true;
             } else {
+                warn!("Failed to finalize item textures after load");
                 textures_ready = false;
             }
         }
