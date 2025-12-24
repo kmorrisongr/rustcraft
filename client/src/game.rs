@@ -261,10 +261,9 @@ fn reset_preload_tracking(
 fn emit_server_ready_signal(
     target_server: Res<TargetServer>,
     mut signals: EventWriter<PreloadSignal>,
-    mut gate: ResMut<PreloadGate>,
+    gate: Res<PreloadGate>,
 ) {
     if !gate.server_ready && target_server.state == TargetServerState::FullyReady {
-        gate.server_ready = true;
         signals.write(PreloadSignal::ServerReady);
     }
 }
