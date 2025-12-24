@@ -2,6 +2,7 @@ use super::{MenuButtonAction, MenuState, ScrollingList};
 use crate::constants::SERVER_LIST_SAVE_NAME;
 use crate::network::{TargetServer, TargetServerState};
 use crate::ui::assets::*;
+use crate::ui::list_item::{spawn_list_item_row, ListItemConfig};
 use crate::ui::style::*;
 use crate::GameState;
 use bevy::platform::collections::HashMap;
@@ -57,34 +58,12 @@ pub fn multiplayer_menu_setup(
     asset_server: Res<AssetServer>,
     _paths: Res<GameFolderPaths>,
 ) {
-    let font = load_font(&asset_server);
     let background_image = load_background_image(&asset_server);
     let button_background_image = load_button_background_large_image(&asset_server);
 
-    let txt_font = TextFont {
-        font: font.clone(),
-        font_size: 20.0,
-        ..default()
-    };
-
-    let txt_color = TextColor(TEXT_COLOR);
-    // let txt_font_inactive = TextFont {
-    //     font,
-    //     font_size: 20.0,
-    //     ..default()
-    // };
-
-    // let txt_color_inactive = TextColor(Color::srgb(0.3, 0.3, 0.3));
-
-    let btn_style = Node {
-        display: Display::Flex,
-        flex_direction: FlexDirection::Column,
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        border: UiRect::all(Val::Px(2.)),
-        height: Val::Px(40.0),
-        ..default()
-    };
+    let txt_font = menu_text_font(&asset_server);
+    let txt_color = white_text_color();
+    let btn_style = menu_list_button_style();
 
     commands
         .spawn((
@@ -244,95 +223,27 @@ pub fn add_server_item(
 ) {
     info!("Adding server to list : name = {:?}, ip = {:?}", name, ip);
 
-    let btn_style = Node {
-        display: Display::Flex,
-        flex_direction: FlexDirection::Column,
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        border: UiRect::all(Val::Px(2.)),
-        height: Val::Percent(80.),
-        ..default()
-    };
-
-    let img_style = Node {
-        height: Val::Percent(100.),
-        ..default()
-    };
-
-    let server = commands
-        .spawn((
-            BorderColor(BACKGROUND_COLOR),
-            Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(5.),
-                width: Val::Percent(100.),
-                height: Val::Vh(10.),
-                padding: UiRect::horizontal(Val::Percent(2.)),
-                border: UiRect::all(Val::Px(2.)),
-                ..default()
-            },
-        ))
-        .id();
-
-    let play_btn = commands
-        .spawn((
-            MultiplayerButtonAction::Connect(server),
-            (Button, btn_style.clone()),
-        ))
-        .with_children(|btn| {
-            let icon = asset_server.load("./graphics/play.png");
-            btn.spawn((ImageNode::new(icon), img_style.clone()));
-        })
-        .id();
-
-    let delete_btn = commands
-        .spawn((
-            MultiplayerButtonAction::Delete(server),
-            (Button, btn_style.clone()),
-        ))
-        .with_children(|btn| {
-            let icon = asset_server.load("./graphics/trash.png");
-            btn.spawn((ImageNode::new(icon), img_style.clone()));
-        })
-        .id();
-
-    let txt = commands
-        .spawn(((
-            Text::new(format!("{name}\n")),
-            TextFont {
-                font: asset_server.load("./fonts/RustCraftRegular-Bmg3.otf"),
-                font_size: 20.,
-                ..default()
-            },
-            TextColor(Color::WHITE),
-        ),))
-        .id();
-
-    commands.spawn((
-        Text::new(ip.clone()),
-        TextFont {
-            font: asset_server.load("./fonts/RustCraftRegular-Bmg3.otf"),
-            font_size: 15.,
-            ..default()
+    let entities = spawn_list_item_row(
+        commands,
+        ListItemConfig {
+            asset_server,
+            primary_text: &name,
+            secondary_text: Some(&ip),
         },
-        TextColor(Color::srgb(0.4, 0.4, 0.4)),
-    ));
+    );
 
-    // (Node {
-    //             display: Display::Flex,
-    //             flex_direction: FlexDirection::Column,
-    //             ..default()
-    //         }),
-
+    // Add action components to buttons
     commands
-        .entity(server)
-        .add_children(&[play_btn, delete_btn, txt]);
+        .entity(entities.play_button)
+        .insert(MultiplayerButtonAction::Connect(entities.row));
+    commands
+        .entity(entities.delete_button)
+        .insert(MultiplayerButtonAction::Delete(entities.row));
 
-    commands.entity(list_entity).add_children(&[server]);
+    commands.entity(list_entity).add_children(&[entities.row]);
 
     list.servers.insert(
-        server,
+        entities.row,
         ServerItem {
             name: name.clone(),
             ip: ip.clone(),
