@@ -35,6 +35,7 @@ pub fn add_item_floating_stack(
             nb = item.item_id.get_max_stack() - item.nb;
         }
         item.nb += nb;
+        floating_stack.items = Some(item);
         nb
     } else {
         if nb > item_id.get_max_stack() {

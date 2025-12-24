@@ -2,6 +2,7 @@ use crate::input::keyboard::is_action_just_pressed;
 use crate::input::keyboard::is_action_just_released;
 use crate::network::CachedChatConversation;
 use crate::network::SendGameMessageExtension;
+use crate::ui::assets::chat_text_font;
 use crate::ui::hud::UiDialog;
 use crate::KeyMap;
 use bevy::prelude::*;
@@ -99,11 +100,7 @@ pub fn setup_chat(
                         value: "Send a message...".to_string(),
                         ..default()
                     },
-                    TextInputTextFont(TextFont {
-                        font: asset_server.load("./fonts/RustCraftRegular-Bmg3.otf"),
-                        font_size: 17.,
-                        ..default()
-                    }),
+                    TextInputTextFont(chat_text_font(&asset_server)),
                     TextInputTextColor(TextColor(Color::WHITE)),
                     TextInputInactive(true),
                 ),
@@ -207,11 +204,7 @@ pub fn render_chat(
                     },
                     (
                         Text::new(format!("<{}> : {}", message.author, message.content)),
-                        TextFont {
-                            font: asset_server.load("./fonts/RustCraftRegular-Bmg3.otf"),
-                            font_size: 17.,
-                            ..default()
-                        },
+                        chat_text_font(&asset_server),
                         TextColor(Color::WHITE),
                         Visibility::Visible,
                         BackgroundColor(CHAT_COLOR),
