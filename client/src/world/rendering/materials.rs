@@ -11,7 +11,6 @@ use shared::GameFolderPaths;
 use std::collections::HashMap;
 use std::fs;
 use std::marker::PhantomData;
-use std::ops::Not;
 
 use super::meshing::UvCoords;
 
@@ -243,7 +242,7 @@ pub fn create_all_atlases(
         warn!("Texture loading failed; check asset paths and filenames");
     }
 
-    let new_ready = any_failed.not() && all_loaded && textures_ready;
+    let new_ready = !any_failed && all_loaded && textures_ready;
     if new_ready && !was_ready {
         preload_signals.write(PreloadSignal::TexturesReady);
     }
