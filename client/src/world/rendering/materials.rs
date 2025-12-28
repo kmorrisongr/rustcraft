@@ -235,15 +235,11 @@ pub fn create_all_atlases(
         false
     };
 
-    let new_ready = if any_failed {
+    if any_failed {
         warn!("Texture loading failed; check asset paths and filenames");
-        false
-    } else if !all_loaded {
-        false
-    } else {
-        textures_ready
-    };
+    }
 
+    let new_ready = any_failed.not() && all_loaded && textures_ready;
     if new_ready && !was_ready {
         preload_signals.write(PreloadSignal::TexturesReady);
     }
