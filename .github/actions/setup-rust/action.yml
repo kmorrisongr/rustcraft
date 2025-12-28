@@ -1,0 +1,31 @@
+name: "Setup Rust (nightly + components)"
+description: "Install Rust nightly toolchain and newline-separated components following project README"
+inputs:
+  components:
+    description: "Newline-separated list of components to install (default: rustc-codegen-cranelift-preview)"
+    required: false
+    default: "rustc-codegen-cranelift-preview"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ${{ github.workspace }}/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain*') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    - shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly
+        rustup default nightly
+
+        while IFS= read -r comp; do
+          comp_trimmed="$(echo "$comp" | xargs)"
+          if [ -n "$comp_trimmed" ]; then
+            rustup component add "$comp_trimmed" --toolchain nightly
+          fi
+        done <<< "${{ inputs.components }}"
