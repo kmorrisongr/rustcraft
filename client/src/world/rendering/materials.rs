@@ -11,6 +11,7 @@ use shared::GameFolderPaths;
 use std::collections::HashMap;
 use std::fs;
 use std::marker::PhantomData;
+use std::ops::Not;
 
 use super::meshing::UvCoords;
 
@@ -160,9 +161,12 @@ pub fn create_all_atlases(
     all_handles.extend(atlases.1.handles.iter().map(|h| h.0.id()));
 
     if all_handles.is_empty() {
-        warn!(
-            "No texture handles queued for atlas creation; ensure assets exist before continuing"
-        );
+        if !loading.empty_handles_warning_emitted {
+            warn!(
+                "No texture handles queued for atlas creation; ensure assets exist before continuing"
+            );
+            loading.empty_handles_warning_emitted = true;
+        }
         return;
     }
 
