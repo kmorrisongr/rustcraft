@@ -261,10 +261,11 @@ fn reset_preload_tracking(
 fn emit_server_ready_signal(
     target_server: Res<TargetServer>,
     mut signals: EventWriter<PreloadSignal>,
-    gate: Res<PreloadGate>,
+    mut gate: ResMut<PreloadGate>,
 ) {
     if !gate.server_ready && target_server.state == TargetServerState::FullyReady {
         signals.write(PreloadSignal::ServerReady);
+        gate.server_ready = true;
     }
 }
 
@@ -276,7 +277,7 @@ fn advance_to_game_on_preload(
     for signal in signals.read() {
         match signal {
             PreloadSignal::TexturesReady => gate.textures_ready = true,
-            PreloadSignal::ServerReady => gate.server_ready = true,
+            PreloadSignal::ServerReady => {} // Gate updated in emit_server_ready_signal
         }
     }
 
