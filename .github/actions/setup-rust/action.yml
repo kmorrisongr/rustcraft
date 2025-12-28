@@ -8,6 +8,15 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ${{ github.workspace }}/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain*') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
     - shell: bash
       run: |
         set -euo pipefail
