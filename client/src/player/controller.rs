@@ -85,11 +85,6 @@ pub fn player_movement_system(
         return;
     }
 
-    let Ok((mut player, mut player_transform)) = player_query.single_mut() else {
-        debug!("player not found");
-        return;
-    };
-
     if *ui_mode == UIMode::Closed
         && is_action_just_pressed(GameAction::ToggleFlyMode, &keyboard_input, &key_map)
     {
@@ -101,6 +96,11 @@ pub fn player_movement_system(
             frame_inputs.0.inputs.insert(*network_action);
         }
     }
+
+    let Ok((mut player, mut player_transform)) = player_query.single_mut() else {
+        debug!("player not found");
+        return;
+    };
 
     simulate_player_movement(&mut player, world_map.as_ref(), &frame_inputs.0);
 
@@ -128,12 +128,12 @@ pub fn first_and_third_person_view_system(
         view_mode.toggle();
     }
 
-    let Ok(material_handle) = player_query.single_mut() else {
+    let Ok(player_material) = player_query.single_mut() else {
         debug!("player not found");
         return;
     };
 
-    let material_handle = &material_handle.handle;
+    let material_handle = &player_material.handle;
 
     match *view_mode {
         ViewMode::FirstPerson => {
