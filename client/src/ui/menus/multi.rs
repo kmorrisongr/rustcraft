@@ -342,22 +342,22 @@ pub fn save_server_list(list: Query<&ServerList>, game_folder_path: Res<GameFold
         }
     };
 
-    // Chemin complet du fichier de sauvegarde
+    // Full path of the save file
     let save_path: PathBuf = game_folder_path
         .game_folder_path
         .join(SERVER_LIST_SAVE_NAME);
 
-    // Config de sérialisation RON
+    // RON serialization config
     let pretty_config = PrettyConfig::new()
         .with_depth_limit(3)
         .with_separate_tuple_members(true)
         .with_enumerate_arrays(true);
 
-    // Convertit la liste des serveurs en une chaîne RON
+    // Convert the server list into a RON string
     let server_items: Vec<ServerItem> = list.servers.values().cloned().collect();
     match ron::ser::to_string_pretty(&server_items, pretty_config) {
         Ok(data) => {
-            // Crée le fichier de sauvegarde et écrit les données
+            // Create the save file and write the data
             match fs::File::create(&save_path) {
                 Ok(mut file) => {
                     if file.write_all(data.as_bytes()).is_ok() {

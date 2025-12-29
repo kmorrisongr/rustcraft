@@ -69,7 +69,7 @@ pub fn button_system(
             _ => node.size().x,
         };
 
-        // Charger les images appropriées en fonction de la largeur
+        // Load the appropriate images based on the width
         let (normal_image, dark_image) = if width > 400.0 {
             (
                 load_button_background_large_image(&asset_server),
