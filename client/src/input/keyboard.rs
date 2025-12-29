@@ -115,8 +115,12 @@ pub fn get_bindings(game_folder_paths: &GameFolderPaths) -> KeyMap {
     let binds_path: PathBuf = Path::new(&game_folder_paths.assets_folder_path).join(BINDS_PATH);
 
     if let Ok(content) = fs::read_to_string(binds_path.as_path()) {
-        if let Ok(key_map) = from_str::<KeyMap>(&content) {
-            return key_map;
+        match from_str::<KeyMap>(&content) {
+            Ok(key_map) => return key_map,
+            Err(e) => warn!(
+                "Failed to deserialize keybindings at {:?}, writing defaults: {}",
+                binds_path, e
+            ),
         }
     }
 
