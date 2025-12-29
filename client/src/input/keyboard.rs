@@ -21,7 +21,7 @@ fn write_keybindings_to_path(key_map: &KeyMap, binds_path: &Path) -> Result<(), 
         .with_enumerate_arrays(true);
 
     let serialized = ron::ser::to_string_pretty(key_map, pretty_config)
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "serialization failed"))?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("serialization failed: {e}")))?;
     if let Some(parent) = binds_path.parent() {
         fs::create_dir_all(parent)?;
     }
