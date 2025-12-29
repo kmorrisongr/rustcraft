@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::PlayerId;
 use crate::players::{Inventory, ViewMode};
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Eq, Hash)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy, Eq, Hash)]
 pub enum NetworkAction {
     MoveForward,
     MoveRight,
