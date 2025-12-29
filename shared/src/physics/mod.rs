@@ -60,7 +60,11 @@ pub fn resolve_vertical_movement(
 
     let candidate = body.position.with_y(new_y);
     if world_map.check_collision_box(&body.aabb_at(candidate)) {
-        body.on_ground = true;
+        if body.velocity.y <= 0.0 {
+            body.on_ground = true;
+        } else {
+            body.on_ground = false;
+        }
         body.velocity.y = 0.0;
     } else {
         body.position.y = new_y;
@@ -69,7 +73,8 @@ pub fn resolve_vertical_movement(
 }
 
 /// Attempt to move the body by `displacement`.
-/// If `collide` is true, performs collision checks; returns `true` when movement is blocked.
+/// If `collide` is true, performs collision checks; returns `true` if movement is
+/// blocked by a collision and `false` if movement succeeded (position was updated).
 pub fn try_move(
     body: &mut PhysicsBody,
     world_map: &impl WorldMap,

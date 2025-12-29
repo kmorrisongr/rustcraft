@@ -42,7 +42,7 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
             mob.position,
             mob.velocity,
             mob.on_ground,
-            Vec3::new(mob.width, mob.height, mob.deepth),
+            Vec3::new(mob.width, mob.height, mob.depth),
         );
 
         apply_gravity(&mut body, GRAVITY, delta);
