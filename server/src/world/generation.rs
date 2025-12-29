@@ -3,12 +3,18 @@ use noise::{NoiseFn, Perlin};
 use shared::{world::*, CHUNK_SIZE, SEA_LEVEL};
 use std::collections::HashMap;
 
-fn try_place_block(chunk: &mut ServerChunk, pos: IVec3, block: BlockData) {
-    if (0..CHUNK_SIZE).contains(&pos.x)
-        && (0..CHUNK_SIZE).contains(&pos.y)
-        && (0..CHUNK_SIZE).contains(&pos.z)
-    {
-        chunk.map.insert(pos, block);
+fn try_place_block(
+    chunk: &mut ServerChunk,
+    x: i32,
+    y: i32,
+    z: i32,
+    block: BlockId,
+    direction: BlockDirection,
+) {
+    if x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_SIZE && z >= 0 && z < CHUNK_SIZE {
+        chunk
+            .map
+            .insert(IVec3::new(x, y, z), BlockData::new(block, direction));
     }
 }
 
@@ -17,11 +23,7 @@ fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId
     let trunk_height = 3 + rand::random::<u8>() % 3; // random height between 3 and 5
     for dy in 0..trunk_height {
         let trunk_y = y + dy as i32;
-        try_place_block(
-            chunk,
-            IVec3::new(x, trunk_y, z),
-            BlockData::new(trunk, BlockDirection::Front),
-        );
+        try_place_block(chunk, x, trunk_y, z, trunk, BlockDirection::Front);
     }
 
     // place the leaves
@@ -37,21 +39,13 @@ fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId
                 if cond1 || cond2 {
                     let leaf_x = x + offset_x;
                     let leaf_z = z + offset_z;
-                    try_place_block(
-                        chunk,
-                        IVec3::new(leaf_x, current_y, leaf_z),
-                        BlockData::new(leaves, BlockDirection::Front),
-                    );
+                    try_place_block(chunk, leaf_x, current_y, leaf_z, leaves, BlockDirection::Front);
                 }
             }
         }
     }
     let top_trunk_y = y + trunk_height as i32 - 1;
-    try_place_block(
-        chunk,
-        IVec3::new(x, top_trunk_y, z),
-        BlockData::new(trunk, BlockDirection::Front),
-    );
+    try_place_block(chunk, x, top_trunk_y, z, trunk, BlockDirection::Front);
 
     // add one leaf block at the top of the trunk
 }
@@ -74,43 +68,18 @@ fn generate_big_tree(
         let prof = rand::random::<u8>() % 2 + 1;
         for dx in 0..prof {
             let bx = branch_x + dx as i32;
-            try_place_block(
-                chunk,
-                IVec3::new(bx, branch_y, branch_z + 1),
-                BlockData::new(leaves, BlockDirection::Front),
-            );
-            try_place_block(
-                chunk,
-                IVec3::new(bx, branch_y, branch_z - 1),
-                BlockData::new(leaves, BlockDirection::Front),
-            );
-            try_place_block(
-                chunk,
-                IVec3::new(bx, branch_y + 1, branch_z),
-                BlockData::new(leaves, BlockDirection::Front),
-            );
-            try_place_block(
-                chunk,
-                IVec3::new(bx, branch_y, branch_z),
-                BlockData::new(trunk, BlockDirection::Front),
-            );
+            try_place_block(chunk, bx, branch_y, branch_z + 1, leaves, BlockDirection::Front);
+            try_place_block(chunk, bx, branch_y, branch_z - 1, leaves, BlockDirection::Front);
+            try_place_block(chunk, bx, branch_y + 1, branch_z, leaves, BlockDirection::Front);
+            try_place_block(chunk, bx, branch_y, branch_z, trunk, BlockDirection::Front);
         }
         let final_bx = branch_x + prof as i32;
-        try_place_block(
-            chunk,
-            IVec3::new(final_bx, branch_y, branch_z),
-            BlockData::new(leaves, BlockDirection::Front),
-        );
+        try_place_block(chunk, final_bx, branch_y, branch_z, leaves, BlockDirection::Front);
     }
     // create trunk
-
     for dy in 0..trunk_height {
         let trunk_y = y + dy as i32;
-        try_place_block(
-            chunk,
-            IVec3::new(x, trunk_y, z),
-            BlockData::new(trunk, BlockDirection::Front),
-        );
+        try_place_block(chunk, x, trunk_y, z, trunk, BlockDirection::Front);
     }
 
     // place the leaves
@@ -122,11 +91,7 @@ fn generate_big_tree(
                 if !(offset_x == 0 && offset_z == 0 || offset_x.abs() == 2 && offset_z.abs() == 2) {
                     let leaf_x = x + offset_x;
                     let leaf_z = z + offset_z;
-                    try_place_block(
-                        chunk,
-                        IVec3::new(leaf_x, current_y, leaf_z),
-                        BlockData::new(leaves, BlockDirection::Front),
-                    );
+                    try_place_block(chunk, leaf_x, current_y, leaf_z, leaves, BlockDirection::Front);
                 }
             }
         }
@@ -134,11 +99,7 @@ fn generate_big_tree(
 
     // add one leaf block at the top of the trunk
     let top_y = leaf_start_y + 2;
-    try_place_block(
-        chunk,
-        IVec3::new(x, top_y, z),
-        BlockData::new(leaves, BlockDirection::Front),
-    );
+    try_place_block(chunk, x, top_y, z, leaves, BlockDirection::Front);
 
     // Add random leaves above the top leaf
     for layer in 0..3 {
@@ -152,11 +113,7 @@ fn generate_big_tree(
                 if cond1 || cond2 {
                     let leaf_x = x + offset_x;
                     let leaf_z = z + offset_z;
-                    try_place_block(
-                        chunk,
-                        IVec3::new(leaf_x, current_y, leaf_z),
-                        BlockData::new(leaves, BlockDirection::Front),
-                    );
+                    try_place_block(chunk, leaf_x, current_y, leaf_z, leaves, BlockDirection::Front);
                 }
             }
         }
