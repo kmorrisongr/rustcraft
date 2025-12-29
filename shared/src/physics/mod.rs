@@ -37,8 +37,8 @@ pub fn resolve_vertical_movement(
     max_velocity: f32,
     collide: bool,
 ) {
-    if body.velocity.y > max_velocity {
-        body.velocity.y = max_velocity;
+    if body.velocity.y < -max_velocity {
+        body.velocity.y = -max_velocity;
     }
 
     let new_y = body.position.y + body.velocity.y;
