@@ -14,7 +14,7 @@ This document outlines opportunities for refactoring and simplification across t
 
 ## High Priority
 
-### 1. Duplicate WorldMap Trait Implementations
+### 1. Duplicate WorldMap Trait Implementations [COMPLETE]
 
 **Files:** 
 - [client/src/world/data.rs](../client/src/world/data.rs)
@@ -46,7 +46,7 @@ Consider using a generic chunk storage trait that both can implement.
 
 ---
 
-### 2. Input Action Mapping Duplication
+### 2. Input Action Mapping Duplication [COMPLETE]
 
 **Files:**
 - [client/src/input/data.rs](../client/src/input/data.rs) - `GameAction` enum
@@ -84,7 +84,7 @@ for (game_action, network_action) in ACTION_MAPPING {
 
 ---
 
-### 3. Tree Generation Code Repetition
+### 3. Tree Generation Code Repetition [COMPLETE]
 
 **File:** [server/src/world/generation.rs](../server/src/world/generation.rs)
 
@@ -113,7 +113,7 @@ Consider a `TreeBuilder` struct pattern for more complex tree generation logic.
 
 ---
 
-### 4. Mob Physics Duplicates Player Physics
+### 4. Mob Physics Duplicates Player Physics [COMPLETE]
 
 **Files:**
 - [shared/src/players/movement.rs](../shared/src/players/movement.rs)
@@ -210,7 +210,7 @@ pub mod world {
 
 ---
 
-### 7. Debug Toggle Systems Are Repetitive
+### 7. Debug Toggle Systems Are Repetitive [COMPLETE]
 
 **File:** [client/src/player/controller.rs](../client/src/player/controller.rs)
 
@@ -290,7 +290,7 @@ impl Plugin for GameInputPlugin {
 
 ---
 
-### 9. Chunk Sent Tracking Uses Vec Instead of HashSet
+### 9. Chunk Sent Tracking Uses Vec Instead of HashSet [COMPLETE]
 
 **File:** [shared/src/world/data.rs](../shared/src/world/data.rs)
 
@@ -314,7 +314,7 @@ pub struct ServerChunk {
 
 ---
 
-### 10. French Comments in Codebase
+### 10. French Comments in Codebase [COMPLETE]
 
 **File:** [shared/src/players/data.rs](../shared/src/players/data.rs)
 
@@ -331,7 +331,7 @@ pub fn add_item_to_inventory(&mut self, mut stack: ItemStack) {
 
 ## Low Priority
 
-### 11. Unused/Dead Code
+### 11. Unused/Dead Code [COMPLETE]
 
 **Files:** Various
 
@@ -377,7 +377,7 @@ let addr = match socket.local_addr() {
 
 ---
 
-### 13. Inconsistent Query Error Handling
+### 13. Inconsistent Query Error Handling [PARTIAL-COMPLETE]
 
 **Files:** [client/src/player/controller.rs](../client/src/player/controller.rs), [camera/controller.rs](../client/src/camera/controller.rs)
 
@@ -445,7 +445,7 @@ fn spawn_debug_text<T: Component>(
 
 ---
 
-### 15. Keybinding Defaults Defined Twice
+### 15. Keybinding Defaults Defined Twice [COMPLETE]
 
 **File:** [client/src/input/keyboard.rs](../client/src/input/keyboard.rs)
 
