@@ -20,8 +20,12 @@ fn write_keybindings_to_path(key_map: &KeyMap, binds_path: &Path) -> Result<(), 
         .with_separate_tuple_members(true)
         .with_enumerate_arrays(true);
 
-    let serialized = ron::ser::to_string_pretty(key_map, pretty_config)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("serialization failed: {e}")))?;
+    let serialized = ron::ser::to_string_pretty(key_map, pretty_config).map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("serialization failed: {e}"),
+        )
+    })?;
     if let Some(parent) = binds_path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -80,12 +84,18 @@ pub fn get_action_keys(action: GameAction, key_map: &KeyMap) -> Vec<KeyCode> {
 
 pub(crate) fn default_key_map() -> BTreeMap<GameAction, Vec<KeyCode>> {
     let mut map = BTreeMap::new();
-    map.insert(GameAction::MoveForward, vec![KeyCode::KeyW, KeyCode::ArrowUp]);
+    map.insert(
+        GameAction::MoveForward,
+        vec![KeyCode::KeyW, KeyCode::ArrowUp],
+    );
     map.insert(
         GameAction::MoveBackward,
         vec![KeyCode::KeyS, KeyCode::ArrowDown],
     );
-    map.insert(GameAction::MoveLeft, vec![KeyCode::KeyA, KeyCode::ArrowLeft]);
+    map.insert(
+        GameAction::MoveLeft,
+        vec![KeyCode::KeyA, KeyCode::ArrowLeft],
+    );
     map.insert(
         GameAction::MoveRight,
         vec![KeyCode::KeyD, KeyCode::ArrowRight],
@@ -95,10 +105,7 @@ pub(crate) fn default_key_map() -> BTreeMap<GameAction, Vec<KeyCode>> {
     map.insert(GameAction::ToggleFps, vec![KeyCode::F3]);
     map.insert(GameAction::ToggleChunkDebugMode, vec![KeyCode::F4]);
     map.insert(GameAction::ToggleViewMode, vec![KeyCode::F5]);
-    map.insert(
-        GameAction::ToggleBlockWireframeDebugMode,
-        vec![KeyCode::F6],
-    );
+    map.insert(GameAction::ToggleBlockWireframeDebugMode, vec![KeyCode::F6]);
     map.insert(GameAction::ToggleRaycastDebugMode, vec![KeyCode::F7]);
     map.insert(GameAction::ToggleFlyMode, vec![KeyCode::KeyF]);
     map.insert(GameAction::FlyUp, vec![KeyCode::Space]);
