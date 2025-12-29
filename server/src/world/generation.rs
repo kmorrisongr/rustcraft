@@ -258,13 +258,7 @@ fn generate_cactus(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, cactus: Bloc
     }
 }
 
-fn interpolated_height(
-    x: i32,
-    z: i32,
-    perlin: &Perlin,
-    scale: f64,
-    seed: u32,
-) -> i32 {
+fn interpolated_height(x: i32, z: i32, perlin: &Perlin, scale: f64, seed: u32) -> i32 {
     // get the properties of the main biome at (x, z)
     let climate = calculate_temperature_humidity(x, z, seed);
     let biome_type = BiomeType::from_climate(climate);
@@ -471,13 +465,7 @@ pub fn generate_chunk(
             let biome = get_biome_data(biome_type);
 
             // get terrain height
-            let terrain_height = interpolated_height(
-                x,
-                z,
-                &perlin,
-                scale,
-                seed,
-            );
+            let terrain_height = interpolated_height(x, z, &perlin, scale, seed);
 
             // generate blocs
             for dy in 0..CHUNK_SIZE {

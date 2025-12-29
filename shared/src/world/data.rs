@@ -158,22 +158,24 @@ impl BiomeType {
             (_, h) if h > DEEP_OCEAN_THRESHOLD => BiomeType::DeepOcean,
             (_, h) if h > OCEAN_THRESHOLD => BiomeType::Ocean,
             (_, h) if h > SHALLOW_OCEAN_THRESHOLD => BiomeType::ShallowOcean,
-            
+
             // Land biomes - Hot climate (temperature > 0.6)
             (t, h) if t > 0.6 && h > LAND_HUMID_THRESHOLD => BiomeType::Forest,
             (t, _) if t > 0.6 => BiomeType::Desert,
-            
+
             // Land biomes - Temperate climate (0.3 < temperature <= 0.6)
             (t, h) if t > 0.3 && h > LAND_HIGH_HUMID_THRESHOLD => BiomeType::FlowerPlains,
             (t, h) if t > 0.3 && h > LAND_MID_HUMID_THRESHOLD => BiomeType::Plains,
             (t, _) if t > 0.3 => BiomeType::MediumMountain,
-            
+
             // Land biomes - Cold climate (temperature <= 0.3)
             (t, h) if t >= 0.0 && h > LAND_HUMID_THRESHOLD => BiomeType::IcePlain,
             (t, _) if t >= 0.0 => BiomeType::HighMountainGrass,
-            
-            _ => panic!("Invalid climate values: temperature={}, humidity={}", 
-                       climate.temperature, climate.humidity),
+
+            _ => panic!(
+                "Invalid climate values: temperature={}, humidity={}",
+                climate.temperature, climate.humidity
+            ),
         }
     }
 }
