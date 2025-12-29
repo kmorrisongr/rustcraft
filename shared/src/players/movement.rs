@@ -1,7 +1,7 @@
 use crate::{
     messages::{NetworkAction, PlayerFrameInput},
+    physics::{apply_gravity, resolve_vertical_movement, try_move, PhysicsBody},
     players::{
-        collision::check_player_collision,
         constants::{FLY_SPEED_MULTIPLIER, GRAVITY, JUMP_VELOCITY, SPEED},
     },
     world::WorldMap,
@@ -75,40 +75,30 @@ pub fn simulate_player_movement(
         direction -= Vec3::Y;
     }
 
+    let mut body = PhysicsBody::new(
+        player.position,
+        player.velocity,
+        player.on_ground,
+        Vec3::new(player.width, player.height, player.width),
+    );
+
     // Handle jumping (if on the ground) and gravity, only if not flying
     if !player.is_flying {
-        if player.on_ground && is_jumping {
+        if body.on_ground && is_jumping {
             // Player can jump only when grounded
-            player.velocity.y = JUMP_VELOCITY * delta;
-            player.on_ground = false;
-        } else if !player.on_ground {
-            // Apply gravity when the player is in the air
-            player.velocity.y += GRAVITY * delta;
+            body.velocity.y = JUMP_VELOCITY * delta;
+            body.on_ground = false;
+        } else {
+            apply_gravity(&mut body, GRAVITY, delta);
         }
+    } else {
+        body.velocity.y = 0.0;
+        body.on_ground = false;
     }
 
     let max_velocity = 0.9;
 
-    if player.velocity.y > max_velocity {
-        player.velocity.y = max_velocity;
-    }
-
-    let new_y = player.position.y + player.velocity.y;
-    let new_vec = &Vec3::new(player.position.x, new_y, player.position.z);
-
-    if !player.is_flying {
-        if check_player_collision(new_vec, player, world_map) {
-            player.on_ground = true;
-            player.velocity.y = 0.0;
-        } else {
-            player.position.y = new_y;
-            player.on_ground = false;
-        }
-    } else {
-        player.velocity.y = 0.0;
-        player.position.y = new_y;
-        player.on_ground = false;
-    }
+    resolve_vertical_movement(&mut body, world_map, max_velocity, !player.is_flying);
 
     let speed = if player.is_flying {
         SPEED * FLY_SPEED_MULTIPLIER
@@ -116,35 +106,40 @@ pub fn simulate_player_movement(
         SPEED
     };
     let speed = speed * delta;
-
-    // Attempt to move the player by the calculated direction
-    let new_x = player.position.x + direction.x * speed;
-    let new_z = player.position.z + direction.z * speed;
-
-    let new_vec_x = &player.position.with_x(new_x);
-    let new_vec_z = &player.position.with_z(new_z);
-
-    // If a block is detected in the new position, don't move the player on this axis
-    if check_player_collision(new_vec_x, player, world_map) && !player.is_flying {
-    } else {
-        player.position.x = new_x;
-    }
-
-    if check_player_collision(new_vec_z, player, world_map) && !player.is_flying {
-    } else {
-        player.position.z = new_z;
-    }
+    let displacement = Vec3::new(direction.x * speed, 0.0, direction.z * speed);
 
     if player.is_flying {
-        player.position.y += direction.y * speed;
+        try_move(
+            &mut body,
+            world_map,
+            displacement + Vec3::new(0.0, direction.y * speed, 0.0),
+            false,
+        );
+    } else {
+        try_move(
+            &mut body,
+            world_map,
+            Vec3::new(displacement.x, 0.0, 0.0),
+            true,
+        );
+        try_move(
+            &mut body,
+            world_map,
+            Vec3::new(0.0, 0.0, displacement.z),
+            true,
+        );
     }
 
     // If the player is below the world, reset their position
     const FALL_LIMIT: f32 = -50.0;
-    if player.position.y < FALL_LIMIT {
-        player.position = Vec3::new(0.0, 100.0, 0.0);
-        player.velocity.y = 0.0;
+    if body.position.y < FALL_LIMIT {
+        body.position = Vec3::new(0.0, 100.0, 0.0);
+        body.velocity.y = 0.0;
     }
+
+    player.position = body.position;
+    player.velocity = body.velocity;
+    player.on_ground = body.on_ground;
 }
 
 trait IsPressed {

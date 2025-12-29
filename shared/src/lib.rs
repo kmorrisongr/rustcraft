@@ -7,6 +7,7 @@ use bincode::Options;
 
 pub mod constants;
 pub mod messages;
+pub mod physics;
 pub mod players;
 pub mod utils;
 pub mod world;

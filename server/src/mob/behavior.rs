@@ -1,11 +1,12 @@
 use bevy::{
-    math::{bounding::Aabb3d, ops::atan2, Quat, Vec3},
+    math::{ops::atan2, Quat, Vec3},
     time::{Fixed, Time},
 };
 use bevy_ecs::system::{Res, ResMut};
 use shared::{
+    physics::{apply_gravity, resolve_vertical_movement, try_move, PhysicsBody},
     players::constants::{GRAVITY, JUMP_VELOCITY, SPEED},
-    world::{MobAction, MobTarget, ServerWorldMap, WorldMap},
+    world::{MobAction, MobTarget, ServerWorldMap},
 };
 
 pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Time<Fixed>>) {
@@ -36,102 +37,77 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
         // same gravity management as the player
         let dir = (target - mob.position).normalize();
         let delta = delta.delta_secs();
-        if !mob.on_ground {
-            mob.velocity.y += GRAVITY * delta;
-        }
 
-        let new_y = mob.position.y + mob.velocity.y;
-        let new_vec = &Vec3::new(mob.position.x, new_y, mob.position.z);
+        let mut body = PhysicsBody::new(
+            mob.position,
+            mob.velocity,
+            mob.on_ground,
+            Vec3::new(mob.width, mob.height, mob.deepth),
+        );
+
+        apply_gravity(&mut body, GRAVITY, delta);
+
         let max_velocity = 0.9;
-        if mob.velocity.y > max_velocity {
-            mob.velocity.y = max_velocity;
-        }
-        //log::debug!("New vec: {:?}", new_vec);
-        //log::debug!(
-        //    "Mob AABB: {:?}",
-        //    Aabb3d::new(*new_vec, Vec3::new(mob.width, mob.height, mob.deepth) / 2.0)
-        //);
-        if world_map.chunks.check_collision_box(&Aabb3d::new(
-            *new_vec,
-            Vec3::new(mob.width, mob.height, mob.deepth) / 2.0,
-        )) {
-            mob.on_ground = true;
-            mob.velocity.y = 0.0;
-        } else {
-            mob.position.y = new_y;
-            mob.on_ground = false;
-        }
+        resolve_vertical_movement(&mut body, &world_map.chunks, max_velocity, true);
 
         match mob.action {
             MobAction::Walk | MobAction::Attack => {
                 let speed = SPEED * delta;
-                let new_x = mob.position.x + dir.x * speed;
-                let new_z = mob.position.z + dir.z * speed;
-                let new_vec = &Vec3::new(new_x, mob.position.y, new_z);
-                //try to move the target
-                if !world_map.chunks.check_collision_box(&Aabb3d::new(
-                    *new_vec,
-                    Vec3::new(mob.width, mob.height, mob.deepth) / 2.0,
-                )) {
-                    mob.position.x = new_x;
-                    mob.position.z = new_z;
-                    mob.velocity.x = dir.x * speed;
-                    mob.velocity.z = dir.z * speed;
+                let displacement = Vec3::new(dir.x * speed, 0.0, dir.z * speed);
+                if !try_move(&mut body, &world_map.chunks, displacement, true) {
+                    body.velocity.x = dir.x * speed;
+                    body.velocity.z = dir.z * speed;
                 }
                 // If it can't move, try to jump (only if on ground and if it moved before)
-                else if mob.on_ground && mob.velocity.x != 0.0 && mob.velocity.z != 0.0 {
-                    mob.velocity.y += JUMP_VELOCITY * delta;
-                    mob.on_ground = false;
-                    mob.velocity.x = 0.0;
-                    mob.velocity.z = 0.0;
-                } else if mob.on_ground {
+                else if body.on_ground && (body.velocity.x != 0.0 || body.velocity.z != 0.0) {
+                    body.velocity.y += JUMP_VELOCITY * delta;
+                    body.on_ground = false;
+                    body.velocity.x = 0.0;
+                    body.velocity.z = 0.0;
+                } else if body.on_ground {
                     // Try to move in the other direction
-                    // Check if it can move in the x direction
-                    if !world_map.chunks.check_collision_box(&Aabb3d::new(
-                        Vec3::new(
-                            mob.position.x + dir.x * speed,
-                            mob.position.y,
-                            mob.position.z,
-                        ),
-                        Vec3::new(mob.width, mob.height, mob.deepth) / 2.0,
-                    )) {
-                        mob.position.x += dir.x * speed;
-                        mob.velocity.x = dir.x * speed;
-                    // Check if it can move in the z direction
-                    } else if !world_map.chunks.check_collision_box(&Aabb3d::new(
-                        Vec3::new(
-                            mob.position.x,
-                            mob.position.y,
-                            mob.position.z + dir.z * speed,
-                        ),
-                        Vec3::new(mob.width, mob.height, mob.deepth) / 2.0,
-                    )) {
-                        mob.position.z += dir.z * speed;
-                        mob.velocity.z = dir.z * speed;
+                    if !try_move(
+                        &mut body,
+                        &world_map.chunks,
+                        Vec3::new(displacement.x, 0.0, 0.0),
+                        true,
+                    ) {
+                        body.velocity.x = dir.x * speed;
+                    } else if !try_move(
+                        &mut body,
+                        &world_map.chunks,
+                        Vec3::new(0.0, 0.0, displacement.z),
+                        true,
+                    ) {
+                        body.velocity.z = dir.z * speed;
                     //Try to jump (can improve this)
                     } else {
-                        mob.velocity.y += JUMP_VELOCITY * delta;
-                        mob.on_ground = false;
-                        mob.velocity.x = 0.0;
-                        mob.velocity.z = 0.0;
+                        body.velocity.y += JUMP_VELOCITY * delta;
+                        body.on_ground = false;
+                        body.velocity.x = 0.0;
+                        body.velocity.z = 0.0;
                     }
                 }
 
                 mob.rotation = Quat::from_rotation_y(atan2(dir.x, dir.z));
 
                 // If reached destination, start idling
-                if mob.position.distance(target) < 0.5 {
+                if body.position.distance(target) < 0.5 {
                     mob.action = MobAction::Flee;
                 }
             }
             MobAction::Flee => {
-                if mob.position.distance(target) < 15.0 {
-                    mob.position -= dir * delta;
+                if body.position.distance(target) < 15.0 {
+                    body.position -= dir * delta;
                     mob.rotation = Quat::from_rotation_y(atan2(-dir.x, -dir.z));
                 }
             }
             _ => {}
         }
+
+        mob.position = body.position;
+        mob.velocity = body.velocity;
+        mob.on_ground = body.on_ground;
     }
 
     world_map.mobs = mobs;
