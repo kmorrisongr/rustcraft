@@ -50,6 +50,7 @@ use crate::GameState;
 #[derive(Resource)]
 pub struct PreLoadingCompletion {
     pub textures_loaded: bool,
+    pub empty_handles_warning_emitted: bool,
 }
 
 #[derive(Resource, Default)]
@@ -79,6 +80,7 @@ pub fn game_plugin(app: &mut App) {
         })
         .insert_resource(PreLoadingCompletion {
             textures_loaded: false,
+            empty_handles_warning_emitted: false,
         })
         .insert_resource(PreloadGate::default())
         .insert_resource(BlockDebugWireframeSettings { is_enabled: false })

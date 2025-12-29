@@ -160,9 +160,12 @@ pub fn create_all_atlases(
     all_handles.extend(atlases.1.handles.iter().map(|h| h.0.id()));
 
     if all_handles.is_empty() {
-        warn!(
-            "No texture handles queued for atlas creation; ensure assets exist before continuing"
-        );
+        if !loading.empty_handles_warning_emitted {
+            warn!(
+                "No texture handles queued for atlas creation; ensure assets exist before continuing"
+            );
+            loading.empty_handles_warning_emitted = true;
+        }
         return;
     }
 
@@ -239,7 +242,7 @@ pub fn create_all_atlases(
         warn!("Texture loading failed; check asset paths and filenames");
     }
 
-    let new_ready = any_failed.not() && all_loaded && textures_ready;
+    let new_ready = !any_failed && all_loaded && textures_ready;
     if new_ready && !was_ready {
         preload_signals.write(PreloadSignal::TexturesReady);
     }
