@@ -2,15 +2,22 @@ use bevy::math::{bounding::Aabb3d, Vec3};
 
 use crate::world::WorldMap;
 
+/// Physics representation shared by movable entities (players, mobs, etc.).
+/// `dimensions` is the full size of the entity's hitbox (width, height, depth).
 #[derive(Clone, Copy, Debug)]
 pub struct PhysicsBody {
+    /// Current world position of the entity (center of the hitbox).
     pub position: Vec3,
+    /// Current velocity applied to the body.
     pub velocity: Vec3,
+    /// Whether the body is resting on a surface.
     pub on_ground: bool,
+    /// Full dimensions of the hitbox (width, height, depth).
     pub dimensions: Vec3,
 }
 
 impl PhysicsBody {
+    /// Create a new physics body with explicit state and hitbox size.
     pub fn new(position: Vec3, velocity: Vec3, on_ground: bool, dimensions: Vec3) -> Self {
         Self {
             position,
@@ -25,12 +32,14 @@ impl PhysicsBody {
     }
 }
 
+/// Apply gravity to the body if it is not grounded.
 pub fn apply_gravity(body: &mut PhysicsBody, gravity: f32, delta: f32) {
     if !body.on_ground {
         body.velocity.y += gravity * delta;
     }
 }
 
+/// Resolve vertical movement, clamping vertical speed and handling collisions when `collide` is true.
 pub fn resolve_vertical_movement(
     body: &mut PhysicsBody,
     world_map: &impl WorldMap,
@@ -59,6 +68,8 @@ pub fn resolve_vertical_movement(
     }
 }
 
+/// Attempt to move the body by `displacement`.
+/// If `collide` is true, performs collision checks; returns `true` when movement is blocked.
 pub fn try_move(
     body: &mut PhysicsBody,
     world_map: &impl WorldMap,

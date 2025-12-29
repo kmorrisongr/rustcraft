@@ -59,7 +59,7 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
                     body.velocity.z = dir.z * speed;
                 }
                 // If it can't move, try to jump (only if on ground and if it moved before)
-                else if body.on_ground && (body.velocity.x != 0.0 || body.velocity.z != 0.0) {
+                else if body.on_ground && (body.velocity.x != 0.0 && body.velocity.z != 0.0) {
                     body.velocity.y += JUMP_VELOCITY * delta;
                     body.on_ground = false;
                     body.velocity.x = 0.0;
