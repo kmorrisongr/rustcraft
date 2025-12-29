@@ -2,6 +2,7 @@ use crate::{
     camera::CameraController,
     network::{CurrentPlayerProfile, TargetServer, TargetServerState, UnacknowledgedInputs},
     player::{PlayerLabel, PlayerMaterialHandle},
+    ui::hud::debug::LastBiomeChunk,
     world::ClientWorldMap,
     GameState,
 };
@@ -87,7 +88,7 @@ pub fn spawn_players_system(
 
         if is_current_player {
             target_server.state = TargetServerState::FullyReady;
-            entity.insert(CurrentPlayerMarker {});
+            entity.insert((CurrentPlayerMarker {}, LastBiomeChunk::default()));
             info!("Inserted current player marker");
 
             info!("aaa ---");

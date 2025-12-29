@@ -5,8 +5,9 @@ use shared::world::{block_to_chunk_coord, calculate_biome_at_position, WorldSeed
 #[derive(Component)]
 pub struct BiomeText;
 
-/// Resource to track the player's last known chunk position for biome updates
-#[derive(Resource, Default)]
+/// Component to track a player's last known chunk position for biome updates
+/// Attached to each player entity to ensure per-player tracking
+#[derive(Component, Default)]
 pub struct LastBiomeChunk {
     pub chunk_x: i32,
     pub chunk_z: i32,
@@ -16,13 +17,12 @@ pub struct LastBiomeChunk {
 /// System to update the biome text based on the player's current position
 /// Only recalculates when the player enters a new chunk to optimize performance
 pub fn biome_text_update_system(
-    player: Query<&Transform, With<CurrentPlayerMarker>>,
+    mut player: Query<(&Transform, &mut LastBiomeChunk), With<CurrentPlayerMarker>>,
     query: Query<Entity, With<BiomeText>>,
     mut writer: TextUiWriter,
     world_seed: Res<WorldSeed>,
-    mut last_chunk: ResMut<LastBiomeChunk>,
 ) {
-    let Ok(player_transform) = player.single() else {
+    let Ok((player_transform, mut last_chunk)) = player.single_mut() else {
         return;
     };
 

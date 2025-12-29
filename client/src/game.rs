@@ -60,7 +60,6 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(WorldSeed(0))
         .insert_resource(ClientTime(0))
         .insert_resource(FirstChunkReceived(false))
-        .insert_resource(LastBiomeChunk::default())
         .insert_resource(AmbientLight {
             color: Color::WHITE,
             brightness: 400.0,
