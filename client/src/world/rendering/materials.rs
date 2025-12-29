@@ -1,7 +1,8 @@
 use crate::constants::{BASE_ROUGHNESS, BASE_SPECULAR_HIGHLIGHT};
-use crate::game::PreLoadingCompletion;
+use crate::game::{PreLoadingCompletion, PreloadSignal};
 use crate::world::GlobalMaterial;
 use crate::TexturePath;
+use bevy::asset::LoadState;
 use bevy::image::ImageSampler;
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
@@ -139,64 +140,114 @@ pub fn setup_materials(
 }
 
 pub fn create_all_atlases(
+    asset_server: Res<AssetServer>,
     mut atlases: (ResMut<AtlasHandles<BlockId>>, ResMut<AtlasHandles<ItemId>>),
     mut images: ResMut<Assets<Image>>,
     mut material_resource: ResMut<MaterialResource>,
     mut loading: ResMut<PreLoadingCompletion>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut preload_signals: EventWriter<PreloadSignal>,
 ) {
-    loading.textures_loaded = true;
+    let was_ready = loading.textures_loaded;
 
-    if material_resource.blocks.is_none() {
-        if let Some(blocks) = build_texture_atlas(
-            &mut atlases.0,
-            &mut images,
-            &mut texture_atlases,
-            None,
-            Some(ImageSampler::nearest()),
-        ) {
-            material_resource.global_materials.insert(
-                GlobalMaterial::Blocks,
-                materials.add(StandardMaterial {
-                    base_color_texture: Some(blocks.texture.clone_weak()),
-                    perceptual_roughness: BASE_ROUGHNESS,
-                    reflectance: BASE_SPECULAR_HIGHLIGHT,
-                    alpha_mode: AlphaMode::AlphaToCoverage,
-                    ..default()
-                }),
-            );
-
-            material_resource.blocks = Some(blocks);
-        } else {
-            warn!("Failed to load block textures");
-            loading.textures_loaded = false;
-        }
+    if loading.textures_loaded {
+        return;
     }
 
-    if material_resource.items.is_none() {
-        if let Some(items) = build_texture_atlas(
-            &mut atlases.1,
-            &mut images,
-            &mut texture_atlases,
-            None,
-            Some(ImageSampler::nearest()),
-        ) {
-            material_resource.global_materials.insert(
-                GlobalMaterial::Items,
-                materials.add(StandardMaterial {
-                    base_color_texture: Some(items.texture.clone_weak()),
-                    perceptual_roughness: BASE_ROUGHNESS,
-                    reflectance: BASE_SPECULAR_HIGHLIGHT,
-                    alpha_mode: AlphaMode::Blend,
-                    ..default()
-                }),
+    let mut all_handles = Vec::new();
+    all_handles.extend(atlases.0.handles.iter().map(|h| h.0.id()));
+    all_handles.extend(atlases.1.handles.iter().map(|h| h.0.id()));
+
+    if all_handles.is_empty() {
+        if !loading.empty_handles_warning_emitted {
+            warn!(
+                "No texture handles queued for atlas creation; ensure assets exist before continuing"
             );
-            material_resource.items = Some(items);
-        } else {
-            loading.textures_loaded = false;
+            loading.empty_handles_warning_emitted = true;
         }
+        return;
     }
+
+    let all_loaded = all_handles
+        .iter()
+        .all(|id| matches!(asset_server.get_load_state(*id), Some(LoadState::Loaded)));
+
+    let any_failed = all_handles
+        .iter()
+        .any(|id| matches!(asset_server.get_load_state(*id), Some(LoadState::Failed(_))));
+
+    let textures_ready = if all_loaded {
+        let mut textures_ready = true;
+
+        if material_resource.blocks.is_none() {
+            if let Some(blocks) = build_texture_atlas(
+                &mut atlases.0,
+                &mut images,
+                &mut texture_atlases,
+                None,
+                Some(ImageSampler::nearest()),
+            ) {
+                material_resource.global_materials.insert(
+                    GlobalMaterial::Blocks,
+                    materials.add(StandardMaterial {
+                        base_color_texture: Some(blocks.texture.clone_weak()),
+                        perceptual_roughness: BASE_ROUGHNESS,
+                        reflectance: BASE_SPECULAR_HIGHLIGHT,
+                        alpha_mode: AlphaMode::AlphaToCoverage,
+                        ..default()
+                    }),
+                );
+
+                material_resource.blocks = Some(blocks);
+                atlases.0.loaded = true;
+            } else {
+                warn!("Failed to finalize block textures after load");
+                textures_ready = false;
+            }
+        }
+
+        if material_resource.items.is_none() {
+            if let Some(items) = build_texture_atlas(
+                &mut atlases.1,
+                &mut images,
+                &mut texture_atlases,
+                None,
+                Some(ImageSampler::nearest()),
+            ) {
+                material_resource.global_materials.insert(
+                    GlobalMaterial::Items,
+                    materials.add(StandardMaterial {
+                        base_color_texture: Some(items.texture.clone_weak()),
+                        perceptual_roughness: BASE_ROUGHNESS,
+                        reflectance: BASE_SPECULAR_HIGHLIGHT,
+                        alpha_mode: AlphaMode::Blend,
+                        ..default()
+                    }),
+                );
+                material_resource.items = Some(items);
+                atlases.1.loaded = true;
+            } else {
+                warn!("Failed to finalize item textures after load");
+                textures_ready = false;
+            }
+        }
+
+        textures_ready
+    } else {
+        false
+    };
+
+    if any_failed {
+        warn!("Texture loading failed; check asset paths and filenames");
+    }
+
+    let new_ready = !any_failed && all_loaded && textures_ready;
+    if new_ready && !was_ready {
+        preload_signals.write(PreloadSignal::TexturesReady);
+    }
+
+    loading.textures_loaded = new_ready;
 }
 
 fn build_texture_atlas<T: GameElementId>(
