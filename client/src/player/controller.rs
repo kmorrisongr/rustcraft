@@ -91,7 +91,7 @@ pub fn player_movement_system(
 
     for (game_action, network_action) in ACTION_MAPPING {
         if is_action_pressed(*game_action, &keyboard_input, &key_map) {
-            frame_inputs.0.inputs.insert(network_action.clone());
+            frame_inputs.0.inputs.insert(*network_action);
         }
     }
 
