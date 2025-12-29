@@ -15,6 +15,15 @@ use shared::players::{Player, ViewMode};
 
 use super::CurrentPlayerMarker;
 
+const ACTION_MAPPING: &[(GameAction, NetworkAction)] = &[
+    (GameAction::MoveBackward, NetworkAction::MoveBackward),
+    (GameAction::MoveForward, NetworkAction::MoveForward),
+    (GameAction::MoveLeft, NetworkAction::MoveLeft),
+    (GameAction::MoveRight, NetworkAction::MoveRight),
+    (GameAction::Jump, NetworkAction::JumpOrFlyUp),
+    (GameAction::FlyDown, NetworkAction::SneakOrFlyDown),
+];
+
 pub fn update_frame_inputs_system(
     camera: Query<&Transform, With<Camera>>,
     hotbar: Query<&Hotbar>,
@@ -80,23 +89,10 @@ pub fn player_movement_system(
         frame_inputs.0.inputs.insert(NetworkAction::ToggleFlyMode);
     }
 
-    if is_action_pressed(GameAction::MoveBackward, &keyboard_input, &key_map) {
-        frame_inputs.0.inputs.insert(NetworkAction::MoveBackward);
-    }
-    if is_action_pressed(GameAction::MoveForward, &keyboard_input, &key_map) {
-        frame_inputs.0.inputs.insert(NetworkAction::MoveForward);
-    }
-    if is_action_pressed(GameAction::MoveLeft, &keyboard_input, &key_map) {
-        frame_inputs.0.inputs.insert(NetworkAction::MoveLeft);
-    }
-    if is_action_pressed(GameAction::MoveRight, &keyboard_input, &key_map) {
-        frame_inputs.0.inputs.insert(NetworkAction::MoveRight);
-    }
-    if is_action_pressed(GameAction::Jump, &keyboard_input, &key_map) {
-        frame_inputs.0.inputs.insert(NetworkAction::JumpOrFlyUp);
-    }
-    if is_action_pressed(GameAction::FlyDown, &keyboard_input, &key_map) {
-        frame_inputs.0.inputs.insert(NetworkAction::SneakOrFlyDown);
+    for (game_action, network_action) in ACTION_MAPPING {
+        if is_action_pressed(*game_action, &keyboard_input, &key_map) {
+            frame_inputs.0.inputs.insert(network_action.clone());
+        }
     }
 
     simulate_player_movement(&mut player, world_map.as_ref(), &frame_inputs.0);
