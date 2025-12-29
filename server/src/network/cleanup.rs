@@ -22,6 +22,6 @@ pub fn cleanup_player_from_world(
     }
 
     for (_, chunk) in world_map.chunks.map.iter_mut() {
-        chunk.sent_to_clients.retain(|&id| id != *player_id);
+        chunk.sent_to_clients.retain(|id| id != player_id);
     }
 }

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use noise::{NoiseFn, Perlin};
 use shared::{world::*, CHUNK_SIZE, SEA_LEVEL};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId, leaves: BlockId) {
     // create trunk
@@ -495,7 +495,7 @@ pub fn generate_chunk(
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64,
-        sent_to_clients: vec![],
+        sent_to_clients: HashSet::new(),
     };
 
     // Collection of generation requests for the chunk above

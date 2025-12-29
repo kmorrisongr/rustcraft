@@ -6,7 +6,7 @@ use bevy_ecs::resource::Resource;
 use bevy_log::info;
 use bevy_log::warn;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use super::{BlockData, ItemId, ItemType, MobId, ServerMob};
@@ -57,7 +57,7 @@ pub struct ServerChunk {
     pub map: HashMap<IVec3, BlockData>,
     /// Timestamp marking the last update this chunk has received
     pub ts: u64,
-    pub sent_to_clients: Vec<PlayerId>,
+    pub sent_to_clients: HashSet<PlayerId>,
 }
 
 // #[derive(Resource)]
@@ -318,3 +318,17 @@ impl WorldMap for ServerChunkWorldMap {
 /// types of elements in the game. Example : ItemId, BlockId...
 /// Used in texture atlases and such
 pub trait GameElementId: std::hash::Hash + Eq + PartialEq + Copy + Clone + Default + Debug {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sent_to_clients_deduplicates_players() {
+        let mut chunk = ServerChunk::default();
+        chunk.sent_to_clients.insert(1);
+        chunk.sent_to_clients.insert(1);
+
+        assert_eq!(chunk.sent_to_clients.len(), 1);
+    }
+}
