@@ -114,10 +114,10 @@ pub(crate) fn default_key_map() -> BTreeMap<GameAction, Vec<KeyCode>> {
 pub fn get_bindings(game_folder_paths: &GameFolderPaths) -> KeyMap {
     let binds_path: PathBuf = Path::new(&game_folder_paths.assets_folder_path).join(BINDS_PATH);
 
-    if let Ok(content) = fs::read_to_string(binds_path.as_path())
-        && let Ok(key_map) = from_str::<KeyMap>(&content)
-    {
-        return key_map;
+    if let Ok(content) = fs::read_to_string(binds_path.as_path()) {
+        if let Ok(key_map) = from_str::<KeyMap>(&content) {
+            return key_map;
+        }
     }
 
     let key_map = KeyMap::default();
