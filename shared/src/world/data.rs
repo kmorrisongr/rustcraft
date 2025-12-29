@@ -1,10 +1,6 @@
 use crate::messages::PlayerId;
 use crate::players::Player;
-use crate::world::{
-    block_to_chunk_coord, global_block_to_chunk_pos, to_local_pos, BlockHitbox, BlockId,
-};
-use crate::CHUNK_SIZE;
-
+use crate::world::{block_to_chunk_coord, global_to_chunk_local, BlockHitbox, BlockId};
 use bevy::math::{bounding::Aabb3d, IVec3, Vec3};
 use bevy_ecs::resource::Resource;
 use bevy_log::info;
@@ -262,20 +258,10 @@ pub trait WorldMap {
 
 impl WorldMap for ServerChunkWorldMap {
     fn get_block_mut_by_coordinates(&mut self, position: &IVec3) -> Option<&mut BlockData> {
-        let x: i32 = position.x;
-        let y: i32 = position.y;
-        let z: i32 = position.z;
-        let cx: i32 = block_to_chunk_coord(x);
-        let cy: i32 = block_to_chunk_coord(y);
-        let cz: i32 = block_to_chunk_coord(z);
-        let chunk = self.map.get_mut(&IVec3::new(cx, cy, cz));
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk = self.map.get_mut(&chunk_pos);
         match chunk {
-            Some(chunk) => {
-                let sub_x: i32 = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-                let sub_y: i32 = ((y % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-                let sub_z: i32 = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-                chunk.map.get_mut(&IVec3::new(sub_x, sub_y, sub_z))
-            }
+            Some(chunk) => chunk.map.get_mut(&local_pos),
             None => {
                 warn!("Chunk not found for block at {:?} (mut)", position);
                 None
@@ -284,20 +270,10 @@ impl WorldMap for ServerChunkWorldMap {
     }
 
     fn get_block_by_coordinates(&self, position: &IVec3) -> Option<&BlockData> {
-        let x: i32 = position.x;
-        let y: i32 = position.y;
-        let z: i32 = position.z;
-        let cx: i32 = block_to_chunk_coord(x);
-        let cy: i32 = block_to_chunk_coord(y);
-        let cz: i32 = block_to_chunk_coord(z);
-        let chunk: Option<&ServerChunk> = self.map.get(&IVec3::new(cx, cy, cz));
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk: Option<&ServerChunk> = self.map.get(&chunk_pos);
         match chunk {
-            Some(chunk) => {
-                let sub_x: i32 = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-                let sub_y: i32 = ((y % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-                let sub_z: i32 = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-                chunk.map.get(&IVec3::new(sub_x, sub_y, sub_z))
-            }
+            Some(chunk) => chunk.map.get(&local_pos),
             None => {
                 warn!("Chunk not found for block at {:?}", position);
                 None
@@ -310,37 +286,21 @@ impl WorldMap for ServerChunkWorldMap {
         let block: &BlockData = self.get_block_by_coordinates(global_block_pos)?;
         let kind: BlockData = *block;
 
-        let chunk_pos: IVec3 = global_block_to_chunk_pos(global_block_pos);
-        let cx = chunk_pos.x;
-        let cy = chunk_pos.y;
-        let cz = chunk_pos.z;
-
-        let chunk_map: &mut ServerChunk =
-            self.map
-                .get_mut(&IVec3::new(chunk_pos.x, chunk_pos.y, chunk_pos.z))?;
-
-        let local_block_pos: IVec3 = to_local_pos(global_block_pos);
+        let (chunk_pos, local_block_pos) = global_to_chunk_local(global_block_pos);
+        let chunk_map: &mut ServerChunk = self.map.get_mut(&chunk_pos)?;
 
         chunk_map.map.remove(&local_block_pos);
-        self.chunks_to_update.push(IVec3::new(cx, cy, cz));
+        self.chunks_to_update.push(chunk_pos);
 
         Some(kind)
     }
 
     fn set_block(&mut self, position: &IVec3, block: BlockData) {
-        let x: i32 = position.x;
-        let y: i32 = position.y;
-        let z: i32 = position.z;
-        let cx: i32 = block_to_chunk_coord(x);
-        let cy: i32 = block_to_chunk_coord(y);
-        let cz: i32 = block_to_chunk_coord(z);
-        let chunk: &mut ServerChunk = self.map.entry(IVec3::new(cx, cy, cz)).or_default();
-        let sub_x: i32 = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-        let sub_y: i32 = ((y % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-        let sub_z: i32 = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk: &mut ServerChunk = self.map.entry(chunk_pos).or_default();
 
-        chunk.map.insert(IVec3::new(sub_x, sub_y, sub_z), block);
-        self.chunks_to_update.push(IVec3::new(cx, cy, cz));
+        chunk.map.insert(local_pos, block);
+        self.chunks_to_update.push(chunk_pos);
     }
 
     fn mark_block_for_update(&mut self, position: &IVec3) {

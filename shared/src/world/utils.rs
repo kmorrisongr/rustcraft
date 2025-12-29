@@ -46,6 +46,15 @@ pub fn global_block_to_chunk_pos(global_block_pos: &IVec3) -> IVec3 {
     )
 }
 
+/// Converts a global block position to its containing chunk position and the
+/// block's local coordinates inside that chunk.
+/// Returns `(chunk_pos, local_pos)`.
+pub fn global_to_chunk_local(position: &IVec3) -> (IVec3, IVec3) {
+    let chunk_pos = global_block_to_chunk_pos(position);
+    let local_pos = to_local_pos(position);
+    (chunk_pos, local_pos)
+}
+
 pub const SIX_OFFSETS: [IVec3; 6] = [
     IVec3::new(1, 0, 0),
     IVec3::new(-1, 0, 0),
@@ -57,4 +66,18 @@ pub const SIX_OFFSETS: [IVec3; 6] = [
 
 pub fn chunk_in_radius(player_pos: &IVec3, chunk_pos: &IVec3, radius: i32) -> bool {
     (player_pos.x - chunk_pos.x).abs() <= radius && (player_pos.z - chunk_pos.z).abs() <= radius
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_to_chunk_local_handles_positive_and_negative_coords() {
+        let position = IVec3::new(16, 0, -1);
+        let (chunk_pos, local_pos) = global_to_chunk_local(&position);
+
+        assert_eq!(chunk_pos, IVec3::new(1, 0, -1));
+        assert_eq!(local_pos, IVec3::new(0, 0, 15));
+    }
 }
