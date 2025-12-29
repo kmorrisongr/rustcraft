@@ -30,18 +30,28 @@ pub fn handle_block_interactions(
     mut ray_cast: MeshRayCast,
     mut gizmos: Gizmos,
 ) {
-    let (mut player_query, p_transform, camera_query, mob_query) = queries;
+    let (mut player_query, mut p_transform, camera_query, mob_query) = queries;
     let (world_map, mouse_input, ui_mode, view_mode, mut targeted_mob, mut frame_inputs) =
         resources;
 
-    let mut player = player_query.single_mut().unwrap();
+    let Ok(mut player) = player_query.single_mut() else {
+        debug!("player not found");
+        return;
+    };
+
+    let Ok(camera_transform) = camera_query.single() else {
+        debug!("camera not found");
+        return;
+    };
+    let Ok(player_transform) = p_transform.single_mut() else {
+        debug!("player transform not found");
+        return;
+    };
 
     if *ui_mode == UIMode::Opened {
         return;
     }
 
-    let camera_transform = camera_query.single().unwrap();
-    let player_transform = p_transform.single().unwrap();
     let player_translation = &player_transform.translation;
 
     let ray = Ray3d::new(camera_transform.translation, camera_transform.forward());

@@ -16,7 +16,10 @@ pub fn camera_control_system(
     view_mode: Res<ViewMode>,
     ui_mode: Res<UIMode>,
 ) {
-    let window = windows.single().unwrap();
+    let Ok(window) = windows.single() else {
+        debug!("primary window not found");
+        return;
+    };
 
     // if the window is not focused, ignore camera movement
     if !window.focused || *ui_mode != UIMode::Closed {
@@ -30,6 +33,12 @@ pub fn camera_control_system(
         delta += event.delta;
     }
 
+    let Ok(player_transform) = player_query.single() else {
+        debug!("player not found");
+        return;
+    };
+    let player_position = player_transform.translation;
+
     for (mut camera_transform, mut controller) in camera_query.iter_mut() {
         // first-person view
         if *view_mode == ViewMode::FirstPerson {
@@ -37,9 +46,6 @@ pub fn camera_control_system(
             controller.distance = 0.0;
 
             // place the camera at the player's head height (e.g. 1.8 units)
-            let player_transform = player_query.single().unwrap();
-            let player_position = player_transform.translation;
-
             // apply mouse sensitivity and adjust camera angle
             controller.angle_x -= delta.x * controller.mouse_sensitivity;
             controller.angle_y += delta.y * controller.mouse_sensitivity;
@@ -74,9 +80,6 @@ pub fn camera_control_system(
             controller.angle_y = controller
                 .angle_y
                 .clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
-
-            let player_transform = player_query.single().unwrap();
-            let player_position = player_transform.translation;
 
             // calculate the new camera position
             let x = player_position.x

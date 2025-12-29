@@ -25,9 +25,17 @@ pub fn update_frame_inputs_system(
         return;
     }
 
-    let camera = camera.single().unwrap();
+    let Ok(camera) = camera.single() else {
+        debug!("camera not found");
+        return;
+    };
+    let Ok(hotbar) = hotbar.single() else {
+        debug!("hotbar not found");
+        return;
+    };
+
     frame_inputs.0.camera = *camera;
-    frame_inputs.0.hotbar_slot = hotbar.single().unwrap().selected;
+    frame_inputs.0.hotbar_slot = hotbar.selected;
     frame_inputs.0.view_mode = *view_mode;
 }
 
@@ -49,7 +57,7 @@ pub fn pre_input_update_system(
 }
 
 pub fn player_movement_system(
-    queries: Query<(&mut Player, &mut Transform), (With<CurrentPlayerMarker>, Without<Camera>)>,
+    mut queries: Query<(&mut Player, &mut Transform), (With<CurrentPlayerMarker>, Without<Camera>)>,
     resources: (
         Res<ButtonInput<KeyCode>>,
         Res<UIMode>,
@@ -58,21 +66,16 @@ pub fn player_movement_system(
     ),
     world_map: Res<ClientWorldMap>,
 ) {
-    let mut player_query = queries;
     let (keyboard_input, ui_mode, key_map, mut frame_inputs) = resources;
 
     if frame_inputs.0.delta_ms == 0 {
         return;
     }
 
-    let res = player_query.single_mut();
-    // Return early if the player has not been spawned yet
-    if res.is_err() {
+    let Ok((mut player, mut player_transform)) = queries.single_mut() else {
         debug!("player not found");
         return;
-    }
-
-    let (mut player, mut player_transform) = player_query.single_mut().unwrap();
+    };
 
     if *ui_mode == UIMode::Closed
         && is_action_just_pressed(GameAction::ToggleFlyMode, &keyboard_input, &key_map)
@@ -125,14 +128,11 @@ pub fn first_and_third_person_view_system(
         view_mode.toggle();
     }
 
-    let material_handle = player_query.single_mut();
-    // Return early if the player has not been spawned yet
-    if material_handle.is_err() {
+    let Ok(material_handle) = player_query.single_mut() else {
         debug!("player not found");
         return;
-    }
-
-    let material_handle = &material_handle.unwrap().handle;
+    };
+    let material_handle = &material_handle.handle;
 
     match *view_mode {
         ViewMode::FirstPerson => {
