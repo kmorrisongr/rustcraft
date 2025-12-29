@@ -135,6 +135,47 @@ impl BiomeType {
             BiomeType::DeepOcean => "Deep Ocean",
         }
     }
+
+    /// Determines the biome type from climate data (temperature and humidity).
+    /// This function is used by both server (for world generation) and client (for biome display).
+    ///
+    /// # Arguments
+    /// * `climate` - BiomeClimate struct containing temperature and humidity values (both 0.0 to 1.0)
+    ///
+    /// # Returns
+    /// The biome type corresponding to the given climate
+    pub fn from_climate(climate: BiomeClimate) -> Self {
+        const OCEAN_PERCENTAGE: f64 = 0.33;
+        const DEEP_OCEAN_THRESHOLD: f64 = 1.0 - (OCEAN_PERCENTAGE / 3.0);
+        const OCEAN_THRESHOLD: f64 = 1.0 - 2.0 * (OCEAN_PERCENTAGE / 3.0);
+        const SHALLOW_OCEAN_THRESHOLD: f64 = 1.0 - OCEAN_PERCENTAGE;
+        const LAND_HUMID_THRESHOLD: f64 = SHALLOW_OCEAN_THRESHOLD / 2.0;
+        const LAND_HIGH_HUMID_THRESHOLD: f64 = 2.0 * SHALLOW_OCEAN_THRESHOLD / 3.0;
+        const LAND_MID_HUMID_THRESHOLD: f64 = SHALLOW_OCEAN_THRESHOLD / 3.0;
+
+        match (climate.temperature, climate.humidity) {
+            // Ocean biomes (determined primarily by humidity)
+            (_, h) if h > DEEP_OCEAN_THRESHOLD => BiomeType::DeepOcean,
+            (_, h) if h > OCEAN_THRESHOLD => BiomeType::Ocean,
+            (_, h) if h > SHALLOW_OCEAN_THRESHOLD => BiomeType::ShallowOcean,
+            
+            // Land biomes - Hot climate (temperature > 0.6)
+            (t, h) if t > 0.6 && h > LAND_HUMID_THRESHOLD => BiomeType::Forest,
+            (t, _) if t > 0.6 => BiomeType::Desert,
+            
+            // Land biomes - Temperate climate (0.3 < temperature <= 0.6)
+            (t, h) if t > 0.3 && h > LAND_HIGH_HUMID_THRESHOLD => BiomeType::FlowerPlains,
+            (t, h) if t > 0.3 && h > LAND_MID_HUMID_THRESHOLD => BiomeType::Plains,
+            (t, _) if t > 0.3 => BiomeType::MediumMountain,
+            
+            // Land biomes - Cold climate (temperature <= 0.3)
+            (t, h) if t >= 0.0 && h > LAND_HUMID_THRESHOLD => BiomeType::IcePlain,
+            (t, _) if t >= 0.0 => BiomeType::HighMountainGrass,
+            
+            _ => panic!("Invalid climate values: temperature={}, humidity={}", 
+                       climate.temperature, climate.humidity),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -231,65 +272,10 @@ pub fn get_biome_data(biome_type: BiomeType) -> Biome {
 /// # Returns
 /// The biome type corresponding to the given temperature and humidity
 pub fn determine_biome(temperature: f64, humidity: f64) -> BiomeType {
-    const OCEAN_PERCENTAGE: f64 = 0.33;
-    
-    // Ocean biomes are determined primarily by humidity
-    if is_deep_ocean(humidity) {
-        return BiomeType::DeepOcean;
-    }
-    if is_ocean(humidity) {
-        return BiomeType::Ocean;
-    }
-    if is_shallow_ocean(humidity) {
-        return BiomeType::ShallowOcean;
-    }
-    
-    // Land biomes are determined by both temperature and humidity
-    match (temperature, humidity) {
-        // Hot climate (temperature > 0.6)
-        (t, h) if t > 0.6 => {
-            if h > (1.0 - OCEAN_PERCENTAGE) / 2.0 {
-                BiomeType::Forest
-            } else {
-                BiomeType::Desert
-            }
-        }
-        // Temperate climate (0.3 < temperature <= 0.6)
-        (t, h) if t > 0.3 => {
-            if h > 2.0 * (1.0 - OCEAN_PERCENTAGE) / 3.0 {
-                BiomeType::FlowerPlains
-            } else if h > (1.0 - OCEAN_PERCENTAGE) / 3.0 {
-                BiomeType::Plains
-            } else {
-                BiomeType::MediumMountain
-            }
-        }
-        // Cold climate (0.0 <= temperature <= 0.3)
-        (_, h) if temperature >= 0.0 => {
-            if h > (1.0 - OCEAN_PERCENTAGE) / 2.0 {
-                BiomeType::IcePlain
-            } else {
-                BiomeType::HighMountainGrass
-            }
-        }
-        _ => panic!("Invalid temperature value: {}", temperature),
-    }
-}
-
-// Helper functions for ocean biome determination
-fn is_deep_ocean(humidity: f64) -> bool {
-    const OCEAN_PERCENTAGE: f64 = 0.33;
-    humidity > (1.0 - (OCEAN_PERCENTAGE / 3.0))
-}
-
-fn is_ocean(humidity: f64) -> bool {
-    const OCEAN_PERCENTAGE: f64 = 0.33;
-    humidity > (1.0 - 2.0 * (OCEAN_PERCENTAGE / 3.0))
-}
-
-fn is_shallow_ocean(humidity: f64) -> bool {
-    const OCEAN_PERCENTAGE: f64 = 0.33;
-    humidity > (1.0 - OCEAN_PERCENTAGE)
+    BiomeType::from_climate(BiomeClimate {
+        temperature,
+        humidity,
+    })
 }
 
 /// Temperature and humidity values for biome calculation
@@ -340,7 +326,7 @@ pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate
 /// The biome type at the given position
 pub fn calculate_biome_at_position(x: i32, z: i32, seed: u32) -> BiomeType {
     let climate = calculate_temperature_humidity(x, z, seed);
-    determine_biome(climate.temperature, climate.humidity)
+    BiomeType::from_climate(climate)
 }
 
 pub trait WorldMap {
