@@ -303,7 +303,7 @@ pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate
 ///
 /// # Arguments
 /// * `x` - World x coordinate
-/// * `z` - World z coordinate  
+/// * `z` - World z coordinate
 /// * `seed` - World seed
 ///
 /// # Returns
