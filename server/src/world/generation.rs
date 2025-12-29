@@ -433,11 +433,8 @@ pub fn generate_chunk(
     pending_requests: Option<Vec<FloraRequest>>,
 ) -> ChunkGenerationResult {
     let perlin = Perlin::new(seed);
-    let temp_perlin = Perlin::new(seed + 1);
-    let humidity_perlin = Perlin::new(seed + 2);
 
     let scale = 0.1;
-    let biome_scale = 0.01;
     let cx = chunk_pos.x;
     let cy = chunk_pos.y;
     let cz = chunk_pos.z;
