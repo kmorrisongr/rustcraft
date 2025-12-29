@@ -186,7 +186,7 @@ fn get_world_map_chunks_to_send(
             }
 
             map.insert(c, chunk.clone());
-            chunk.sent_to_clients.push(player.id);
+            chunk.sent_to_clients.insert(player.id);
         }
     }
 
