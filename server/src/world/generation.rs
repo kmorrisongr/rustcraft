@@ -39,7 +39,14 @@ fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId
                 if cond1 || cond2 {
                     let leaf_x = x + offset_x;
                     let leaf_z = z + offset_z;
-                    try_place_block(chunk, leaf_x, current_y, leaf_z, leaves, BlockDirection::Front);
+                    try_place_block(
+                        chunk,
+                        leaf_x,
+                        current_y,
+                        leaf_z,
+                        leaves,
+                        BlockDirection::Front,
+                    );
                 }
             }
         }
@@ -68,13 +75,41 @@ fn generate_big_tree(
         let prof = rand::random::<u8>() % 2 + 1;
         for dx in 0..prof {
             let bx = branch_x + dx as i32;
-            try_place_block(chunk, bx, branch_y, branch_z + 1, leaves, BlockDirection::Front);
-            try_place_block(chunk, bx, branch_y, branch_z - 1, leaves, BlockDirection::Front);
-            try_place_block(chunk, bx, branch_y + 1, branch_z, leaves, BlockDirection::Front);
+            try_place_block(
+                chunk,
+                bx,
+                branch_y,
+                branch_z + 1,
+                leaves,
+                BlockDirection::Front,
+            );
+            try_place_block(
+                chunk,
+                bx,
+                branch_y,
+                branch_z - 1,
+                leaves,
+                BlockDirection::Front,
+            );
+            try_place_block(
+                chunk,
+                bx,
+                branch_y + 1,
+                branch_z,
+                leaves,
+                BlockDirection::Front,
+            );
             try_place_block(chunk, bx, branch_y, branch_z, trunk, BlockDirection::Front);
         }
         let final_bx = branch_x + prof as i32;
-        try_place_block(chunk, final_bx, branch_y, branch_z, leaves, BlockDirection::Front);
+        try_place_block(
+            chunk,
+            final_bx,
+            branch_y,
+            branch_z,
+            leaves,
+            BlockDirection::Front,
+        );
     }
     // create trunk
     for dy in 0..trunk_height {
@@ -91,7 +126,14 @@ fn generate_big_tree(
                 if !(offset_x == 0 && offset_z == 0 || offset_x.abs() == 2 && offset_z.abs() == 2) {
                     let leaf_x = x + offset_x;
                     let leaf_z = z + offset_z;
-                    try_place_block(chunk, leaf_x, current_y, leaf_z, leaves, BlockDirection::Front);
+                    try_place_block(
+                        chunk,
+                        leaf_x,
+                        current_y,
+                        leaf_z,
+                        leaves,
+                        BlockDirection::Front,
+                    );
                 }
             }
         }
@@ -113,7 +155,14 @@ fn generate_big_tree(
                 if cond1 || cond2 {
                     let leaf_x = x + offset_x;
                     let leaf_z = z + offset_z;
-                    try_place_block(chunk, leaf_x, current_y, leaf_z, leaves, BlockDirection::Front);
+                    try_place_block(
+                        chunk,
+                        leaf_x,
+                        current_y,
+                        leaf_z,
+                        leaves,
+                        BlockDirection::Front,
+                    );
                 }
             }
         }
