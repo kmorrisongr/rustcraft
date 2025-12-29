@@ -3,7 +3,7 @@ use noise::{NoiseFn, Perlin};
 use shared::{world::*, CHUNK_SIZE, SEA_LEVEL};
 use std::collections::HashMap;
 
-// Re-export shared biome functions
+// Import shared biome functions
 use shared::world::calculate_temperature_humidity;
 
 fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId, leaves: BlockId) {
