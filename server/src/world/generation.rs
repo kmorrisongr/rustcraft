@@ -261,21 +261,13 @@ fn generate_cactus(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, cactus: Bloc
 fn interpolated_height(
     x: i32,
     z: i32,
-    biome_scale: f64,
     perlin: &Perlin,
-    temp_perlin: &Perlin,
-    humidity_perlin: &Perlin,
     scale: f64,
+    seed: u32,
 ) -> i32 {
     // get the properties of the main biome at (x, z)
-    let temperature =
-        (temp_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-    let humidity =
-        (humidity_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-    let biome_type = BiomeType::from_climate(BiomeClimate {
-        temperature,
-        humidity,
-    });
+    let climate = calculate_temperature_humidity(x, z, seed);
+    let biome_type = BiomeType::from_climate(climate);
     let biome = get_biome_data(biome_type);
 
     // initialize weighted values
@@ -294,22 +286,10 @@ fn interpolated_height(
             let neighbor_z = z + offset_z;
 
             // calculate the temperature and humidity of the neighboring block
-            let neighbor_temp = (temp_perlin.get([
-                neighbor_x as f64 * biome_scale,
-                neighbor_z as f64 * biome_scale,
-            ]) + 1.0)
-                / 2.0;
-            let neighbor_humidity = (humidity_perlin.get([
-                neighbor_x as f64 * biome_scale,
-                neighbor_z as f64 * biome_scale,
-            ]) + 1.0)
-                / 2.0;
+            let neighbor_climate = calculate_temperature_humidity(neighbor_x, neighbor_z, seed);
 
             // determine the biome of the neighboring block
-            let neighbor_biome_type = BiomeType::from_climate(BiomeClimate {
-                temperature: neighbor_temp,
-                humidity: neighbor_humidity,
-            });
+            let neighbor_biome_type = BiomeType::from_climate(neighbor_climate);
             let neighbor_biome = get_biome_data(neighbor_biome_type);
 
             // weight by distance (the farther a neighbor is, the less influence it has)
@@ -497,11 +477,9 @@ pub fn generate_chunk(
             let terrain_height = interpolated_height(
                 x,
                 z,
-                biome_scale,
                 &perlin,
-                &temp_perlin,
-                &humidity_perlin,
                 scale,
+                seed,
             );
 
             // generate blocs

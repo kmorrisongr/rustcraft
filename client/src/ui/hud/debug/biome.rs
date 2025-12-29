@@ -41,10 +41,10 @@ pub fn biome_text_update_system(
         last_chunk.chunk_x = current_chunk_x;
         last_chunk.chunk_z = current_chunk_z;
         last_chunk.biome_name = biome_type.name().to_string();
-    }
 
-    // Update the UI text (this is cheap, just a string copy)
-    for entity in query.iter() {
-        *writer.text(entity, 0) = format!("Biome: {}", last_chunk.biome_name);
+        // Update the UI text only when biome changes
+        for entity in query.iter() {
+            *writer.text(entity, 0) = format!("Biome: {}", last_chunk.biome_name);
+        }
     }
 }
