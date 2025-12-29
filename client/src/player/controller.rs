@@ -149,27 +149,26 @@ pub fn first_and_third_person_view_system(
     }
 }
 
-pub fn toggle_chunk_debug_mode_system(
+pub fn toggle_debug_system(
     mut debug_options: ResMut<DebugOptions>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     key_map: Res<KeyMap>,
 ) {
-    if is_action_just_pressed(GameAction::ToggleChunkDebugMode, &keyboard_input, &key_map) {
-        debug_options.toggle_chunk_debug_mode();
-    }
-}
+    const TOGGLES: &[(GameAction, fn(&mut DebugOptions))] = &[
+        (
+            GameAction::ToggleChunkDebugMode,
+            DebugOptions::toggle_chunk_debug_mode,
+        ),
+        (
+            GameAction::ToggleRaycastDebugMode,
+            DebugOptions::toggle_raycast_debug_mode,
+        ),
+    ];
 
-pub fn toggle_raycast_debug_mode_system(
-    mut debug_options: ResMut<DebugOptions>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    key_map: Res<KeyMap>,
-) {
-    if is_action_just_pressed(
-        GameAction::ToggleRaycastDebugMode,
-        &keyboard_input,
-        &key_map,
-    ) {
-        debug_options.toggle_raycast_debug_mode();
+    for (action, toggle_fn) in TOGGLES {
+        if is_action_just_pressed(*action, &keyboard_input, &key_map) {
+            toggle_fn(&mut debug_options);
+        }
     }
 }
 

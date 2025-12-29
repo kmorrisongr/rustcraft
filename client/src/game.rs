@@ -154,8 +154,7 @@ pub fn game_plugin(app: &mut App) {
             (
                 render_distance_update_system,
                 first_and_third_person_view_system,
-                toggle_chunk_debug_mode_system,
-                toggle_raycast_debug_mode_system,
+                toggle_debug_system,
                 chunk_force_reload_system,
                 (
                     update_frame_inputs_system,
