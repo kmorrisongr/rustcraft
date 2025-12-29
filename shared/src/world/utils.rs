@@ -46,6 +46,9 @@ pub fn global_block_to_chunk_pos(global_block_pos: &IVec3) -> IVec3 {
     )
 }
 
+/// Converts a global block position to its containing chunk position and the
+/// block's local coordinates inside that chunk.
+/// Returns `(chunk_pos, local_pos)`.
 pub fn global_to_chunk_local(position: &IVec3) -> (IVec3, IVec3) {
     let chunk_pos = global_block_to_chunk_pos(position);
     let local_pos = to_local_pos(position);

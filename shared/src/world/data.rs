@@ -287,14 +287,10 @@ impl WorldMap for ServerChunkWorldMap {
         let kind: BlockData = *block;
 
         let (chunk_pos, local_block_pos) = global_to_chunk_local(global_block_pos);
-        let cx = chunk_pos.x;
-        let cy = chunk_pos.y;
-        let cz = chunk_pos.z;
-
         let chunk_map: &mut ServerChunk = self.map.get_mut(&chunk_pos)?;
 
         chunk_map.map.remove(&local_block_pos);
-        self.chunks_to_update.push(IVec3::new(cx, cy, cz));
+        self.chunks_to_update.push(chunk_pos);
 
         Some(kind)
     }
