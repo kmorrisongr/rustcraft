@@ -15,6 +15,9 @@ use shared::players::{Player, ViewMode};
 
 use super::CurrentPlayerMarker;
 
+/// Maps continuous movement inputs to their network equivalents.
+/// Excludes one-shot actions (e.g. toggles) that rely on `is_action_just_pressed`
+/// and UI mode checks handled separately in `player_movement_system`.
 const ACTION_MAPPING: &[(GameAction, NetworkAction)] = &[
     (GameAction::MoveBackward, NetworkAction::MoveBackward),
     (GameAction::MoveForward, NetworkAction::MoveForward),
