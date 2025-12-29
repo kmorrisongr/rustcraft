@@ -522,9 +522,339 @@ app.add_systems(Update, (
 
 ---
 
+## Additional Suggestions (December 2025)
+
+### 18. Asset Loading Functions Are Repetitive
+
+**File:** [client/src/ui/assets.rs](../client/src/ui/assets.rs)
+
+**Issue:** Multiple `load_*` functions follow identical patterns:
+
+```rust
+pub fn load_play_icon(asset_server: &Res<AssetServer>) -> Handle<Image> {
+    asset_server.load(PLAY_ICON_PATH)
+}
+pub fn load_trash_icon(asset_server: &Res<AssetServer>) -> Handle<Image> {
+    asset_server.load(TRASH_ICON_PATH)
+}
+// ... 6 more identical functions
+```
+
+**Recommendation:** Use a macro or generic function to reduce boilerplate:
+
+```rust
+macro_rules! asset_loader {
+    ($fn_name:ident, $path:expr, $type:ty) => {
+        pub fn $fn_name(asset_server: &Res<AssetServer>) -> Handle<$type> {
+            asset_server.load($path)
+        }
+    };
+}
+
+asset_loader!(load_play_icon, PLAY_ICON_PATH, Image);
+asset_loader!(load_trash_icon, TRASH_ICON_PATH, Image);
+```
+
+Or consolidate into a single `AssetPaths` struct with lazy loading.
+
+---
+
+### 19. TODO/FIXME Comments Need Resolution
+
+**Files:** Multiple
+
+**Issue:** There are 12+ TODO/FIXME comments scattered throughout the codebase that indicate incomplete features or known issues:
+
+- `client/src/player/interactions.rs:72` - "TODO: Attack the targeted"
+- `client/src/mob/fox.rs:282` - "TODO: only update the color of the targeted mob"
+- `client/src/network/setup.rs:92` - "TODO: change username"
+- `server/src/mob/behavior.rs:21` - "TODO: FIX mob position"
+- `server/src/network/dispatcher.rs:145` - "TODO: add cleanup system if no heartbeat"
+- `server/src/network/dispatcher.rs:198` - "TODO: add permission checks"
+
+**Recommendation:** 
+- Triage TODOs into GitHub issues with proper priority labels
+- Remove resolved TODOs or add issue references (e.g., `// TODO(#123): ...`)
+- Consider using `todo!()` macro for critical unimplemented paths
+
+---
+
+### 20. `#[allow(dead_code)]` Annotations Mask Unused Code
+
+**Files:** 
+- [client/src/mob/mod.rs](../client/src/mob/mod.rs)
+- [server/src/init.rs](../server/src/init.rs)
+
+**Issue:** Multiple `#[allow(dead_code)]` annotations hide potentially unused fields:
+
+```rust
+pub struct MobRoot {
+    #[allow(dead_code)]
+    pub name: String,
+    #[allow(dead_code)]
+    pub id: u128,
+}
+```
+
+**Recommendation:**
+- If fields are used for debugging, gate behind `#[cfg(debug_assertions)]`
+- If fields are planned for future use, document the intended purpose
+- If fields are genuinely unused, remove them
+- Audit all `#[allow(dead_code)]` annotations periodically
+
+---
+
+### 21. Broadcast World Clones Entire Mobs Collection
+
+**File:** [server/src/world/broadcast_world.rs](../server/src/world/broadcast_world.rs#L92)
+
+**Issue:** The broadcast system clones the entire mobs collection on every update:
+
+```rust
+let mobs = world_map.mobs.clone();
+// ... later ...
+mobs: mobs.clone(),
+```
+
+**Recommendation:** 
+- Use `Arc<HashMap>` or `Rc` for shared read access
+- Only send mob updates for mobs near each player (already partially done)
+- Consider delta updates instead of full state
+
+---
+
+### 22. Constants Scattered Across Multiple Files
+
+**Files:** 
+- [shared/src/constants.rs](../shared/src/constants.rs)
+- [client/src/constants.rs](../client/src/constants.rs)
+- [server/src/world/broadcast_world.rs](../server/src/world/broadcast_world.rs#L16-L44)
+
+**Issue:** Game constants are defined in multiple locations with similar names:
+
+```rust
+// shared/src/constants.rs
+pub const DEFAULT_RENDER_DISTANCE: i32 = 8;
+
+// client/src/constants.rs  
+pub const DEFAULT_CHUNK_RENDER_DISTANCE_RADIUS: u32 = if cfg!(debug_assertions) { 2 } else { 4 };
+
+// server/src/world/broadcast_world.rs
+const MAX_CHUNKS_PER_UPDATE: usize = 50;
+const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
+```
+
+**Recommendation:** 
+- Consolidate all game configuration constants into `shared/src/constants.rs`
+- Use sub-modules for organization: `constants::rendering`, `constants::physics`, etc.
+- Consider a configuration file (RON) for runtime-adjustable values
+
+---
+
+### 23. Mob Behavior Has Duplicated Movement Logic
+
+**File:** [server/src/mob/behavior.rs](../server/src/mob/behavior.rs)
+
+**Issue:** The `MobAction::Walk` branch contains repeated movement attempts with similar patterns:
+
+```rust
+if !try_move(&mut body, &world_map.chunks, displacement, true) {
+    // ...
+} else if body.on_ground && (body.velocity.x != 0.0 && body.velocity.z != 0.0) {
+    // jump logic
+} else if body.on_ground {
+    // Try to move in the other direction
+    if !try_move(&mut body, &world_map.chunks, Vec3::new(displacement.x, 0.0, 0.0), true) {
+        // ...
+    } else if !try_move(&mut body, &world_map.chunks, Vec3::new(0.0, 0.0, displacement.z), true) {
+        // ...
+    } else {
+        // jump again
+    }
+}
+```
+
+**Recommendation:** Extract pathfinding/obstacle avoidance into a dedicated helper:
+
+```rust
+fn attempt_movement_with_avoidance(
+    body: &mut PhysicsBody,
+    chunks: &ServerChunkWorldMap,
+    displacement: Vec3,
+) -> MovementResult {
+    // Centralized movement + obstacle avoidance logic
+}
+```
+
+---
+
+### 24. Block Properties Use Large Match Statements
+
+**File:** [shared/src/world/blocks.rs](../shared/src/world/blocks.rs)
+
+**Issue:** Each `BlockId` method uses a match statement that must be updated for every new block:
+
+```rust
+pub fn get_break_time(&self) -> u8 {
+    6 * match *self {
+        Self::Dirt => 5,
+        Self::Debug => 7,
+        Self::Grass => 6,
+        // ... 15+ more cases
+        _ => 100,
+    }
+}
+```
+
+**Recommendation:** Use a data-driven approach with a static lookup table:
+
+```rust
+struct BlockProperties {
+    break_time: u8,
+    hitbox: BlockHitbox,
+    visibility: BlockTransparency,
+    drops: &'static [(u32, ItemId, u32)],
+}
+
+static BLOCK_PROPERTIES: phf::Map<BlockId, BlockProperties> = phf_map! {
+    BlockId::Dirt => BlockProperties { break_time: 30, ... },
+    // ...
+};
+
+impl BlockId {
+    pub fn properties(&self) -> &'static BlockProperties {
+        BLOCK_PROPERTIES.get(self).unwrap_or(&DEFAULT_PROPERTIES)
+    }
+}
+```
+
+---
+
+### 25. Menu System Has Deep Nesting in `menu_plugin`
+
+**File:** [client/src/ui/menus/mod.rs](../client/src/ui/menus/mod.rs)
+
+**Issue:** The `menu_plugin` function chains multiple `add_systems` calls with inconsistent structure. Some menus have setup/action pairs, others don't.
+
+**Recommendation:** Create a `MenuPlugin` trait for consistent menu implementation:
+
+```rust
+trait MenuPlugin {
+    fn state() -> MenuState;
+    fn setup_system() -> impl IntoSystemConfigs<()>;
+    fn update_systems() -> impl IntoSystemConfigs<()>;
+    fn on_exit_systems() -> Option<impl IntoSystemConfigs<()>> { None }
+}
+
+// Then register uniformly:
+fn register_menu<M: MenuPlugin>(app: &mut App) {
+    app.add_systems(OnEnter(M::state()), M::setup_system())
+       .add_systems(Update, M::update_systems().run_if(in_state(M::state())));
+    if let Some(exit) = M::on_exit_systems() {
+        app.add_systems(OnExit(M::state()), exit);
+    }
+}
+```
+
+---
+
+### 26. Network Message Handling Could Use Command Pattern
+
+**File:** [server/src/network/dispatcher.rs](../server/src/network/dispatcher.rs)
+
+**Issue:** The `server_update_system` has a large match statement handling all message types inline:
+
+```rust
+match message {
+    ClientToServerMessage::AuthRegisterRequest(auth_req) => {
+        // 40+ lines of handling
+    }
+    ClientToServerMessage::ChatMessage(chat_msg) => {
+        // 15+ lines
+    }
+    // ... more cases
+}
+```
+
+**Recommendation:** Use a handler map or command pattern:
+
+```rust
+trait MessageHandler<M> {
+    fn handle(&self, ctx: &mut MessageContext, msg: M);
+}
+
+// Register handlers
+let handlers: HashMap<TypeId, Box<dyn MessageHandler>> = ...;
+
+// Dispatch
+if let Some(handler) = handlers.get(&message.type_id()) {
+    handler.handle(&mut ctx, message);
+}
+```
+
+---
+
+### 27. Consider Extracting Common UI Patterns
+
+**Files:** Various UI files in `client/src/ui/`
+
+**Issue:** Button creation, text styling, and layout patterns are repeated across menus. Each menu manually constructs similar UI hierarchies.
+
+**Recommendation:** Create a UI builder/factory module:
+
+```rust
+// client/src/ui/builder.rs
+pub struct UiBuilder<'a> {
+    commands: &'a mut Commands,
+    asset_server: &'a AssetServer,
+}
+
+impl<'a> UiBuilder<'a> {
+    pub fn menu_button(&mut self, text: &str, action: MenuButtonAction) -> Entity { ... }
+    pub fn text_input(&mut self, placeholder: &str) -> Entity { ... }
+    pub fn scrollable_list(&mut self) -> Entity { ... }
+}
+```
+
+---
+
+## Summary (Updated)
+
+| Priority | Issue | Impact | Effort |
+|----------|-------|--------|--------|
+| High | WorldMap trait duplication | Maintainability | Medium |
+| High | Input action mapping | DRY principle | Low |
+| High | Tree generation repetition | Maintainability | Medium |
+| High | Mob/Player physics duplication | Maintainability, Bugs | High |
+| Medium | Large system parameter tuples | Readability | Medium |
+| Medium | Magic numbers | Maintainability | Low |
+| Medium | Debug toggle repetition | DRY principle | Low |
+| Medium | Monolithic game plugin | Maintainability | Medium |
+| Medium | Vec for sent_to_clients | Performance | Low |
+| Medium | French comments | Accessibility | Low |
+| Medium | Asset loading repetition | DRY principle | Low |
+| Medium | TODO comments need resolution | Technical debt | Medium |
+| Medium | Broadcast clones mobs | Performance | Medium |
+| Medium | Block properties match statements | Maintainability | Medium |
+| Low | Dead code | Code cleanliness | Low |
+| Low | `.unwrap()` usage | Robustness | Medium |
+| Low | Inconsistent query handling | Consistency | Low |
+| Low | HUD setup repetition | DRY principle | Low |
+| Low | Keybinding defaults | Configuration | Low |
+| Low | `#[allow(dead_code)]` audit | Code cleanliness | Low |
+| Low | Constants scattered | Organization | Low |
+| Low | Menu system structure | Maintainability | Medium |
+| Low | Network message handling | Extensibility | High |
+| Low | UI pattern extraction | DRY principle | High |
+
+---
+
 ## Next Steps
 
 1. Start with high-priority items that have low effort (input action mapping, tree generation helper)
 2. Create tracking issues for larger refactors (physics unification, plugin split)
 3. Run `cargo clippy --all-targets` to identify additional issues
 4. Consider adding CI checks for code quality metrics
+5. **NEW:** Triage TODO comments into GitHub issues
+6. **NEW:** Audit `#[allow(dead_code)]` annotations
+7. **NEW:** Profile broadcast system for performance bottlenecks
