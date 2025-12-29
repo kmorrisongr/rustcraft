@@ -2,7 +2,7 @@ use crate::mob::{MobMarker, TargetedMob, TargetedMobData};
 use crate::network::buffered_client::CurrentFrameInputs;
 use crate::ui::hud::UIMode;
 use crate::world::ClientWorldMap;
-use bevy::color::palettes::css::{GREEN, WHITE};
+use bevy::color::palettes::css::WHITE;
 use bevy::prelude::*;
 use shared::messages::NetworkAction;
 use shared::players::blocks::{simulate_player_block_interactions, CallerType};
@@ -49,8 +49,6 @@ pub fn handle_block_interactions(
     let world_map = world_map.into_inner();
 
     let maybe_block = raycast::raycast(world_map, camera_transform, player_translation, *view_mode);
-
-    bounce_ray(ray, &mut ray_cast);
 
     if let Some((entity, _)) = ray_cast
         .cast_ray(ray, &MeshRayCastSettings::default())
@@ -103,35 +101,5 @@ pub fn handle_block_interactions(
             &frame_inputs.0,
             CallerType::Client,
         );
-    }
-}
-
-const MAX_BOUNCES: usize = 1;
-
-// Bounces a ray off of surfaces `MAX_BOUNCES` times.
-fn bounce_ray(mut ray: Ray3d, ray_cast: &mut MeshRayCast) {
-    let color = Color::from(GREEN);
-
-    let mut intersections = Vec::with_capacity(MAX_BOUNCES + 1);
-    intersections.push((ray.origin, Color::srgb(30.0, 0.0, 0.0)));
-
-    for i in 0..MAX_BOUNCES {
-        // Cast the ray and get the first hit
-        let Some((_, hit)) = ray_cast
-            .cast_ray(ray, &MeshRayCastSettings::default())
-            .first()
-        else {
-            break;
-        };
-
-        // debug!("Hit: {:?} {:?}", entity, hit);
-
-        // Draw the point of intersection and add it to the list
-        let brightness = 1.0 + 10.0 * (1.0 - i as f32 / MAX_BOUNCES as f32);
-        intersections.push((hit.point, Color::BLACK.mix(&color, brightness)));
-
-        // Reflect the ray off of the surface
-        ray.direction = Dir3::new(ray.direction.reflect(hit.normal)).unwrap();
-        ray.origin = hit.point + ray.direction * 1e-6;
     }
 }
