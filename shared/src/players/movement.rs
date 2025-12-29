@@ -1,9 +1,7 @@
 use crate::{
     messages::{NetworkAction, PlayerFrameInput},
     physics::{apply_gravity, resolve_vertical_movement, try_move, PhysicsBody},
-    players::{
-        constants::{FLY_SPEED_MULTIPLIER, GRAVITY, JUMP_VELOCITY, SPEED},
-    },
+    players::constants::{FLY_SPEED_MULTIPLIER, GRAVITY, JUMP_VELOCITY, SPEED},
     world::WorldMap,
 };
 use bevy::prelude::*;
