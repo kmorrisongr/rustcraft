@@ -213,6 +213,7 @@ pub fn establish_authenticated_connection_to_server(
     current_profile: Res<CurrentPlayerProfile>,
     mut ev_spawn: EventWriter<PlayerSpawnEvent>,
     mut client_time: ResMut<ClientTime>,
+    mut world_seed: ResMut<shared::world::WorldSeed>,
 ) {
     if target.session_token.is_some() {
         info!(
@@ -244,6 +245,8 @@ pub fn establish_authenticated_connection_to_server(
                 target.session_token = Some(message.session_token);
                 target.state = TargetServerState::ConnectionEstablished;
                 client_time.0 = message.tick;
+                world_seed.0 = message.world_seed;
+                info!("Received world seed: {}", message.world_seed);
                 // TODO: handle clock sync using the timestamp_ms field
                 // it will become very important if the lantency is high
                 for player in message.players {

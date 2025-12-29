@@ -183,6 +183,7 @@ pub fn game_plugin(app: &mut App) {
                     .chain(),
                 fps_text_update_system,
                 coords_text_update_system,
+                biome_text_update_system,
                 total_blocks_text_update_system,
                 block_text_update_system,
                 time_text_update_system,

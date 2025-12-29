@@ -1,3 +1,4 @@
+pub mod biome;
 pub mod blocks;
 pub mod chunks;
 pub mod coords;
@@ -9,6 +10,7 @@ pub mod setup;
 pub mod targeted_block;
 
 use bevy::prelude::Resource;
+pub use biome::*;
 pub use blocks::*;
 pub use chunks::*;
 pub use coords::*;

@@ -11,6 +11,14 @@ use std::fmt::Debug;
 
 use super::{BlockData, ItemId, ItemType, MobId, ServerMob};
 
+// Biome generation constants - shared between client and server
+/// Scale factor for biome noise generation
+pub const BIOME_SCALE: f64 = 0.01;
+/// Seed offset for temperature noise generation
+pub const TEMP_SEED_OFFSET: u32 = 1;
+/// Seed offset for humidity noise generation
+pub const HUMIDITY_SEED_OFFSET: u32 = 2;
+
 /// Represents a type of flora that can be requested for generation in the chunk above.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum FloraType {
@@ -107,6 +115,67 @@ pub enum BiomeType {
     DeepOcean,
 }
 
+impl BiomeType {
+    /// Returns the human-readable name of the biome
+    pub fn name(&self) -> &'static str {
+        match self {
+            BiomeType::Plains => "Plains",
+            BiomeType::Forest => "Forest",
+            BiomeType::MediumMountain => "Medium Mountain",
+            BiomeType::HighMountainGrass => "High Mountain Grass",
+            BiomeType::Desert => "Desert",
+            BiomeType::IcePlain => "Ice Plain",
+            BiomeType::FlowerPlains => "Flower Plains",
+            BiomeType::ShallowOcean => "Shallow Ocean",
+            BiomeType::Ocean => "Ocean",
+            BiomeType::DeepOcean => "Deep Ocean",
+        }
+    }
+
+    /// Determines the biome type from climate data (temperature and humidity).
+    /// This function is used by both server (for world generation) and client (for biome display).
+    ///
+    /// # Arguments
+    /// * `climate` - BiomeClimate struct containing temperature and humidity values (both 0.0 to 1.0)
+    ///
+    /// # Returns
+    /// The biome type corresponding to the given climate
+    pub fn from_climate(climate: BiomeClimate) -> Self {
+        const OCEAN_PERCENTAGE: f64 = 0.33;
+        const DEEP_OCEAN_THRESHOLD: f64 = 1.0 - (OCEAN_PERCENTAGE / 3.0);
+        const OCEAN_THRESHOLD: f64 = 1.0 - 2.0 * (OCEAN_PERCENTAGE / 3.0);
+        const SHALLOW_OCEAN_THRESHOLD: f64 = 1.0 - OCEAN_PERCENTAGE;
+        const LAND_HUMID_THRESHOLD: f64 = SHALLOW_OCEAN_THRESHOLD / 2.0;
+        const LAND_HIGH_HUMID_THRESHOLD: f64 = 2.0 * SHALLOW_OCEAN_THRESHOLD / 3.0;
+        const LAND_MID_HUMID_THRESHOLD: f64 = SHALLOW_OCEAN_THRESHOLD / 3.0;
+
+        match (climate.temperature, climate.humidity) {
+            // Ocean biomes (determined primarily by humidity)
+            (_, h) if h > DEEP_OCEAN_THRESHOLD => BiomeType::DeepOcean,
+            (_, h) if h > OCEAN_THRESHOLD => BiomeType::Ocean,
+            (_, h) if h > SHALLOW_OCEAN_THRESHOLD => BiomeType::ShallowOcean,
+
+            // Land biomes - Hot climate (temperature > 0.6)
+            (t, h) if t > 0.6 && h > LAND_HUMID_THRESHOLD => BiomeType::Forest,
+            (t, _) if t > 0.6 => BiomeType::Desert,
+
+            // Land biomes - Temperate climate (0.3 < temperature <= 0.6)
+            (t, h) if t > 0.3 && h > LAND_HIGH_HUMID_THRESHOLD => BiomeType::FlowerPlains,
+            (t, h) if t > 0.3 && h > LAND_MID_HUMID_THRESHOLD => BiomeType::Plains,
+            (t, _) if t > 0.3 => BiomeType::MediumMountain,
+
+            // Land biomes - Cold climate (temperature <= 0.3)
+            (t, h) if t >= 0.0 && h > LAND_HUMID_THRESHOLD => BiomeType::IcePlain,
+            (t, _) if t >= 0.0 => BiomeType::HighMountainGrass,
+
+            _ => panic!(
+                "Invalid climate values: temperature={}, humidity={}",
+                climate.temperature, climate.humidity
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Biome {
     pub biome_type: BiomeType,
@@ -189,6 +258,57 @@ pub fn get_biome_data(biome_type: BiomeType) -> Biome {
             sub_surface_block: BlockId::Sand,
         },
     }
+}
+
+/// Temperature and humidity values for biome calculation
+#[derive(Debug, Clone, Copy)]
+pub struct BiomeClimate {
+    /// Temperature value between 0.0 and 1.0
+    pub temperature: f64,
+    /// Humidity value between 0.0 and 1.0
+    pub humidity: f64,
+}
+
+/// Calculates the temperature and humidity at a given world position using Perlin noise.
+/// This ensures the client and server use identical noise generation parameters.
+///
+/// # Arguments
+/// * `x` - World x coordinate
+/// * `z` - World z coordinate
+/// * `seed` - World seed
+///
+/// # Returns
+/// A BiomeClimate struct with temperature and humidity values, both between 0.0 and 1.0
+pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate {
+    use noise::{NoiseFn, Perlin};
+
+    let temp_perlin = Perlin::new(seed + TEMP_SEED_OFFSET);
+    let humidity_perlin = Perlin::new(seed + HUMIDITY_SEED_OFFSET);
+
+    let temperature =
+        (temp_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
+    let humidity =
+        (humidity_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
+
+    BiomeClimate {
+        temperature,
+        humidity,
+    }
+}
+
+/// Calculates the biome at a given world position.
+/// This is a convenience function that combines temperature/humidity calculation with biome determination.
+///
+/// # Arguments
+/// * `x` - World x coordinate
+/// * `z` - World z coordinate
+/// * `seed` - World seed
+///
+/// # Returns
+/// The biome type at the given position
+pub fn calculate_biome_at_position(x: i32, z: i32, seed: u32) -> BiomeType {
+    let climate = calculate_temperature_humidity(x, z, seed);
+    BiomeType::from_climate(climate)
 }
 
 pub trait WorldMap {

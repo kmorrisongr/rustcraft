@@ -18,6 +18,9 @@ fn try_place_block(
     }
 }
 
+// Import shared biome functions
+use shared::world::calculate_temperature_humidity;
+
 fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId, leaves: BlockId) {
     // create trunk
     let trunk_height = 3 + rand::random::<u8>() % 3; // random height between 3 and 5
@@ -189,57 +192,10 @@ fn generate_cactus(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, cactus: Bloc
     }
 }
 
-pub fn determine_biome(temperature: f64, humidity: f64) -> BiomeType {
-    let ocean_percentage: f64 = 0.33;
-    if humidity > (1.0 - (ocean_percentage / 3.0)) {
-        return BiomeType::DeepOcean;
-    }
-    if humidity > (1.0 - 2.0 * (ocean_percentage / 3.0)) {
-        return BiomeType::Ocean;
-    }
-    if humidity > (1.0 - ocean_percentage) {
-        return BiomeType::ShallowOcean;
-    }
-    if temperature > 0.6 {
-        if humidity > (1.0 - ocean_percentage) / 2.0 {
-            BiomeType::Forest
-        } else {
-            BiomeType::Desert
-        }
-    } else if temperature > 0.3 {
-        if humidity > 2.0 * (1.0 - ocean_percentage) / 3.0 {
-            BiomeType::FlowerPlains
-        } else if humidity > (1.0 - ocean_percentage) / 3.0 {
-            BiomeType::Plains
-        } else {
-            BiomeType::MediumMountain
-        }
-    } else if temperature >= 0.0 {
-        if humidity > (1.0 - ocean_percentage) / 2.0 {
-            BiomeType::IcePlain
-        } else {
-            BiomeType::HighMountainGrass
-        }
-    } else {
-        panic!();
-    }
-}
-
-fn interpolated_height(
-    x: i32,
-    z: i32,
-    biome_scale: f64,
-    perlin: &Perlin,
-    temp_perlin: &Perlin,
-    humidity_perlin: &Perlin,
-    scale: f64,
-) -> i32 {
+fn interpolated_height(x: i32, z: i32, perlin: &Perlin, scale: f64, seed: u32) -> i32 {
     // get the properties of the main biome at (x, z)
-    let temperature =
-        (temp_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-    let humidity =
-        (humidity_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-    let biome_type = determine_biome(temperature, humidity);
+    let climate = calculate_temperature_humidity(x, z, seed);
+    let biome_type = BiomeType::from_climate(climate);
     let biome = get_biome_data(biome_type);
 
     // initialize weighted values
@@ -258,19 +214,10 @@ fn interpolated_height(
             let neighbor_z = z + offset_z;
 
             // calculate the temperature and humidity of the neighboring block
-            let neighbor_temp = (temp_perlin.get([
-                neighbor_x as f64 * biome_scale,
-                neighbor_z as f64 * biome_scale,
-            ]) + 1.0)
-                / 2.0;
-            let neighbor_humidity = (humidity_perlin.get([
-                neighbor_x as f64 * biome_scale,
-                neighbor_z as f64 * biome_scale,
-            ]) + 1.0)
-                / 2.0;
+            let neighbor_climate = calculate_temperature_humidity(neighbor_x, neighbor_z, seed);
 
             // determine the biome of the neighboring block
-            let neighbor_biome_type = determine_biome(neighbor_temp, neighbor_humidity);
+            let neighbor_biome_type = BiomeType::from_climate(neighbor_climate);
             let neighbor_biome = get_biome_data(neighbor_biome_type);
 
             // weight by distance (the farther a neighbor is, the less influence it has)
@@ -414,11 +361,8 @@ pub fn generate_chunk(
     pending_requests: Option<Vec<FloraRequest>>,
 ) -> ChunkGenerationResult {
     let perlin = Perlin::new(seed);
-    let temp_perlin = Perlin::new(seed + 1);
-    let humidity_perlin = Perlin::new(seed + 2);
 
     let scale = 0.1;
-    let biome_scale = 0.01;
     let cx = chunk_pos.x;
     let cy = chunk_pos.y;
     let cz = chunk_pos.z;
@@ -447,26 +391,15 @@ pub fn generate_chunk(
             let x = CHUNK_SIZE * cx + dx;
             let z = CHUNK_SIZE * cz + dz;
 
-            // calculate temperature and humidity
-            let temperature =
-                (temp_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-            let humidity =
-                (humidity_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
+            // calculate temperature and humidity using shared function
+            let climate = calculate_temperature_humidity(x, z, seed);
 
             // get biome regarding the two values
-            let biome_type = determine_biome(temperature, humidity);
+            let biome_type = BiomeType::from_climate(climate);
             let biome = get_biome_data(biome_type);
 
             // get terrain height
-            let terrain_height = interpolated_height(
-                x,
-                z,
-                biome_scale,
-                &perlin,
-                &temp_perlin,
-                &humidity_perlin,
-                scale,
-            );
+            let terrain_height = interpolated_height(x, z, &perlin, scale, seed);
 
             // generate blocs
             for dy in 0..CHUNK_SIZE {

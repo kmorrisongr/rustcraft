@@ -68,6 +68,7 @@ fn server_update_system(
     mut world_map: ResMut<ServerWorldMap>,
     time: Res<ServerTime>,
     game_folder_paths: Res<GameFolderPaths>,
+    world_seed: Res<shared::world::WorldSeed>,
 ) {
     for event in server_events.read() {
         debug!("event received");
@@ -148,6 +149,7 @@ fn server_update_system(
                         tick: time.0,
                         timestamp_ms,
                         players: all_player_spawn_events,
+                        world_seed: world_seed.0,
                     };
 
                     server.send_game_message(client_id, auth_res.into());
