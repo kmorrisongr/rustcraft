@@ -50,6 +50,19 @@ use crate::GameState;
 #[derive(Resource)]
 pub struct PreLoadingCompletion {
     pub textures_loaded: bool,
+    pub empty_handles_warning_emitted: bool,
+}
+
+#[derive(Resource, Default)]
+struct PreloadGate {
+    textures_ready: bool,
+    server_ready: bool,
+}
+
+#[derive(Event, Debug, Clone, Copy)]
+pub enum PreloadSignal {
+    TexturesReady,
+    ServerReady,
 }
 
 pub fn game_plugin(app: &mut App) {
@@ -67,7 +80,9 @@ pub fn game_plugin(app: &mut App) {
         })
         .insert_resource(PreLoadingCompletion {
             textures_loaded: false,
+            empty_handles_warning_emitted: false,
         })
+        .insert_resource(PreloadGate::default())
         .insert_resource(BlockDebugWireframeSettings { is_enabled: false })
         .insert_resource(WireframeConfig {
             // The global wireframe config enables drawing of wireframes on every mesh,
@@ -96,6 +111,7 @@ pub fn game_plugin(app: &mut App) {
         .init_resource::<SyncTime>()
         .init_resource::<UnacknowledgedInputs>()
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
+        .add_event::<PreloadSignal>()
         .add_event::<WorldRenderRequestUpdateEvent>()
         .add_event::<PlayerSpawnEvent>()
         .add_event::<PlayerUpdateEvent>()
@@ -104,6 +120,7 @@ pub fn game_plugin(app: &mut App) {
         .add_systems(
             OnEnter(GameState::PreGameLoading),
             (
+                reset_preload_tracking,
                 launch_local_server_system,
                 init_server_connection,
                 setup_materials,
@@ -117,7 +134,8 @@ pub fn game_plugin(app: &mut App) {
             (
                 establish_authenticated_connection_to_server,
                 create_all_atlases,
-                check_pre_loading_complete,
+                emit_server_ready_signal,
+                advance_to_game_on_preload,
                 spawn_players_system,
                 update_server_connect_loading_screen,
             )
@@ -232,12 +250,39 @@ fn clear_resources(mut world_map: ResMut<ClientWorldMap>) {
     world_map.name = "".into();
 }
 
-fn check_pre_loading_complete(
-    loading: Res<PreLoadingCompletion>,
-    mut game_state: ResMut<NextState<GameState>>,
-    target_server: Res<TargetServer>,
+fn reset_preload_tracking(
+    mut loading: ResMut<PreLoadingCompletion>,
+    mut gate: ResMut<PreloadGate>,
 ) {
-    if loading.textures_loaded && target_server.state == TargetServerState::FullyReady {
+    loading.textures_loaded = false;
+    gate.textures_ready = false;
+    gate.server_ready = false;
+}
+
+fn emit_server_ready_signal(
+    target_server: Res<TargetServer>,
+    mut signals: EventWriter<PreloadSignal>,
+    mut gate: ResMut<PreloadGate>,
+) {
+    if !gate.server_ready && target_server.state == TargetServerState::FullyReady {
+        signals.write(PreloadSignal::ServerReady);
+        gate.server_ready = true;
+    }
+}
+
+fn advance_to_game_on_preload(
+    mut signals: EventReader<PreloadSignal>,
+    mut gate: ResMut<PreloadGate>,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    for signal in signals.read() {
+        match signal {
+            PreloadSignal::TexturesReady => gate.textures_ready = true,
+            PreloadSignal::ServerReady => {} // Gate updated in emit_server_ready_signal
+        }
+    }
+
+    if gate.textures_ready && gate.server_ready {
         game_state.set(GameState::Game);
     }
 }
