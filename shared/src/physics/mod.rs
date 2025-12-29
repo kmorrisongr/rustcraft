@@ -40,6 +40,7 @@ pub fn apply_gravity(body: &mut PhysicsBody, gravity: f32, delta: f32) {
 }
 
 /// Resolve vertical movement, clamping vertical speed and handling collisions when `collide` is true.
+/// When `collide` is false, the body moves freely without collision checks and is marked airborne.
 pub fn resolve_vertical_movement(
     body: &mut PhysicsBody,
     world_map: &impl WorldMap,
@@ -48,6 +49,8 @@ pub fn resolve_vertical_movement(
 ) {
     if body.velocity.y < -max_velocity {
         body.velocity.y = -max_velocity;
+    } else if body.velocity.y > max_velocity {
+        body.velocity.y = max_velocity;
     }
 
     let new_y = body.position.y + body.velocity.y;
@@ -73,8 +76,9 @@ pub fn resolve_vertical_movement(
 }
 
 /// Attempt to move the body by `displacement`.
-/// If `collide` is true, performs collision checks; returns `true` if movement is
-/// blocked by a collision and `false` if movement succeeded (position was updated).
+/// If `collide` is false, the body moves freely and returns `false`.
+/// If `collide` is true, performs collision checks; returns `true` when the
+/// movement is blocked by a collision (position is not updated) and `false` otherwise.
 pub fn try_move(
     body: &mut PhysicsBody,
     world_map: &impl WorldMap,
