@@ -37,9 +37,17 @@ pub fn update_frame_inputs_system(
         return;
     }
 
-    let camera = camera.single().unwrap();
+    let Ok(camera) = camera.single() else {
+        debug!("Camera not found");
+        return;
+    };
+    let Ok(hotbar) = hotbar.single() else {
+        debug!("Hotbar not found");
+        return;
+    };
+
     frame_inputs.0.camera = *camera;
-    frame_inputs.0.hotbar_slot = hotbar.single().unwrap().selected;
+    frame_inputs.0.hotbar_slot = hotbar.selected;
     frame_inputs.0.view_mode = *view_mode;
 }
 
@@ -77,15 +85,6 @@ pub fn player_movement_system(
         return;
     }
 
-    let res = player_query.single_mut();
-    // Return early if the player has not been spawned yet
-    if res.is_err() {
-        debug!("player not found");
-        return;
-    }
-
-    let (mut player, mut player_transform) = player_query.single_mut().unwrap();
-
     if *ui_mode == UIMode::Closed
         && is_action_just_pressed(GameAction::ToggleFlyMode, &keyboard_input, &key_map)
     {
@@ -97,6 +96,11 @@ pub fn player_movement_system(
             frame_inputs.0.inputs.insert(*network_action);
         }
     }
+
+    let Ok((mut player, mut player_transform)) = player_query.single_mut() else {
+        debug!("player not found");
+        return;
+    };
 
     simulate_player_movement(&mut player, world_map.as_ref(), &frame_inputs.0);
 
@@ -124,14 +128,12 @@ pub fn first_and_third_person_view_system(
         view_mode.toggle();
     }
 
-    let material_handle = player_query.single_mut();
-    // Return early if the player has not been spawned yet
-    if material_handle.is_err() {
+    let Ok(player_material) = player_query.single_mut() else {
         debug!("player not found");
         return;
-    }
+    };
 
-    let material_handle = &material_handle.unwrap().handle;
+    let material_handle = &player_material.handle;
 
     match *view_mode {
         ViewMode::FirstPerson => {
