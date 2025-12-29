@@ -77,7 +77,16 @@ pub struct LoadWorldEvent {
 
 #[derive(Resource, Serialize, Deserialize)]
 pub struct KeyMap {
+    #[serde(default = "input::keyboard::default_key_map")]
     pub map: BTreeMap<GameAction, Vec<KeyCode>>,
+}
+
+impl Default for KeyMap {
+    fn default() -> Self {
+        Self {
+            map: input::keyboard::default_key_map(),
+        }
+    }
 }
 
 #[derive(Resource, Debug)]

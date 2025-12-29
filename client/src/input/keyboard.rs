@@ -63,59 +63,49 @@ pub fn get_action_keys(action: GameAction, key_map: &KeyMap) -> Vec<KeyCode> {
     key_map.map.get(&action).unwrap().to_vec()
 }
 
+pub(crate) fn default_key_map() -> BTreeMap<GameAction, Vec<KeyCode>> {
+    let mut map = BTreeMap::new();
+    map.insert(GameAction::MoveForward, vec![KeyCode::KeyW, KeyCode::ArrowUp]);
+    map.insert(
+        GameAction::MoveBackward,
+        vec![KeyCode::KeyS, KeyCode::ArrowDown],
+    );
+    map.insert(GameAction::MoveLeft, vec![KeyCode::KeyA, KeyCode::ArrowLeft]);
+    map.insert(
+        GameAction::MoveRight,
+        vec![KeyCode::KeyD, KeyCode::ArrowRight],
+    );
+    map.insert(GameAction::Jump, vec![KeyCode::Space]);
+    map.insert(GameAction::Escape, vec![KeyCode::Escape]);
+    map.insert(GameAction::ToggleFps, vec![KeyCode::F3]);
+    map.insert(GameAction::ToggleChunkDebugMode, vec![KeyCode::F4]);
+    map.insert(GameAction::ToggleViewMode, vec![KeyCode::F5]);
+    map.insert(
+        GameAction::ToggleBlockWireframeDebugMode,
+        vec![KeyCode::F6],
+    );
+    map.insert(GameAction::ToggleRaycastDebugMode, vec![KeyCode::F7]);
+    map.insert(GameAction::ToggleFlyMode, vec![KeyCode::KeyF]);
+    map.insert(GameAction::FlyUp, vec![KeyCode::Space]);
+    map.insert(GameAction::FlyDown, vec![KeyCode::ShiftLeft]);
+    map.insert(GameAction::ToggleInventory, vec![KeyCode::KeyE]);
+    map.insert(GameAction::OpenChat, vec![KeyCode::KeyT]);
+    map.insert(GameAction::RenderDistanceMinus, vec![KeyCode::KeyO]);
+    map.insert(GameAction::RenderDistancePlus, vec![KeyCode::KeyP]);
+    map.insert(GameAction::ReloadChunks, vec![KeyCode::KeyR]);
+    map
+}
+
 pub fn get_bindings(game_folder_paths: &GameFolderPaths) -> KeyMap {
     let binds_path: PathBuf = Path::new(&game_folder_paths.assets_folder_path).join(BINDS_PATH);
 
-    let mut binds = KeyMap {
-        map: {
-            let mut map = BTreeMap::new();
-            map.insert(
-                GameAction::MoveForward,
-                vec![KeyCode::KeyW, KeyCode::ArrowUp],
-            );
-            map.insert(
-                GameAction::MoveBackward,
-                vec![KeyCode::KeyS, KeyCode::ArrowDown],
-            );
-            map.insert(
-                GameAction::MoveLeft,
-                vec![KeyCode::KeyA, KeyCode::ArrowLeft],
-            );
-            map.insert(
-                GameAction::MoveRight,
-                vec![KeyCode::KeyD, KeyCode::ArrowRight],
-            );
-            map.insert(GameAction::Jump, vec![KeyCode::Space]);
-            map.insert(GameAction::Escape, vec![KeyCode::Escape]);
-            map.insert(GameAction::ToggleFps, vec![KeyCode::F3]);
-            map.insert(GameAction::ToggleChunkDebugMode, vec![KeyCode::F4]);
-            map.insert(GameAction::ToggleViewMode, vec![KeyCode::F5]);
-            map.insert(GameAction::ToggleBlockWireframeDebugMode, vec![KeyCode::F6]);
-            map.insert(GameAction::ToggleRaycastDebugMode, vec![KeyCode::F7]);
-            map.insert(GameAction::ToggleFlyMode, vec![KeyCode::KeyF]);
-            map.insert(GameAction::FlyUp, vec![KeyCode::Space]);
-            map.insert(GameAction::FlyDown, vec![KeyCode::ShiftLeft]);
-            map.insert(GameAction::ToggleInventory, vec![KeyCode::KeyE]);
-            map.insert(GameAction::OpenChat, vec![KeyCode::KeyT]);
-            map.insert(GameAction::RenderDistanceMinus, vec![KeyCode::KeyO]);
-            map.insert(GameAction::RenderDistancePlus, vec![KeyCode::KeyP]);
-            map.insert(GameAction::ReloadChunks, vec![KeyCode::KeyR]);
-            map
-        },
-    };
-
-    // Try to get & serialize existing binds
     if let Ok(content) = fs::read_to_string(binds_path.as_path()) {
         if let Ok(key_map) = from_str::<KeyMap>(&content) {
-            for (k, v) in key_map.map.iter() {
-                binds.map.insert(*k, v.clone());
-            }
+            return key_map;
         }
     }
 
-    binds
-
-    // Get default binds
+    KeyMap::default()
 }
 
 pub fn save_keybindings(key_map: Res<KeyMap>, game_folder_path: Res<GameFolderPaths>) {
