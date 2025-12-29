@@ -30,7 +30,7 @@ pub fn handle_block_interactions(
     mut ray_cast: MeshRayCast,
     mut gizmos: Gizmos,
 ) {
-    let (mut player_query, mut p_transform, camera_query, mob_query) = queries;
+    let (mut player_query, mut player_transform_query, camera_query, mob_query) = queries;
     let (world_map, mouse_input, ui_mode, view_mode, mut targeted_mob, mut frame_inputs) =
         resources;
 
@@ -43,7 +43,7 @@ pub fn handle_block_interactions(
         debug!("camera not found");
         return;
     };
-    let Ok(player_transform) = p_transform.single_mut() else {
+    let Ok(player_transform) = player_transform_query.single_mut() else {
         debug!("player transform not found");
         return;
     };
