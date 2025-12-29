@@ -262,22 +262,6 @@ pub fn get_biome_data(biome_type: BiomeType) -> Biome {
     }
 }
 
-/// Determines the biome type based on temperature and humidity values.
-/// This function is used by both server (for world generation) and client (for biome display).
-///
-/// # Arguments
-/// * `temperature` - Temperature value between 0.0 and 1.0
-/// * `humidity` - Humidity value between 0.0 and 1.0
-///
-/// # Returns
-/// The biome type corresponding to the given temperature and humidity
-pub fn determine_biome(temperature: f64, humidity: f64) -> BiomeType {
-    BiomeType::from_climate(BiomeClimate {
-        temperature,
-        humidity,
-    })
-}
-
 /// Temperature and humidity values for biome calculation
 #[derive(Debug, Clone, Copy)]
 pub struct BiomeClimate {

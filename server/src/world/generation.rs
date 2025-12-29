@@ -4,7 +4,7 @@ use shared::{world::*, CHUNK_SIZE, SEA_LEVEL};
 use std::collections::HashMap;
 
 // Re-export shared biome functions
-use shared::world::{calculate_temperature_humidity, determine_biome};
+use shared::world::calculate_temperature_humidity;
 
 fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId, leaves: BlockId) {
     // create trunk
@@ -272,7 +272,10 @@ fn interpolated_height(
         (temp_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
     let humidity =
         (humidity_perlin.get([x as f64 * biome_scale, z as f64 * biome_scale]) + 1.0) / 2.0;
-    let biome_type = determine_biome(temperature, humidity);
+    let biome_type = BiomeType::from_climate(BiomeClimate {
+        temperature,
+        humidity,
+    });
     let biome = get_biome_data(biome_type);
 
     // initialize weighted values
@@ -303,7 +306,10 @@ fn interpolated_height(
                 / 2.0;
 
             // determine the biome of the neighboring block
-            let neighbor_biome_type = determine_biome(neighbor_temp, neighbor_humidity);
+            let neighbor_biome_type = BiomeType::from_climate(BiomeClimate {
+                temperature: neighbor_temp,
+                humidity: neighbor_humidity,
+            });
             let neighbor_biome = get_biome_data(neighbor_biome_type);
 
             // weight by distance (the farther a neighbor is, the less influence it has)
@@ -484,7 +490,7 @@ pub fn generate_chunk(
             let climate = calculate_temperature_humidity(x, z, seed);
 
             // get biome regarding the two values
-            let biome_type = determine_biome(climate.temperature, climate.humidity);
+            let biome_type = BiomeType::from_climate(climate);
             let biome = get_biome_data(biome_type);
 
             // get terrain height
