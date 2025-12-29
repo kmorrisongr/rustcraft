@@ -112,10 +112,6 @@ impl BlockId {
         }
     }
 
-    pub fn is_biome_colored() -> bool {
-        false
-    }
-
     pub fn get_break_time(&self) -> u8 {
         6 * match *self {
             Self::Dirt => 5,
