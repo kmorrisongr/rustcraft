@@ -15,6 +15,14 @@ use std::fmt::Debug;
 
 use super::{BlockData, ItemId, ItemType, MobId, ServerMob};
 
+// Biome generation constants - shared between client and server
+/// Scale factor for biome noise generation
+pub const BIOME_SCALE: f64 = 0.01;
+/// Seed offset for temperature noise generation
+pub const TEMP_SEED_OFFSET: u32 = 1;
+/// Seed offset for humidity noise generation
+pub const HUMIDITY_SEED_OFFSET: u32 = 2;
+
 /// Represents a type of flora that can be requested for generation in the chunk above.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum FloraType {
@@ -223,39 +231,65 @@ pub fn get_biome_data(biome_type: BiomeType) -> Biome {
 /// # Returns
 /// The biome type corresponding to the given temperature and humidity
 pub fn determine_biome(temperature: f64, humidity: f64) -> BiomeType {
-    let ocean_percentage: f64 = 0.33;
-    if humidity > (1.0 - (ocean_percentage / 3.0)) {
+    const OCEAN_PERCENTAGE: f64 = 0.33;
+    
+    // Ocean biomes are determined primarily by humidity
+    if is_deep_ocean(humidity) {
         return BiomeType::DeepOcean;
     }
-    if humidity > (1.0 - 2.0 * (ocean_percentage / 3.0)) {
+    if is_ocean(humidity) {
         return BiomeType::Ocean;
     }
-    if humidity > (1.0 - ocean_percentage) {
+    if is_shallow_ocean(humidity) {
         return BiomeType::ShallowOcean;
     }
-    if temperature > 0.6 {
-        if humidity > (1.0 - ocean_percentage) / 2.0 {
-            BiomeType::Forest
-        } else {
-            BiomeType::Desert
+    
+    // Land biomes are determined by both temperature and humidity
+    match (temperature, humidity) {
+        // Hot climate (temperature > 0.6)
+        (t, h) if t > 0.6 => {
+            if h > (1.0 - OCEAN_PERCENTAGE) / 2.0 {
+                BiomeType::Forest
+            } else {
+                BiomeType::Desert
+            }
         }
-    } else if temperature > 0.3 {
-        if humidity > 2.0 * (1.0 - ocean_percentage) / 3.0 {
-            BiomeType::FlowerPlains
-        } else if humidity > (1.0 - ocean_percentage) / 3.0 {
-            BiomeType::Plains
-        } else {
-            BiomeType::MediumMountain
+        // Temperate climate (0.3 < temperature <= 0.6)
+        (t, h) if t > 0.3 => {
+            if h > 2.0 * (1.0 - OCEAN_PERCENTAGE) / 3.0 {
+                BiomeType::FlowerPlains
+            } else if h > (1.0 - OCEAN_PERCENTAGE) / 3.0 {
+                BiomeType::Plains
+            } else {
+                BiomeType::MediumMountain
+            }
         }
-    } else if temperature >= 0.0 {
-        if humidity > (1.0 - ocean_percentage) / 2.0 {
-            BiomeType::IcePlain
-        } else {
-            BiomeType::HighMountainGrass
+        // Cold climate (0.0 <= temperature <= 0.3)
+        (_, h) if temperature >= 0.0 => {
+            if h > (1.0 - OCEAN_PERCENTAGE) / 2.0 {
+                BiomeType::IcePlain
+            } else {
+                BiomeType::HighMountainGrass
+            }
         }
-    } else {
-        panic!("Invalid temperature value: {}", temperature);
+        _ => panic!("Invalid temperature value: {}", temperature),
     }
+}
+
+// Helper functions for ocean biome determination
+fn is_deep_ocean(humidity: f64) -> bool {
+    const OCEAN_PERCENTAGE: f64 = 0.33;
+    humidity > (1.0 - (OCEAN_PERCENTAGE / 3.0))
+}
+
+fn is_ocean(humidity: f64) -> bool {
+    const OCEAN_PERCENTAGE: f64 = 0.33;
+    humidity > (1.0 - 2.0 * (OCEAN_PERCENTAGE / 3.0))
+}
+
+fn is_shallow_ocean(humidity: f64) -> bool {
+    const OCEAN_PERCENTAGE: f64 = 0.33;
+    humidity > (1.0 - OCEAN_PERCENTAGE)
 }
 
 /// Temperature and humidity values for biome calculation
@@ -279,11 +313,6 @@ pub struct BiomeClimate {
 /// A BiomeClimate struct with temperature and humidity values, both between 0.0 and 1.0
 pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate {
     use noise::{NoiseFn, Perlin};
-
-    // These constants must match the server's world generation
-    const BIOME_SCALE: f64 = 0.01;
-    const TEMP_SEED_OFFSET: u32 = 1;
-    const HUMIDITY_SEED_OFFSET: u32 = 2;
 
     let temp_perlin = Perlin::new(seed + TEMP_SEED_OFFSET);
     let humidity_perlin = Perlin::new(seed + HUMIDITY_SEED_OFFSET);
