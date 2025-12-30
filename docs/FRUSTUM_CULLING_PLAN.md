@@ -105,8 +105,8 @@ pub struct ViewFrustum {
 
 impl ViewFrustum {
     pub fn from_camera(position: Vec3, forward: Vec3, up: Vec3, fov: f32, aspect: f32, far: f32) -> Self {
-        let right = forward.cross(up).normalize();
-        let up = right.cross(forward).normalize();
+        let right_vec = forward.cross(up).normalize();
+        let up = right_vec.cross(forward).normalize();
         let half_v = far * (fov / 2.0).tan();
         let half_h = half_v * aspect;
         let far_center = position + forward * far;
@@ -114,17 +114,17 @@ impl ViewFrustum {
         let near_plane = Plane::from_normal_and_point(forward, position + forward * 0.1);
         let far_plane = Plane::from_normal_and_point(-forward, far_center);
 
-        let ftl = far_center + up * half_v - right * half_h;
-        let ftr = far_center + up * half_v + right * half_h;
-        let fbl = far_center - up * half_v - right * half_h;
-        let fbr = far_center - up * half_v + right * half_h;
+        let ftl = far_center + up * half_v - right_vec * half_h;
+        let ftr = far_center + up * half_v + right_vec * half_h;
+        let fbl = far_center - up * half_v - right_vec * half_h;
+        let fbr = far_center - up * half_v + right_vec * half_h;
 
         let left = Plane::from_normal_and_point((ftl - position).cross(fbl - position).normalize(), position);
-        let right_p = Plane::from_normal_and_point((fbr - position).cross(ftr - position).normalize(), position);
+        let right = Plane::from_normal_and_point((fbr - position).cross(ftr - position).normalize(), position);
         let top = Plane::from_normal_and_point((ftr - position).cross(ftl - position).normalize(), position);
         let bottom = Plane::from_normal_and_point((fbl - position).cross(fbr - position).normalize(), position);
 
-        Self { planes: [near_plane, far_plane, left, right_p, top, bottom] }
+        Self { planes: [near_plane, far_plane, left, right, top, bottom] }
     }
 
     pub fn intersects_aabb(&self, min: Vec3, max: Vec3) -> bool {
