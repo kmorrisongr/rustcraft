@@ -6,7 +6,7 @@
 
 | Stage | Approach | Bandwidth Reduction | Effort |
 |-------|----------|--------------------|---------|
-| 1 | Cone cull (dot threshold) | ~30-40% | 2-3 hours |
+| 1 | Cone Culling (dot threshold) | ~30-40% | 2-3 hours |
 | 2 | Full frustum (fixed params) | ~50-60% | 1-2 days |
 | 3 | Full frustum (synced params) | ~55-65% | 3-4 days |
 
