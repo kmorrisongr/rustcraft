@@ -202,6 +202,8 @@ Only implement if players with >90° FOV report pop-in. Requires adding `Frustum
 
 **Spawn safety** (add to frustum filter):
 ```rust
+// Insert this at the beginning of the `.filter()` closure in the Stage 1 implementation
+// (around line 53), before the normal culling check.
 let distance = (*chunk_pos - player_chunk_pos).abs();
 if distance.x <= 2 && distance.y <= 2 && distance.z <= 2 { return true; }
 ```
