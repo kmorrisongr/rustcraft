@@ -24,7 +24,10 @@ pub fn total_blocks_text_update_system(
     }
     for entity in query_chunks.iter() {
         let chunk_count = world_map.map.len();
-        // HashMap entry overhead varies by implementation; assume two usize words of metadata (hash/next) per slot
+        // Rough, implementation-agnostic approximation of per-slot HashMap overhead.
+        // Note: std::collections::HashMap actually uses a separate control byte array and
+        // contiguous storage for key/value pairs; this is only an estimated lower bound
+        // for the purposes of this debug display, not an exact memory model.
         const HASHMAP_ENTRY_OVERHEAD_USIZE: usize = 2;
         let slot_overhead_bytes = size_of::<usize>() * HASHMAP_ENTRY_OVERHEAD_USIZE;
 
