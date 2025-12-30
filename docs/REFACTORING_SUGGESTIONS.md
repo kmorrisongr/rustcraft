@@ -5,143 +5,15 @@ This document outlines opportunities for refactoring and simplification across t
 ---
 
 ## Table of Contents
-- [High Priority](#high-priority)
 - [Medium Priority](#medium-priority)
 - [Low Priority](#low-priority)
 - [Code Organization](#code-organization)
 
 ---
 
-## High Priority
-
-### 1. Duplicate WorldMap Trait Implementations [COMPLETE]
-
-**Files:** 
-- [client/src/world/data.rs](../client/src/world/data.rs)
-- [shared/src/world/data.rs](../shared/src/world/data.rs)
-
-**Issue:** Both `ClientWorldMap` and `ServerChunkWorldMap` implement the `WorldMap` trait with nearly identical coordinate conversion logic:
-
-```rust
-// Repeated in both files
-let cx: i32 = block_to_chunk_coord(x);
-let cy: i32 = block_to_chunk_coord(y);
-let cz: i32 = block_to_chunk_coord(z);
-let sub_x: i32 = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-// ...
-```
-
-**Recommendation:** Extract the common coordinate transformation logic into helper methods in the shared crate:
-
-```rust
-// shared/src/world/utils.rs
-pub fn global_to_chunk_local(position: &IVec3) -> (IVec3, IVec3) {
-    let chunk_pos = global_block_to_chunk_pos(position);
-    let local_pos = to_local_pos(position);
-    (chunk_pos, local_pos)
-}
-```
-
-Consider using a generic chunk storage trait that both can implement.
-
----
-
-### 2. Input Action Mapping Duplication [COMPLETE]
-
-**Files:**
-- [client/src/input/data.rs](../client/src/input/data.rs) - `GameAction` enum
-- [shared/src/messages/player.rs](../shared/src/messages/player.rs) - `NetworkAction` enum
-
-**Issue:** There are two separate enums for actions - `GameAction` (client-side UI actions) and `NetworkAction` (network-synchronized actions). The mapping between them in [controller.rs](../client/src/player/controller.rs) is repetitive:
-
-```rust
-if is_action_pressed(GameAction::MoveBackward, &keyboard_input, &key_map) {
-    frame_inputs.0.inputs.insert(NetworkAction::MoveBackward);
-}
-if is_action_pressed(GameAction::MoveForward, &keyboard_input, &key_map) {
-    frame_inputs.0.inputs.insert(NetworkAction::MoveForward);
-}
-// ... repeated for each action
-```
-
-**Recommendation:** Create a mapping table or derive macro that automatically converts between the two:
-
-```rust
-// Define action pairs
-const ACTION_MAPPING: &[(GameAction, NetworkAction)] = &[
-    (GameAction::MoveBackward, NetworkAction::MoveBackward),
-    (GameAction::MoveForward, NetworkAction::MoveForward),
-    // ...
-];
-
-// Use in system
-for (game_action, network_action) in ACTION_MAPPING {
-    if is_action_pressed(*game_action, &keyboard_input, &key_map) {
-        frame_inputs.0.inputs.insert(*network_action);
-    }
-}
-```
-
----
-
-### 3. Tree Generation Code Repetition [COMPLETE]
-
-**File:** [server/src/world/generation.rs](../server/src/world/generation.rs)
-
-**Issue:** `generate_tree` and `generate_big_tree` functions contain extensive duplicated boundary checking logic:
-
-```rust
-// Repeated pattern ~30 times
-if x >= 0 && x < CHUNK_SIZE && z >= 0 && z < CHUNK_SIZE && trunk_y >= 0 && trunk_y < CHUNK_SIZE {
-    chunk.map.insert(...);
-}
-```
-
-**Recommendation:** Extract boundary checking into a helper:
-
-```rust
-fn try_place_block(chunk: &mut ServerChunk, pos: IVec3, block: BlockData) {
-    if (0..CHUNK_SIZE).contains(&pos.x) 
-        && (0..CHUNK_SIZE).contains(&pos.y) 
-        && (0..CHUNK_SIZE).contains(&pos.z) {
-        chunk.map.insert(pos, block);
-    }
-}
-```
-
-Consider a `TreeBuilder` struct pattern for more complex tree generation logic.
-
----
-
-### 4. Mob Physics Duplicates Player Physics [COMPLETE]
-
-**Files:**
-- [shared/src/players/movement.rs](../shared/src/players/movement.rs)
-- [server/src/mob/behavior.rs](../server/src/mob/behavior.rs)
-
-**Issue:** Mob movement physics in `mob_behavior_system` duplicates player movement physics, including gravity handling, collision detection, and jump logic.
-
-**Recommendation:** Create a shared `PhysicsBody` component and generic physics simulation system:
-
-```rust
-// shared/src/physics/mod.rs
-pub struct PhysicsBody {
-    pub position: Vec3,
-    pub velocity: Vec3,
-    pub on_ground: bool,
-    pub dimensions: Vec3, // width, height, depth
-}
-
-pub fn simulate_physics(body: &mut PhysicsBody, world_map: &impl WorldMap, delta: f32) {
-    // Common gravity, collision, velocity clamping logic
-}
-```
-
----
-
 ## Medium Priority
 
-### 5. System Parameter Tuples in Controllers
+### 1. System Parameter Tuples in Controllers
 
 **File:** [client/src/player/interactions.rs](../client/src/player/interactions.rs)
 
@@ -180,7 +52,7 @@ pub struct PlayerQueries<'w, 's> {
 
 ---
 
-### 6. Magic Numbers Throughout Codebase
+### 2. Magic Numbers Throughout Codebase
 
 **Files:** Multiple files contain hardcoded values
 
@@ -210,50 +82,7 @@ pub mod world {
 
 ---
 
-### 7. Debug Toggle Systems Are Repetitive [COMPLETE]
-
-**File:** [client/src/player/controller.rs](../client/src/player/controller.rs)
-
-**Issue:** Multiple toggle systems follow identical patterns:
-
-```rust
-pub fn toggle_chunk_debug_mode_system(...) {
-    if is_action_just_pressed(GameAction::ToggleChunkDebugMode, &keyboard_input, &key_map) {
-        debug_options.toggle_chunk_debug_mode();
-    }
-}
-
-pub fn toggle_raycast_debug_mode_system(...) {
-    if is_action_just_pressed(GameAction::ToggleRaycastDebugMode, &keyboard_input, &key_map) {
-        debug_options.toggle_raycast_debug_mode();
-    }
-}
-```
-
-**Recommendation:** Create a generic toggle system or use a data-driven approach:
-
-```rust
-pub fn toggle_debug_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    key_map: Res<KeyMap>,
-    mut debug_options: ResMut<DebugOptions>,
-) {
-    const TOGGLES: &[(GameAction, fn(&mut DebugOptions))] = &[
-        (GameAction::ToggleChunkDebugMode, DebugOptions::toggle_chunk_debug_mode),
-        (GameAction::ToggleRaycastDebugMode, DebugOptions::toggle_raycast_debug_mode),
-    ];
-    
-    for (action, toggle_fn) in TOGGLES {
-        if is_action_just_pressed(*action, &keyboard_input, &key_map) {
-            toggle_fn(&mut debug_options);
-        }
-    }
-}
-```
-
----
-
-### 8. `game.rs` Plugin Registration is Monolithic
+### 3. `game.rs` Plugin Registration is Monolithic
 
 **File:** [client/src/game.rs](../client/src/game.rs)
 
@@ -290,48 +119,9 @@ impl Plugin for GameInputPlugin {
 
 ---
 
-### 9. Chunk Sent Tracking Uses Vec Instead of HashSet [COMPLETE]
-
-**File:** [shared/src/world/data.rs](../shared/src/world/data.rs)
-
-**Issue:** `ServerChunk.sent_to_clients: Vec<PlayerId>` uses linear search for contains checks:
-
-```rust
-if chunk.sent_to_clients.contains(&player.id) {
-    continue;
-}
-```
-
-**Recommendation:** Use `HashSet<PlayerId>` for O(1) lookups:
-
-```rust
-pub struct ServerChunk {
-    pub map: HashMap<IVec3, BlockData>,
-    pub ts: u64,
-    pub sent_to_clients: HashSet<PlayerId>, // Changed from Vec
-}
-```
-
----
-
-### 10. French Comments in Codebase [COMPLETE]
-
-**File:** [shared/src/players/data.rs](../shared/src/players/data.rs)
-
-**Issue:** Mixed language comments reduce readability for international contributors:
-
-```rust
-// Ajoute un item à l'inventaire du joueur
-pub fn add_item_to_inventory(&mut self, mut stack: ItemStack) {
-```
-
-**Recommendation:** Translate all comments to English for consistency.
-
----
-
 ## Low Priority
 
-### 11. Unused/Dead Code [COMPLETE]
+### 4. Unused/Dead Code
 
 **Files:** Various
 
@@ -347,7 +137,7 @@ pub fn add_item_to_inventory(&mut self, mut stack: ItemStack) {
 
 ---
 
-### 12. Error Handling with `.unwrap()`
+### 5. Error Handling with `.unwrap()`
 
 **Files:** Multiple files use `.unwrap()` on Results and Options
 
@@ -377,7 +167,7 @@ let addr = match socket.local_addr() {
 
 ---
 
-### 13. Inconsistent Query Error Handling [PARTIAL-COMPLETE]
+### 6. Inconsistent Query Error Handling [PARTIAL-COMPLETE]
 
 **Files:** [client/src/player/controller.rs](../client/src/player/controller.rs), [camera/controller.rs](../client/src/camera/controller.rs)
 
@@ -407,7 +197,7 @@ let Ok((mut player, mut player_transform)) = player_query.single_mut() else {
 
 ---
 
-### 14. HUD Setup Code Repetition
+### 7. HUD Setup Code Repetition
 
 **File:** [client/src/ui/hud/debug/setup.rs](../client/src/ui/hud/debug/setup.rs)
 
@@ -445,22 +235,9 @@ fn spawn_debug_text<T: Component>(
 
 ---
 
-### 15. Keybinding Defaults Defined Twice [COMPLETE]
-
-**File:** [client/src/input/keyboard.rs](../client/src/input/keyboard.rs)
-
-**Issue:** Default keybindings are defined in code and also expected to be overridden from a file. The defaults are verbose and could conflict with saved bindings.
-
-**Recommendation:** 
-- Use `#[derive(Default)]` with `serde(default)` for cleaner defaults
-- Consider a builder pattern for keybinding configuration
-- Ensure saved bindings fully override (not merge with) defaults
-
----
-
 ## Code Organization
 
-### 16. Module Re-exports Could Be Cleaner
+### 8. Module Re-exports Could Be Cleaner
 
 **Files:** Various `mod.rs` files
 
@@ -476,7 +253,7 @@ pub use render_distance::*;
 
 ---
 
-### 17. Consider Feature Flags for Debug Systems
+### 9. Consider Feature Flags for Debug Systems
 
 **Files:** Debug-related code throughout client
 
@@ -500,31 +277,11 @@ app.add_systems(Update, (
 
 ---
 
-## Summary
-
-| Priority | Issue | Impact | Effort |
-|----------|-------|--------|--------|
-| High | WorldMap trait duplication | Maintainability | Medium |
-| High | Input action mapping | DRY principle | Low |
-| High | Tree generation repetition | Maintainability | Medium |
-| High | Mob/Player physics duplication | Maintainability, Bugs | High |
-| Medium | Large system parameter tuples | Readability | Medium |
-| Medium | Magic numbers | Maintainability | Low |
-| Medium | Debug toggle repetition | DRY principle | Low |
-| Medium | Monolithic game plugin | Maintainability | Medium |
-| Medium | Vec for sent_to_clients | Performance | Low |
-| Medium | French comments | Accessibility | Low |
-| Low | Dead code | Code cleanliness | Low |
-| Low | `.unwrap()` usage | Robustness | Medium |
-| Low | Inconsistent query handling | Consistency | Low |
-| Low | HUD setup repetition | DRY principle | Low |
-| Low | Keybinding defaults | Configuration | Low |
-
 ---
 
 ## Additional Suggestions (December 2025)
 
-### 18. Asset Loading Functions Are Repetitive
+### 10. Asset Loading Functions Are Repetitive
 
 **File:** [client/src/ui/assets.rs](../client/src/ui/assets.rs)
 
@@ -559,7 +316,7 @@ Or consolidate into a single `AssetPaths` struct with lazy loading.
 
 ---
 
-### 19. TODO/FIXME Comments Need Resolution
+### 11. TODO/FIXME Comments Need Resolution
 
 **Files:** Multiple
 
@@ -579,7 +336,7 @@ Or consolidate into a single `AssetPaths` struct with lazy loading.
 
 ---
 
-### 20. `#[allow(dead_code)]` Annotations Mask Unused Code
+### 12. `#[allow(dead_code)]` Annotations Mask Unused Code
 
 **Files:** 
 - [client/src/mob/mod.rs](../client/src/mob/mod.rs)
@@ -604,7 +361,7 @@ pub struct MobRoot {
 
 ---
 
-### 21. Broadcast World Clones Entire Mobs Collection
+### 13. Broadcast World Clones Entire Mobs Collection
 
 **File:** [server/src/world/broadcast_world.rs](../server/src/world/broadcast_world.rs#L92)
 
@@ -623,7 +380,7 @@ mobs: mobs.clone(),
 
 ---
 
-### 22. Constants Scattered Across Multiple Files
+### 14. Constants Scattered Across Multiple Files
 
 **Files:** 
 - [shared/src/constants.rs](../shared/src/constants.rs)
@@ -651,7 +408,7 @@ const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
 
 ---
 
-### 23. Mob Behavior Has Duplicated Movement Logic
+### 15. Mob Behavior Has Duplicated Movement Logic
 
 **File:** [server/src/mob/behavior.rs](../server/src/mob/behavior.rs)
 
@@ -688,7 +445,7 @@ fn attempt_movement_with_avoidance(
 
 ---
 
-### 24. Block Properties Use Large Match Statements
+### 16. Block Properties Use Large Match Statements
 
 **File:** [shared/src/world/blocks.rs](../shared/src/world/blocks.rs)
 
@@ -730,7 +487,7 @@ impl BlockId {
 
 ---
 
-### 25. Menu System Has Deep Nesting in `menu_plugin`
+### 17. Menu System Has Deep Nesting in `menu_plugin`
 
 **File:** [client/src/ui/menus/mod.rs](../client/src/ui/menus/mod.rs)
 
@@ -758,7 +515,7 @@ fn register_menu<M: MenuPlugin>(app: &mut App) {
 
 ---
 
-### 26. Network Message Handling Could Use Command Pattern
+### 18. Network Message Handling Could Use Command Pattern
 
 **File:** [server/src/network/dispatcher.rs](../server/src/network/dispatcher.rs)
 
@@ -794,7 +551,7 @@ if let Some(handler) = handlers.get(&message.type_id()) {
 
 ---
 
-### 27. Consider Extracting Common UI Patterns
+### 19. Consider Extracting Common UI Patterns
 
 **Files:** Various UI files in `client/src/ui/`
 
@@ -818,43 +575,12 @@ impl<'a> UiBuilder<'a> {
 
 ---
 
-## Summary (Updated)
-
-| Priority | Issue | Impact | Effort |
-|----------|-------|--------|--------|
-| High | WorldMap trait duplication | Maintainability | Medium |
-| High | Input action mapping | DRY principle | Low |
-| High | Tree generation repetition | Maintainability | Medium |
-| High | Mob/Player physics duplication | Maintainability, Bugs | High |
-| Medium | Large system parameter tuples | Readability | Medium |
-| Medium | Magic numbers | Maintainability | Low |
-| Medium | Debug toggle repetition | DRY principle | Low |
-| Medium | Monolithic game plugin | Maintainability | Medium |
-| Medium | Vec for sent_to_clients | Performance | Low |
-| Medium | French comments | Accessibility | Low |
-| Medium | Asset loading repetition | DRY principle | Low |
-| Medium | TODO comments need resolution | Technical debt | Medium |
-| Medium | Broadcast clones mobs | Performance | Medium |
-| Medium | Block properties match statements | Maintainability | Medium |
-| Low | Dead code | Code cleanliness | Low |
-| Low | `.unwrap()` usage | Robustness | Medium |
-| Low | Inconsistent query handling | Consistency | Low |
-| Low | HUD setup repetition | DRY principle | Low |
-| Low | Keybinding defaults | Configuration | Low |
-| Low | `#[allow(dead_code)]` audit | Code cleanliness | Low |
-| Low | Constants scattered | Organization | Low |
-| Low | Menu system structure | Maintainability | Medium |
-| Low | Network message handling | Extensibility | High |
-| Low | UI pattern extraction | DRY principle | High |
-
----
-
 ## Next Steps
 
-1. Start with high-priority items that have low effort (input action mapping, tree generation helper)
-2. Create tracking issues for larger refactors (physics unification, plugin split)
+1. Start with medium-priority items that have low effort (magic numbers, monolithic game plugin)
+2. Create tracking issues for larger refactors (data-driven block properties, UI pattern extraction)
 3. Run `cargo clippy --all-targets` to identify additional issues
 4. Consider adding CI checks for code quality metrics
-5. **NEW:** Triage TODO comments into GitHub issues
-6. **NEW:** Audit `#[allow(dead_code)]` annotations
-7. **NEW:** Profile broadcast system for performance bottlenecks
+5. Triage TODO comments into GitHub issues
+6. Audit `#[allow(dead_code)]` annotations
+7. Profile broadcast system for performance bottlenecks
