@@ -117,12 +117,9 @@ pub fn launch_local_server_system(
 
         let socket =
             server::acquire_local_ephemeral_udp_socket(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-        let addr = match socket.local_addr() {
-            Ok(addr) => addr,
-            Err(err) => {
-                error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
-                return;
-            }
+        let Ok(addr) = socket.local_addr() else {
+            error!("{}", SOCKET_LOCAL_ADDR_ERROR);
+            return;
         };
         debug!("Obtained UDP socket: {}", addr);
 
