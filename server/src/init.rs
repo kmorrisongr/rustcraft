@@ -62,16 +62,12 @@ pub fn acquire_socket_by_port(ip: IpAddr, port: u16) -> UdpSocket {
     UdpSocket::bind(addr).expect(SOCKET_BIND_ERROR)
 }
 
-pub fn add_netcode_network(app: &mut App, socket: UdpSocket) {
-    app.add_plugins(NetcodeServerPlugin);
-
-    let server = RenetServer::new(get_shared_renet_config());
-
+pub fn add_netcode_network(app: &mut App, socket: UdpSocket) -> Result<(), ()> {
     let granted_addr: SocketAddr = match socket.local_addr() {
         Ok(addr) => addr,
         Err(err) => {
             error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
-            return;
+            return Err(());
         }
     };
 
@@ -79,7 +75,7 @@ pub fn add_netcode_network(app: &mut App, socket: UdpSocket) {
         Ok(time) => time,
         Err(err) => {
             error!("{}: {err}", UNIX_EPOCH_TIME_ERROR);
-            return;
+            return Err(());
         }
     };
     let server_config = ServerConfig {
@@ -90,18 +86,31 @@ pub fn add_netcode_network(app: &mut App, socket: UdpSocket) {
         authentication: ServerAuthentication::Unsecure,
     };
 
-    let transport = match NetcodeServerTransport::new(server_config, socket) {
+    let transport: NetcodeServerTransport = match NetcodeServerTransport::new(server_config, socket) {
         Ok(transport) => transport,
         Err(err) => {
             error!("{}: {err}", NETCODE_SERVER_TRANSPORT_ERROR);
-            return;
+            return Err(());
         }
     };
+
+    let server = RenetServer::new(get_shared_renet_config());
+
+    app.add_plugins(NetcodeServerPlugin);
     app.insert_resource(server);
     app.insert_resource(transport);
+    Ok(())
 }
 
 pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: GameFolderPaths) {
+    let addr = match socket.local_addr() {
+        Ok(addr) => addr,
+        Err(err) => {
+            error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
+            return;
+        }
+    };
+
     let mut app = App::new();
     app.add_plugins(
         MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
@@ -121,15 +130,11 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
 
     app.insert_resource(config);
 
-    match socket.local_addr() {
-        Ok(addr) => info!("Starting server on {}", addr),
-        Err(err) => {
-            error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
-            return;
-        }
-    }
+    info!("Starting server on {}", addr);
 
-    add_netcode_network(&mut app, socket);
+    if add_netcode_network(&mut app, socket).is_err() {
+        return;
+    }
 
     setup_resources_and_events(&mut app);
 
