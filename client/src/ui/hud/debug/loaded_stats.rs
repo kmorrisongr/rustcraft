@@ -24,15 +24,23 @@ pub fn total_blocks_text_update_system(
     }
     for entity in query_chunks.iter() {
         let chunk_count = world_map.map.len();
-        let block_entries: usize = world_map.map.values().map(|chunk| chunk.map.len()).sum();
-        // HashMap entry overhead varies by implementation and platform; this is a rough
-        // approximation using two usize words of metadata (hash/next) per entry
+        // HashMap entry overhead varies by implementation; assume two usize words of metadata (hash/next) per slot
         const HASHMAP_ENTRY_OVERHEAD_USIZE: usize = 2;
-        let block_entry_bytes =
-            size_of::<IVec3>() + size_of::<BlockData>() + size_of::<usize>() * HASHMAP_ENTRY_OVERHEAD_USIZE;
-        let chunk_entry_bytes =
-            size_of::<IVec3>() + size_of::<ClientChunk>() + size_of::<usize>() * HASHMAP_ENTRY_OVERHEAD_USIZE;
-        let estimated_bytes = block_entries * block_entry_bytes + chunk_count * chunk_entry_bytes;
+        let slot_overhead_bytes = size_of::<usize>() * HASHMAP_ENTRY_OVERHEAD_USIZE;
+
+        let chunk_table_bytes: usize = world_map
+            .map
+            .iter()
+            .map(|(_, chunk)| {
+                chunk.map.capacity()
+                    * (size_of::<IVec3>() + size_of::<BlockData>() + slot_overhead_bytes)
+            })
+            .sum();
+
+        let world_table_bytes = world_map.map.capacity()
+            * (size_of::<IVec3>() + size_of::<ClientChunk>() + slot_overhead_bytes);
+
+        let estimated_bytes = chunk_table_bytes + world_table_bytes;
         let estimated_mb = estimated_bytes as f32 / (1024.0 * 1024.0);
         *writer.text(entity, 0) =
             format!("Loaded chunks: {} (~{estimated_mb:.2} MiB)", chunk_count);
