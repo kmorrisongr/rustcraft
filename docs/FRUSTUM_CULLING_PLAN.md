@@ -152,7 +152,7 @@ impl ViewFrustum {
 Use conservative fixed parameters (no client sync needed):
 
 ```rust
-const SERVER_CULL_FOV: f32 = std::f32::consts::FRAC_PI_2; // 90° (covers up to 90° client FOV)
+const SERVER_CULL_FOV: f32 = std::f32::consts::FRAC_PI_2; // 90° (conservative; client uses 60°)
 const SERVER_CULL_ASPECT: f32 = 2.0; // Covers ultrawide
 ```
 
