@@ -196,7 +196,7 @@ Only implement if players with >90° FOV report pop-in. Requires adding `Frustum
 | Case | Solution |
 |------|----------|
 | Quick rotation | Use ~30° margin beyond actual FOV |
-| Vertical look | 16³ chunks handle uniformly—no special case |
+| Vertical look | 16×16×16 chunks handle uniformly—no special case |
 | Spawn/teleport | Always include 2-chunk radius around player |
 | Different FOVs | Conservative 90° server-side covers most clients |
 
