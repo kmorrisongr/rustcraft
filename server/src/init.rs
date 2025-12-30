@@ -15,6 +15,7 @@ use bevy_renet::{
     netcode::{NetcodeServerPlugin, ServerAuthentication, ServerConfig},
     renet::RenetServer,
 };
+use renet_netcode::error::NetcodeServerTransportError;
 use serde::{Deserialize, Serialize};
 use shared::{
     constants::{
@@ -25,8 +26,8 @@ use shared::{
     world::{ServerChunkWorldMap, ServerWorldMap},
     GameFolderPaths, GameServerConfig, TICKS_PER_SECOND,
 };
-use std::fmt::Debug;
-use std::time::{Duration, SystemTime};
+use std::fmt::{Debug, Display, Formatter};
+use std::time::{Duration, SystemTime, SystemTimeError};
 use std::{collections::HashMap, net::IpAddr};
 
 use std::net::{SocketAddr, UdpSocket};
@@ -52,6 +53,25 @@ pub struct ServerLobby {
     pub players: HashMap<PlayerId, LobbyPlayer>,
 }
 
+#[derive(Debug)]
+enum NetcodeSetupError {
+    SocketAddr(std::io::Error),
+    Time(SystemTimeError),
+    Transport(NetcodeServerTransportError),
+}
+
+impl Display for NetcodeSetupError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NetcodeSetupError::SocketAddr(err) => write!(f, "{}: {err}", SOCKET_LOCAL_ADDR_ERROR),
+            NetcodeSetupError::Time(err) => write!(f, "{}: {err}", UNIX_EPOCH_TIME_ERROR),
+            NetcodeSetupError::Transport(err) => {
+                write!(f, "{}: {err}", NETCODE_SERVER_TRANSPORT_ERROR)
+            }
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub fn acquire_local_ephemeral_udp_socket(ip: IpAddr) -> UdpSocket {
     acquire_socket_by_port(ip, 0)
@@ -62,22 +82,16 @@ pub fn acquire_socket_by_port(ip: IpAddr, port: u16) -> UdpSocket {
     UdpSocket::bind(addr).expect(SOCKET_BIND_ERROR)
 }
 
-pub fn add_netcode_network(app: &mut App, socket: UdpSocket) -> Result<(), ()> {
-    let granted_addr: SocketAddr = match socket.local_addr() {
-        Ok(addr) => addr,
-        Err(err) => {
-            error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
-            return Err(());
-        }
-    };
+pub fn add_netcode_network(
+    socket: UdpSocket,
+) -> Result<(RenetServer, NetcodeServerTransport, SocketAddr), NetcodeSetupError> {
+    let granted_addr: SocketAddr = socket
+        .local_addr()
+        .map_err(NetcodeSetupError::SocketAddr)?;
 
-    let current_time: Duration = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
-        Ok(time) => time,
-        Err(err) => {
-            error!("{}: {err}", UNIX_EPOCH_TIME_ERROR);
-            return Err(());
-        }
-    };
+    let current_time: Duration = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map_err(NetcodeSetupError::Time)?;
     let server_config = ServerConfig {
         current_time,
         max_clients: 64,
@@ -86,27 +100,19 @@ pub fn add_netcode_network(app: &mut App, socket: UdpSocket) -> Result<(), ()> {
         authentication: ServerAuthentication::Unsecure,
     };
 
-    let transport: NetcodeServerTransport = match NetcodeServerTransport::new(server_config, socket) {
-        Ok(transport) => transport,
-        Err(err) => {
-            error!("{}: {err}", NETCODE_SERVER_TRANSPORT_ERROR);
-            return Err(());
-        }
-    };
+    let transport: NetcodeServerTransport =
+        NetcodeServerTransport::new(server_config, socket).map_err(NetcodeSetupError::Transport)?;
 
     let server = RenetServer::new(get_shared_renet_config());
 
-    app.add_plugins(NetcodeServerPlugin);
-    app.insert_resource(server);
-    app.insert_resource(transport);
-    Ok(())
+    Ok((server, transport, granted_addr))
 }
 
 pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: GameFolderPaths) {
-    let addr = match socket.local_addr() {
-        Ok(addr) => addr,
+    let (server, transport, addr) = match add_netcode_network(socket) {
+        Ok(data) => data,
         Err(err) => {
-            error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
+            error!("{err}");
             return;
         }
     };
@@ -132,9 +138,9 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
 
     info!("Starting server on {}", addr);
 
-    if add_netcode_network(&mut app, socket).is_err() {
-        return;
-    }
+    app.add_plugins(NetcodeServerPlugin);
+    app.insert_resource(server);
+    app.insert_resource(transport);
 
     setup_resources_and_events(&mut app);
 

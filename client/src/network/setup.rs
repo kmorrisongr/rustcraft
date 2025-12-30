@@ -258,10 +258,7 @@ pub fn establish_authenticated_connection_to_server(
             target.username = Some(current_profile.into_inner().name.clone());
         }
 
-        let Some(username) = target.username.as_ref() else {
-            error!("{USERNAME_MISSING_CONNECTION_ERROR}");
-            return;
-        };
+        let username = target.username.as_ref().unwrap();
 
         let auth_msg = AuthRegisterRequest {
             username: username.clone(),
