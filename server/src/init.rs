@@ -17,10 +17,9 @@ use bevy_renet::{
 };
 use serde::{Deserialize, Serialize};
 use shared::{
-    constants::{
-        NETCODE_SERVER_TRANSPORT_ERROR, SOCKET_LOCAL_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR,
-    },
-    get_shared_renet_config, messages::PlayerId,
+    constants::{NETCODE_SERVER_TRANSPORT_ERROR, SOCKET_LOCAL_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR},
+    get_shared_renet_config,
+    messages::PlayerId,
     world::{ServerChunkWorldMap, ServerWorldMap},
     GameFolderPaths, GameServerConfig, TICKS_PER_SECOND,
 };
@@ -83,9 +82,7 @@ pub fn acquire_socket_by_port(ip: IpAddr, port: u16) -> std::io::Result<UdpSocke
 pub fn add_netcode_network(
     socket: UdpSocket,
 ) -> Result<(RenetServer, NetcodeServerTransport, SocketAddr), NetcodeSetupError> {
-    let granted_addr: SocketAddr = socket
-        .local_addr()
-        .map_err(NetcodeSetupError::SocketAddr)?;
+    let granted_addr: SocketAddr = socket.local_addr().map_err(NetcodeSetupError::SocketAddr)?;
 
     let current_time: Duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)

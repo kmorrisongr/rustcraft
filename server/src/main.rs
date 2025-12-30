@@ -37,13 +37,14 @@ fn main() {
         std::process::exit(1);
     }
 
-    let socket = match acquire_socket_by_port(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), args.port) {
-        Ok(socket) => socket,
-        Err(err) => {
-            eprintln!("{}: {err}", SOCKET_BIND_ERROR);
-            std::process::exit(1);
-        }
-    };
+    let socket =
+        match acquire_socket_by_port(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), args.port) {
+            Ok(socket) => socket,
+            Err(err) => {
+                eprintln!("{}: {err}", SOCKET_BIND_ERROR);
+                std::process::exit(1);
+            }
+        };
 
     init::init(
         socket,

@@ -252,10 +252,7 @@ pub fn establish_authenticated_connection_to_server(
             error!("{USERNAME_MISSING_AUTHENTICATED_ERROR}");
             return;
         };
-        info!(
-            "Successfully acquired a session token as {}",
-            username
-        );
+        info!("Successfully acquired a session token as {}", username);
         return;
     }
 
