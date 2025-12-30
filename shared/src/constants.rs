@@ -15,8 +15,6 @@ pub const NETCODE_CLIENT_TRANSPORT_ERROR: &str = "Failed to create Netcode clien
 pub const NETCODE_SERVER_TRANSPORT_ERROR: &str = "Failed to create Netcode server transport";
 pub const USERNAME_MISSING_AUTHENTICATED_ERROR: &str =
     "Username missing while handling authenticated session token";
-pub const USERNAME_MISSING_CONNECTION_ERROR: &str =
-    "Username missing while establishing connection";
 pub const HALF_BLOCK: Vec3 = Vec3 {
     x: 0.5,
     y: 0.5,
