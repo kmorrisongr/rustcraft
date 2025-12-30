@@ -117,9 +117,13 @@ pub fn launch_local_server_system(
 
         let socket =
             server::acquire_local_ephemeral_udp_socket(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-        let addr = socket
-            .local_addr()
-            .expect(SOCKET_LOCAL_ADDR_ERROR);
+        let addr = match socket.local_addr() {
+            Ok(addr) => addr,
+            Err(err) => {
+                error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
+                return;
+            }
+        };
         debug!("Obtained UDP socket: {}", addr);
 
         let world_name_clone = world_name.clone();
@@ -171,7 +175,10 @@ pub fn init_server_connection(
     target: Res<TargetServer>,
     current_player_id: Res<CurrentPlayerProfile>,
 ) {
-    let addr = target.address.expect(TARGET_SERVER_ADDR_ERROR);
+    let Some(addr) = target.address else {
+        error!("{TARGET_SERVER_ADDR_ERROR}");
+        return;
+    };
     let id = current_player_id.into_inner().id;
     commands.queue(move |world: &mut World| {
         world.remove_resource::<RenetClient>();
@@ -193,12 +200,27 @@ pub fn init_server_connection(
             addr, authentication
         );
 
-        let socket = UdpSocket::bind("0.0.0.0:0").expect(SOCKET_BIND_ERROR);
-        let current_time = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect(UNIX_EPOCH_TIME_ERROR);
-        let transport = NetcodeClientTransport::new(current_time, authentication, socket)
-            .expect(NETCODE_CLIENT_TRANSPORT_ERROR);
+        let socket = match UdpSocket::bind("0.0.0.0:0") {
+            Ok(socket) => socket,
+            Err(err) => {
+                error!("{}: {err}", SOCKET_BIND_ERROR);
+                return;
+            }
+        };
+        let current_time = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(time) => time,
+            Err(err) => {
+                error!("{}: {err}", UNIX_EPOCH_TIME_ERROR);
+                return;
+            }
+        };
+        let transport = match NetcodeClientTransport::new(current_time, authentication, socket) {
+            Ok(transport) => transport,
+            Err(err) => {
+                error!("{}: {err}", NETCODE_CLIENT_TRANSPORT_ERROR);
+                return;
+            }
+        };
 
         world.insert_resource(transport);
 
@@ -225,10 +247,13 @@ pub fn establish_authenticated_connection_to_server(
     if target.session_token.is_some() {
         info!(
             "Successfully acquired a session token as {}",
-            target
-                .username
-                .as_ref()
-                .expect(USERNAME_MISSING_AUTHENTICATED_ERROR)
+            match target.username.as_ref() {
+                Some(username) => username,
+                None => {
+                    error!("{USERNAME_MISSING_AUTHENTICATED_ERROR}");
+                    return;
+                }
+            }
         );
         return;
     }
@@ -238,10 +263,13 @@ pub fn establish_authenticated_connection_to_server(
             target.username = Some(current_profile.into_inner().name.clone());
         }
 
-        let username = target
-            .username
-            .as_ref()
-            .expect(USERNAME_MISSING_CONNECTION_ERROR);
+        let username = match target.username.as_ref() {
+            Some(username) => username,
+            None => {
+                error!("{USERNAME_MISSING_CONNECTION_ERROR}");
+                return;
+            }
+        };
 
         let auth_msg = AuthRegisterRequest {
             username: username.clone(),

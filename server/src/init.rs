@@ -67,23 +67,36 @@ pub fn add_netcode_network(app: &mut App, socket: UdpSocket) {
 
     let server = RenetServer::new(get_shared_renet_config());
 
-    let granted_addr = &socket
-        .local_addr()
-        .expect(SOCKET_LOCAL_ADDR_ERROR);
+    let granted_addr: SocketAddr = match socket.local_addr() {
+        Ok(addr) => addr,
+        Err(err) => {
+            error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
+            return;
+        }
+    };
 
-    let current_time: Duration = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect(UNIX_EPOCH_TIME_ERROR);
+    let current_time: Duration = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(time) => time,
+        Err(err) => {
+            error!("{}: {err}", UNIX_EPOCH_TIME_ERROR);
+            return;
+        }
+    };
     let server_config = ServerConfig {
         current_time,
         max_clients: 64,
         protocol_id: shared::PROTOCOL_ID,
-        public_addresses: vec![*granted_addr],
+        public_addresses: vec![granted_addr],
         authentication: ServerAuthentication::Unsecure,
     };
 
-    let transport = NetcodeServerTransport::new(server_config, socket)
-        .expect(NETCODE_SERVER_TRANSPORT_ERROR);
+    let transport = match NetcodeServerTransport::new(server_config, socket) {
+        Ok(transport) => transport,
+        Err(err) => {
+            error!("{}: {err}", NETCODE_SERVER_TRANSPORT_ERROR);
+            return;
+        }
+    };
     app.insert_resource(server);
     app.insert_resource(transport);
 }
@@ -108,12 +121,13 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
 
     app.insert_resource(config);
 
-    info!(
-        "Starting server on {}",
-        socket
-            .local_addr()
-            .expect(SOCKET_LOCAL_ADDR_ERROR)
-    );
+    match socket.local_addr() {
+        Ok(addr) => info!("Starting server on {}", addr),
+        Err(err) => {
+            error!("{}: {err}", SOCKET_LOCAL_ADDR_ERROR);
+            return;
+        }
+    }
 
     add_netcode_network(&mut app, socket);
 
