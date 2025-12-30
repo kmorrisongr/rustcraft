@@ -6,8 +6,54 @@ use bevy_ecs::system::{Res, ResMut};
 use shared::{
     physics::{apply_gravity, resolve_vertical_movement, try_move, PhysicsBody},
     players::constants::{GRAVITY, JUMP_VELOCITY, SPEED},
-    world::{MobAction, MobTarget, ServerWorldMap},
+    world::{MobAction, MobTarget, ServerChunkWorldMap, ServerWorldMap},
 };
+
+fn attempt_movement_with_avoidance(
+    body: &mut PhysicsBody,
+    chunks: &ServerChunkWorldMap,
+    displacement: Vec3,
+    delta: f32,
+) {
+    if !try_move(body, chunks, displacement, true) {
+        body.velocity.x = displacement.x;
+        body.velocity.z = displacement.z;
+        return;
+    }
+
+    if !body.on_ground {
+        return;
+    }
+
+    if body.velocity.x != 0.0 && body.velocity.z != 0.0 {
+        body.velocity.y += JUMP_VELOCITY * delta;
+        body.on_ground = false;
+        body.velocity.x = 0.0;
+        body.velocity.z = 0.0;
+        return;
+    }
+
+    if !try_move(
+        body,
+        chunks,
+        Vec3::new(displacement.x, 0.0, 0.0),
+        true,
+    ) {
+        body.velocity.x = displacement.x;
+    } else if !try_move(
+        body,
+        chunks,
+        Vec3::new(0.0, 0.0, displacement.z),
+        true,
+    ) {
+        body.velocity.z = displacement.z;
+    } else {
+        body.velocity.y += JUMP_VELOCITY * delta;
+        body.on_ground = false;
+        body.velocity.x = 0.0;
+        body.velocity.z = 0.0;
+    }
+}
 
 pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Time<Fixed>>) {
     let mut mobs = world_map.mobs.clone();
@@ -54,40 +100,7 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
             MobAction::Walk | MobAction::Attack => {
                 let speed = SPEED * delta;
                 let displacement = Vec3::new(dir.x * speed, 0.0, dir.z * speed);
-                if !try_move(&mut body, &world_map.chunks, displacement, true) {
-                    body.velocity.x = dir.x * speed;
-                    body.velocity.z = dir.z * speed;
-                }
-                // If it can't move, try to jump (only if on ground and if it moved before)
-                else if body.on_ground && (body.velocity.x != 0.0 && body.velocity.z != 0.0) {
-                    body.velocity.y += JUMP_VELOCITY * delta;
-                    body.on_ground = false;
-                    body.velocity.x = 0.0;
-                    body.velocity.z = 0.0;
-                } else if body.on_ground {
-                    // Try to move in the other direction
-                    if !try_move(
-                        &mut body,
-                        &world_map.chunks,
-                        Vec3::new(displacement.x, 0.0, 0.0),
-                        true,
-                    ) {
-                        body.velocity.x = dir.x * speed;
-                    } else if !try_move(
-                        &mut body,
-                        &world_map.chunks,
-                        Vec3::new(0.0, 0.0, displacement.z),
-                        true,
-                    ) {
-                        body.velocity.z = dir.z * speed;
-                    //Try to jump (can improve this)
-                    } else {
-                        body.velocity.y += JUMP_VELOCITY * delta;
-                        body.on_ground = false;
-                        body.velocity.x = 0.0;
-                        body.velocity.z = 0.0;
-                    }
-                }
+                attempt_movement_with_avoidance(&mut body, &world_map.chunks, displacement, delta);
 
                 mob.rotation = Quat::from_rotation_y(atan2(dir.x, dir.z));
 
