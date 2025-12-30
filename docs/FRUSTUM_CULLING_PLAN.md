@@ -119,10 +119,10 @@ impl ViewFrustum {
         let fbl = far_center - up * half_v - right_vec * half_h;
         let fbr = far_center - up * half_v + right_vec * half_h;
 
-        let left = Plane::from_normal_and_point((ftl - position).cross(fbl - position).normalize(), position);
-        let right = Plane::from_normal_and_point((fbr - position).cross(ftr - position).normalize(), position);
-        let top = Plane::from_normal_and_point((ftr - position).cross(ftl - position).normalize(), position);
-        let bottom = Plane::from_normal_and_point((fbl - position).cross(fbr - position).normalize(), position);
+        let left = Plane::from_normal_and_point((fbl - position).cross(ftl - position).normalize(), position);
+        let right = Plane::from_normal_and_point((ftr - position).cross(fbr - position).normalize(), position);
+        let top = Plane::from_normal_and_point((ftl - position).cross(ftr - position).normalize(), position);
+        let bottom = Plane::from_normal_and_point((fbr - position).cross(fbl - position).normalize(), position);
 
         Self { planes: [near_plane, far_plane, left, right, top, bottom] }
     }
