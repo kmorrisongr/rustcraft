@@ -6,6 +6,31 @@ This document outlines a plan to implement frustum culling for Rustcraft, enabli
 1. Transmitted from server to client (bandwidth optimization)
 2. Rendered by the client (GPU optimization)
 
+## Recommended Approach: Staged Implementation
+
+**Key Insight**: The existing view-direction prioritization system can be extended to perform culling with minimal changes. A full frustum implementation is optional and provides diminishing returns.
+
+### Stage 1: Cone Culling (Recommended First Step)
+
+Add a hard cull threshold to the existing dot-product system. This gets ~30-40% bandwidth reduction with ~10 lines of code changes.
+
+### Stage 2: Full Frustum (Optional Enhancement)
+
+Implement proper 6-plane frustum culling with fixed conservative parameters on the server. Skip client synchronization—use a 90° FOV assumption that covers all reasonable client configurations.
+
+### Stage 3: Client Sync (Only If Needed)
+
+Only implement if players with custom FOV settings report issues. This adds significant complexity for marginal benefit.
+
+| Approach | Bandwidth Reduction | Implementation Effort |
+|----------|--------------------|-----------------------|
+| Current (prioritize only) | 0% | N/A |
+| Cone cull (dot threshold) | ~30-40% | 2-3 hours |
+| Full frustum (fixed params) | ~50-60% | 1-2 days |
+| Full frustum (synced params) | ~55-65% | 3-4 days |
+
+---
+
 ## Current Architecture Analysis
 
 ### Existing Chunk Prioritization
@@ -17,6 +42,8 @@ The server already has a sophisticated chunk prioritization system in [server/sr
 - **`FORWARD_DOT_THRESHOLD`**: Currently set to `-0.3` (~108° from center), meaning chunks behind the player are deprioritized but still sent
 
 **Limitation**: The current system *prioritizes* chunks in the player's view direction but does not *cull* chunks outside the actual camera frustum. All chunks within render distance are eventually sent.
+
+**Opportunity**: The existing dot-product infrastructure can be extended to perform hard culling with minimal code changes.
 
 ### Current Data Flow
 
@@ -95,7 +122,55 @@ Chunks are axis-aligned boxes. A chunk is visible if **any part** of its volume 
 
 ## Implementation Plan
 
-### Phase 1: Shared Frustum Types (shared/)
+### Phase 0: Cone Culling (Minimal Change)
+
+**Modify**: `server/src/world/broadcast_world.rs`
+
+This is the simplest approach that provides significant benefit with minimal risk:
+
+```rust
+/// Dot product threshold for hard culling chunks definitely behind the player.
+/// -0.7 corresponds to ~135° from forward direction.
+/// Chunks beyond this angle are culled entirely, not just deprioritized.
+const CULL_DOT_THRESHOLD: f32 = -0.7;
+
+/// Get chunk coordinates around a player, culling those behind and prioritizing by view direction
+fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize) -> Vec<IVec3> {
+    let player_chunk_pos = world_position_to_chunk_position(player.position);
+    let forward = player.camera_transform.forward();
+
+    let mut chunks: Vec<IVec3> = get_player_nearby_chunks_coords(player_chunk_pos, radius)
+        .into_iter()
+        // Hard cull chunks definitely behind player
+        .filter(|chunk_pos| {
+            let direction = (*chunk_pos - player_chunk_pos).as_vec3().normalize_or_zero();
+            forward.dot(direction) > CULL_DOT_THRESHOLD
+        })
+        .collect();
+
+    // Prioritize remaining chunks by view direction (existing logic)
+    let sort_count = chunks.len().min(max_chunks);
+    if chunks.len() > 1 {
+        chunks.select_nth_unstable_by(sort_count - 1, |a, b| {
+            order_chunks_by_render_score(a, b, player_chunk_pos, *forward)
+        });
+    }
+
+    chunks
+}
+```
+
+**Benefits**:
+- ~10 lines of changes to existing code
+- No new files or structs needed
+- Easy to tune `CULL_DOT_THRESHOLD` based on testing
+- Fallback is trivial (set threshold to -1.0 to disable)
+
+**Testing**: After implementing, monitor chunk send rates and check for pop-in when turning quickly. Adjust threshold as needed.
+
+---
+
+### Phase 1: Shared Frustum Types (shared/) — Optional Enhancement
 
 **Create**: `shared/src/frustum.rs`
 
@@ -229,7 +304,34 @@ impl ViewFrustum {
 }
 ```
 
-### Phase 2: Player Data Extension (shared/)
+### Phase 2: Server-Side Frustum with Fixed Parameters — Optional Enhancement
+
+**Skip client synchronization**. Use conservative fixed parameters on the server:
+
+```rust
+// In shared/src/frustum.rs or directly in broadcast_world.rs
+
+/// Conservative frustum parameters that cover all reasonable client configurations.
+/// Using 90° FOV (vs typical 60°) provides ~15° margin on each side.
+/// Using 2.0 aspect ratio covers ultrawide monitors.
+const SERVER_CULL_FOV: f32 = std::f32::consts::FRAC_PI_2; // 90°
+const SERVER_CULL_ASPECT: f32 = 2.0;
+```
+
+This approach:
+- Avoids all client→server synchronization complexity
+- Handles players with different FOV settings (up to 90°)
+- Handles different aspect ratios (up to 21:9 ultrawide)
+- Trades ~5-10% potential bandwidth savings for zero sync complexity
+
+**Only implement Phase 3 (client sync) if**:
+- Players with >90° FOV report chunk pop-in
+- Bandwidth savings from tighter culling are critically needed
+
+### Phase 3: Client Synchronization — Only If Needed
+
+<details>
+<summary>Click to expand (not recommended for initial implementation)</summary>
 
 **Modify**: `shared/src/players/data.rs`
 
@@ -245,7 +347,7 @@ pub struct Player {
 
 **Modify**: `shared/src/messages/player.rs`
 
-Add frustum config to the player input message (if not already sending camera state):
+Add frustum config to the player input message:
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -254,8 +356,6 @@ pub struct PlayerInputAction {
     pub frustum_config: Option<FrustumConfig>, // Send when changed
 }
 ```
-
-### Phase 3: Client-Side Changes (client/)
 
 **Modify**: `client/src/camera/spawn.rs`
 
@@ -284,6 +384,8 @@ pub fn sync_frustum_config_system(
     }
 }
 ```
+
+</details>
 
 ### Phase 4: Server-Side Frustum Culling (server/)
 
@@ -375,66 +477,48 @@ fn is_chunk_visible_with_margin(
 }
 ```
 
-### Phase 6: Client-Side Visibility Optimization
+### Phase 6: Client-Side Visibility Optimization — Not Needed
 
-**Modify**: `client/src/world/rendering/render.rs`
+**Bevy handles this automatically.** Bevy's rendering pipeline performs frustum culling on all meshes with `Visibility` and `Aabb` components. No custom implementation is required.
 
-Add frustum-based visibility toggling for already-loaded chunks:
+The chunk meshes spawned by the client already benefit from Bevy's built-in culling. Adding a custom system would be redundant and potentially slower than Bevy's optimized implementation.
 
-```rust
-use bevy::render::primitives::Frustum;
-
-pub fn chunk_visibility_system(
-    camera_query: Query<(&GlobalTransform, &Projection), With<Camera3d>>,
-    mut chunk_query: Query<(&Transform, &mut Visibility), With<ChunkMesh>>,
-) {
-    let Ok((camera_transform, projection)) = camera_query.single() else {
-        return;
-    };
-
-    // Build frustum from camera
-    let frustum = /* construct from camera_transform and projection */;
-
-    for (chunk_transform, mut visibility) in chunk_query.iter_mut() {
-        let chunk_min = chunk_transform.translation;
-        let chunk_max = chunk_min + Vec3::splat(CHUNK_SIZE as f32);
-
-        *visibility = if frustum.intersects_aabb(chunk_min, chunk_max) {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
-        };
-    }
-}
-```
-
-**Note**: Bevy already performs frustum culling on meshes automatically. This system would be for any custom optimization beyond Bevy's built-in culling.
+**Only consider custom client-side culling if**:
+- Profiling shows Bevy's culling is a bottleneck
+- You need culling at a coarser granularity (e.g., entire chunk columns)
 
 ## Implementation Order
 
-### Stage 1: Foundation (Low Risk)
-1. Create `shared/src/frustum.rs` with frustum types and AABB tests
-2. Add unit tests for frustum-AABB intersection
-3. Add `FrustumConfig` to shared types
+### Stage 1: Cone Culling (Low Risk, High Value) ⭐ Start Here
+1. Add `CULL_DOT_THRESHOLD` constant to `broadcast_world.rs`
+2. Add `.filter()` to `get_player_chunks_prioritized()` (see Phase 0 code)
+3. Test in single-player and multiplayer
+4. Tune threshold if needed (-0.7 is a good starting point)
+5. Measure bandwidth reduction
 
-### Stage 2: Server Integration (Medium Risk)
-4. Add `frustum_config` to `Player` struct
-5. Create `get_frustum_visible_chunks()` helper function
-6. Add feature flag to toggle frustum culling:
-   ```rust
-   const ENABLE_FRUSTUM_CULLING: bool = true;
-   ```
-7. Integrate into `get_player_chunks_prioritized()`
+**Expected outcome**: ~30-40% reduction in chunks sent with minimal code changes.
 
-### Stage 3: Client Synchronization (Medium Risk)
-8. Create `CameraConfig` resource on client
-9. Synchronize frustum config when changed (window resize, FOV settings)
-10. Update player input messages to include frustum config
+### Stage 2: Full Frustum (Medium Risk, Only If Needed)
+6. Create `shared/src/frustum.rs` with frustum types and AABB tests
+7. Add unit tests for frustum-AABB intersection
+8. Use fixed conservative parameters (90° FOV, 2.0 aspect ratio)
+9. Create `get_frustum_visible_chunks()` helper function
+10. Add feature flag to toggle frustum culling:
+    ```rust
+    const ENABLE_FRUSTUM_CULLING: bool = true;
+    ```
+11. Integrate into `get_player_chunks_prioritized()`
 
-### Stage 4: Polish & Optimization
-11. Add debug visualization (F-key toggle to show frustum wireframe)
-12. Tune margin/buffer values to prevent pop-in
-13. Profile and optimize frustum tests
+**Expected outcome**: ~50-60% reduction in chunks sent.
+
+### Stage 3: Polish & Optimization
+12. Add debug visualization (F-key toggle to show frustum wireframe)
+13. Tune margin/buffer values to prevent pop-in
+14. Profile and optimize frustum tests
+
+### Stage 4: Client Sync (Low Priority)
+15. Only implement if players with custom FOV >90° report issues
+16. See collapsed Phase 3 section for implementation details
 
 ## Edge Cases & Considerations
 
@@ -446,7 +530,7 @@ pub fn chunk_visibility_system(
 ### 2. Vertical Look (Up/Down)
 **Problem**: Looking straight up/down dramatically changes visible chunks.
 
-**Solution**: Frustum naturally handles this; ensure Y-axis chunks are properly considered.
+**Solution**: Since Rustcraft uses 16×16×16 chunks (uniform cubes), frustum culling works identically in all directions. No special handling needed for vertical vs horizontal culling.
 
 ### 3. Multiplayer - Different FOV Settings
 **Problem**: Each player may have different FOV settings.
@@ -456,19 +540,33 @@ pub fn chunk_visibility_system(
 ### 4. Initial Spawn / Teleportation
 **Problem**: Player spawns/teleports to new location; no chunks loaded.
 
-**Solution**: For initial spawn, temporarily disable culling or use spherical loading until first chunks arrive.
+**Solution**: Always include chunks in a small radius around the player regardless of frustum. This is simpler than tracking spawn state:
 
 ```rust
-fn get_world_map_chunks_to_send(...) {
-    if player.chunks_received_count < INITIAL_LOAD_THRESHOLD {
-        // Use spherical loading for initial spawn
-        return get_player_chunks_prioritized(player, radius, chunk_limit);
-    }
-
-    // Use frustum culling for normal gameplay
-    return get_player_chunks_prioritized_with_culling(player, radius, chunk_limit);
+fn get_frustum_visible_chunks(
+    all_chunks: Vec<IVec3>,
+    player: &Player,
+    player_chunk_pos: IVec3,
+    render_distance: i32,
+) -> Vec<IVec3> {
+    let frustum = /* build frustum */;
+    
+    all_chunks
+        .into_iter()
+        .filter(|chunk_pos| {
+            // Always include chunks within 2 chunks of player (spawn safety)
+            let distance = (*chunk_pos - player_chunk_pos).abs();
+            if distance.x <= 2 && distance.y <= 2 && distance.z <= 2 {
+                return true;
+            }
+            // Otherwise apply frustum culling
+            frustum.is_chunk_visible(*chunk_pos, CHUNK_SIZE)
+        })
+        .collect()
 }
 ```
+
+This ensures players always have chunks around them without needing to track connection time or chunk counts.
 
 ### 5. Already-Sent Chunks
 **Problem**: `sent_to_clients` tracking assumes chunks stay relevant.
@@ -626,11 +724,31 @@ Adjust culling aggressiveness based on:
 
 ## Summary
 
-This plan provides a phased approach to implementing frustum culling in Rustcraft:
+This plan provides a **staged approach** to implementing view-based chunk culling in Rustcraft:
 
-1. **Phase 1-2**: Create shared frustum types and integrate with player data
-2. **Phase 3-4**: Client synchronization and server-side culling logic
-3. **Phase 5**: Hybrid approach with margin for smooth experience
-4. **Phase 6**: Client-side visibility optimization (optional, Bevy handles this)
+### Recommended Path
 
-The expected outcome is a **40-60% reduction in chunk network traffic** while maintaining smooth gameplay through careful handling of edge cases like player rotation and initial spawn.
+1. **Stage 1 (Start Here)**: Add cone culling via dot-product threshold
+   - ~10 lines of code changes
+   - ~30-40% bandwidth reduction
+   - 2-3 hours implementation time
+
+2. **Stage 2 (If Needed)**: Full frustum culling with fixed server parameters
+   - ~50-60% bandwidth reduction
+   - 1-2 days implementation time
+   - No client synchronization needed
+
+### What to Skip
+
+- **Client→Server frustum sync**: Use conservative fixed parameters instead
+- **Client-side visibility system**: Bevy handles this automatically
+- **Complex spawn tracking**: Use simple distance-based inclusion instead
+
+### Key Advantages of 16×16×16 Chunks
+
+Rustcraft's uniform cubic chunks simplify the implementation:
+- Frustum culling works identically in all directions
+- No special handling for vertical vs horizontal
+- AABB tests are straightforward
+
+The expected outcome is a **30-60% reduction in chunk network traffic** (depending on which stage you implement) while maintaining smooth gameplay through the hybrid margin approach and spawn safety radius.
