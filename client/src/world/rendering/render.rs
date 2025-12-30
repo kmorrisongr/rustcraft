@@ -158,10 +158,7 @@ pub fn world_render_system(
 
         let mut chunks_to_reload = Vec::from_iter(chunks_to_reload);
 
-        chunks_to_reload.sort_by(|a, b| {
-            a.distance_squared(player_pos)
-                .cmp(&b.distance_squared(player_pos))
-        });
+        chunks_to_reload.sort_by_key(|pos| pos.distance_squared(player_pos));
 
         for pos in chunks_to_reload {
             if let Some(chunk) = world_map.map.get(&pos) {

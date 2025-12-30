@@ -25,23 +25,29 @@ pub fn total_blocks_text_update_system(
     for entity in query_chunks.iter() {
         let chunk_count = world_map.map.len();
         // Rough, implementation-agnostic approximation of per-slot HashMap overhead.
-        // Note: std::collections::HashMap actually uses a separate control byte array and
-        // contiguous storage for key/value pairs; this is only an estimated lower bound
-        // for the purposes of this debug display, not an exact memory model.
+        // Note: std::collections::HashMap uses control bytes plus contiguous key/value storage; this
+        // is an estimated lower bound for debug display only, not an exact memory model.
         const HASHMAP_ENTRY_OVERHEAD_USIZE: usize = 2;
         let slot_overhead_bytes = size_of::<usize>() * HASHMAP_ENTRY_OVERHEAD_USIZE;
+        let control_overhead_bytes = size_of::<usize>(); // approximate control/bucket array cost per slot
 
         let chunk_table_bytes: usize = world_map
             .map
             .iter()
             .map(|(_, chunk)| {
                 chunk.map.capacity()
-                    * (size_of::<IVec3>() + size_of::<BlockData>() + slot_overhead_bytes)
+                    * (size_of::<IVec3>()
+                        + size_of::<BlockData>()
+                        + slot_overhead_bytes
+                        + control_overhead_bytes)
             })
             .sum();
 
         let world_table_bytes = world_map.map.capacity()
-            * (size_of::<IVec3>() + size_of::<ClientChunk>() + slot_overhead_bytes);
+            * (size_of::<IVec3>()
+                + size_of::<ClientChunk>()
+                + slot_overhead_bytes
+                + control_overhead_bytes);
 
         let estimated_bytes = chunk_table_bytes + world_table_bytes;
         let estimated_mb = estimated_bytes as f32 / (1024.0 * 1024.0);
