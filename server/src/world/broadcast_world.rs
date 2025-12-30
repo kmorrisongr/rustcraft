@@ -229,9 +229,9 @@ fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize
         .into_iter()
         .filter(|chunk_pos| {
             let distance = (*chunk_pos - player_chunk_pos).abs();
-            if distance.x <= SAFETY_BUFFER_CHUNKS
-                && distance.y <= SAFETY_BUFFER_CHUNKS
-                && distance.z <= SAFETY_BUFFER_CHUNKS
+            if distance
+                .cmple(IVec3::splat(SAFETY_BUFFER_CHUNKS))
+                .all()
             {
                 return true;
             }
