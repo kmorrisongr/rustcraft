@@ -55,6 +55,66 @@ The LOD system is implemented **entirely client-side** in the meshing pipeline. 
 
 This phase adds the data structures and helper methods needed by later phases. No user-visible changes, but these additions are safe to merge independently.
 
+### Prerequisites / Standalone Fixes
+
+Before or during this phase, address these foundation issues:
+
+#### Gotcha: Arc Clone Performance in Render Loop
+
+**Standalone PR**: Yes — Pre-existing issue; can be fixed before LOD implementation begins.
+
+**Location**: `world_render_system` in [render.rs](../client/src/world/rendering/render.rs#L97-L101)
+
+**Issue**: The current code clones the entire `ClientWorldMap` on every render pass. With LOD extending the active chunk count by ~3.4×, this clone becomes significantly more expensive.
+
+```rust
+// Current code - clones entire map every frame with pending events
+let map_ptr = Arc::new(world_map.clone());
+```
+
+**Severity**: High — Could negate all LOD performance gains
+
+**Mitigation**:
+- Consider storing `Arc<ClientWorldMap>` as the resource type
+- Only clone when the map has actually changed (use a dirty flag)
+- Or: Batch LOD remesh requests to minimize clone frequency
+
+**Verification**: Profile `world_render_system` with LOD enabled; clone time should be < 1ms
+
+---
+
+#### Gotcha: `distance_squared` Type Mismatch
+
+**Standalone PR**: Yes — Pre-existing type inconsistency; can be fixed before LOD implementation.
+
+**Issue**: The existing codebase uses `IVec3::distance_squared()` which returns `i32`, but distance thresholds from render distance are computed from `u32`. Mixing signed/unsigned may cause issues at extreme coordinates.
+
+**Severity**: Low — Only affects edge cases at extreme coordinates
+
+**Mitigation**:
+- Use consistent types throughout (recommend `i32` since positions are signed)
+- Add explicit casts with overflow checks in debug builds
+
+---
+
+#### Gotcha: Memory Pressure from Extended Chunk Cache
+
+**Standalone PR**: Partial — Adding memory usage to F3 debug overlay can be done independently.
+
+**Issue**: 3.4× more chunks in memory means 3.4× more `HashMap<IVec3, BlockData>` entries. Each chunk with 16³ blocks at ~40 bytes per `BlockData` = ~160KB per chunk. Memory usage could grow from ~500MB to ~1.7GB.
+
+**Severity**: Medium — May make game unplayable on some systems
+
+**Mitigation**:
+- Consider storing LOD 1 chunks in a separate, more compact format
+- Add config option to disable LOD for low-memory systems
+- Implement chunk unloading for chunks beyond `lod1_distance`
+- Monitor memory in F3 debug overlay
+
+**Verification**: Check memory usage with `top`/Activity Monitor at max render distance
+
+---
+
 ### Existing Code to Leverage
 
 | Component | Location | Reuse |
@@ -149,6 +209,72 @@ pub struct ClientChunk {
 
 This phase implements the core LOD mesh generation. After this phase, the codebase *can* generate LOD meshes, but they won't be used until Phase 3 wires them into the render system.
 
+### Gotchas to Address in This Phase
+
+#### Gotcha: LOD Block Sampling Alignment
+
+**Issue**: When sampling blocks at `(lod_x * scale, lod_y * scale, lod_z * scale)`, if `CHUNK_SIZE` is not evenly divisible by `scale`, the sampling will miss edge blocks.
+
+```rust
+// If CHUNK_SIZE=16, scale=2: samples 0,2,4,6,8,10,12,14 ✓
+// If CHUNK_SIZE=17, scale=2: samples 0,2,4,6,8,10,12,14,16 — misses block 16
+for lod_x in 0..(CHUNK_SIZE / scale) { ... }
+```
+
+**Severity**: High — Will cause visible rendering artifacts (missing blocks at chunk edges, visible gaps)
+
+**Mitigation**:
+- Assert `CHUNK_SIZE % scale == 0` at compile time
+- Current `CHUNK_SIZE=16` is safe for scale=2, but document this constraint
+- Add a static assertion:
+  ```rust
+  const_assert!(CHUNK_SIZE % 2 == 0, "CHUNK_SIZE must be divisible by LOD scales");
+  ```
+
+**Verification**: Verify no gaps at chunk edges in LOD 1 (fly along chunk boundaries)
+
+---
+
+#### Gotcha: Cross-Chunk Face Culling at LOD Boundaries
+
+**Issue**: When checking if a face should render, the neighbor lookup uses `scale`-multiplied offsets. At chunk boundaries, this neighbor is in an adjacent chunk that may be:
+1. At a different LOD level (LOD 0 vs LOD 1)
+2. Not yet loaded
+3. Using different sampling points
+
+**Severity**: High — Will cause visible seams at every chunk boundary (holes, z-fighting)
+
+**Mitigation**:
+- Always render faces at chunk boundaries (conservative approach)
+- Or: When neighbor chunk has different LOD, fall back to "render face"
+- Add boundary check before cross-chunk neighbor lookup:
+  ```rust
+  fn is_at_chunk_boundary(local_pos: IVec3, scale: i32) -> bool {
+      local_pos.x < scale || local_pos.x >= CHUNK_SIZE - scale ||
+      local_pos.y < scale || local_pos.y >= CHUNK_SIZE - scale ||
+      local_pos.z < scale || local_pos.z >= CHUNK_SIZE - scale
+  }
+  ```
+
+**Verification**: Check chunk boundaries between LOD 0 and LOD 1 zones for holes
+
+---
+
+#### Gotcha: Tangent Generation Skip May Cause Warnings
+
+**Issue**: The current `generate_chunk_mesh` calls `mesh.generate_tangents()` and logs warnings on failure. If LOD meshes skip this but the mesh attributes are inconsistent, Bevy may produce warnings or rendering artifacts.
+
+**Severity**: Low-Medium — Console spam, subtle lighting artifacts on LOD 1 chunks
+
+**Mitigation**:
+- Ensure LOD meshes either have valid tangent data OR use a material that doesn't require tangents
+- If skipping tangents, ensure normal mapping is also disabled for LOD materials
+- Consider a separate material for LOD chunks without normal maps
+
+**Verification**: Check console for tangent-related warnings with LOD chunks
+
+---
+
 ### Existing Code to Leverage
 
 | Component | Location | Reuse Strategy |
@@ -237,6 +363,20 @@ local_vertices.extend(face.vertices.iter().map(|v| {
 
 This phase wires LOD meshing into the render pipeline.
 
+### Gotchas to Address in This Phase
+
+#### Gotcha: Sorting by Distance Squared vs Linear Distance
+
+**Issue**: The plan inherits the existing sorting approach which compares `distance_squared`. While correct for ordering, the LOD thresholds use linear distance multiplied then squared. Ensure consistency to avoid chunks at diagonal positions being assigned the wrong LOD level.
+
+**Severity**: Low — May cause minor LOD boundary irregularities
+
+**Mitigation**:
+- Use squared distances consistently for both comparison and thresholds
+- Document that LOD boundaries are "squared distance" based, creating slightly circular (not square) boundaries
+
+---
+
 ### 3.1 Update MeshingTask and Render System
 
 **File**: `client/src/world/rendering/render.rs`
@@ -273,6 +413,51 @@ chunk.current_lod = task.lod_level;
 > **Effort**: Low (~20 min) | **Impact**: Medium | **Prerequisite**: Phase 3
 
 Adds automatic LOD transitions as the player moves. Without this, chunks only get their LOD level set on initial load.
+
+### Gotchas to Address in This Phase
+
+#### Gotcha: Mesh Thrashing During Player Movement
+
+**Standalone PR**: Yes (follow-up) — Can be a separate polish PR after Phase 4 merges.
+
+**Issue**: When a player stands near an LOD boundary, small movements can cause chunks to flip between LOD 0 and LOD 1 repeatedly. Each flip triggers an expensive remesh operation.
+
+**Severity**: Medium — FPS drops when walking near LOD boundaries, visual flickering
+
+**Mitigation**:
+- Add hysteresis to LOD transitions (different thresholds for upgrade vs downgrade):
+  ```rust
+  const LOD_HYSTERESIS: f32 = 0.1; // 10% buffer
+  
+  let upgrade_threshold = lod0_distance_sq;
+  let downgrade_threshold = (lod0_distance * (1.0 + LOD_HYSTERESIS)).powi(2);
+  ```
+- Add minimum time between LOD changes per chunk (e.g., 2 seconds)
+- Track `last_lod_change_time` in `ClientChunk`
+
+**Verification**: Walk back and forth across LOD boundary; verify no mesh thrashing
+
+---
+
+#### Gotcha: LOD Check Timer Drift
+
+**Issue**: Using manual timer accumulation (`timer += delta`) without reset can cause drift over time if delta varies significantly.
+
+**Severity**: Low — Negligible gameplay impact
+
+**Mitigation**: Use Bevy's built-in `Timer` resource which handles this correctly:
+```rust
+#[derive(Resource)]
+struct LodCheckTimer(Timer);
+
+impl Default for LodCheckTimer {
+    fn default() -> Self {
+        Self(Timer::from_seconds(0.5, TimerMode::Repeating))
+    }
+}
+```
+
+---
 
 **New file**: `client/src/world/rendering/lod_transitions.rs`
 
@@ -314,6 +499,26 @@ pub fn lod_transition_system(
 > **Effort**: Low (~5 min) | **Impact**: High | **Prerequisite**: Phase 3
 
 Without this phase, the server only sends chunks within the original render distance—LOD 1 zones will be empty.
+
+### Gotchas to Address in This Phase
+
+#### Gotcha: Server Bandwidth Explosion
+
+**Standalone PR**: Yes (follow-up) — Throttling improvements can be a separate PR after Phase 5.
+
+**Issue**: Increasing `effective_render_distance` by 1.5× increases chunk *volume* by ~3.4× (cubic scaling). The server already has bandwidth throttling (`MAX_CHUNKS_PER_UPDATE = 50`), but initial chunk load will be significantly slower.
+
+**Severity**: Medium — Extremely slow initial world load, server CPU spikes, network congestion in multiplayer
+
+**Mitigation**:
+- Consider sending LOD 1 chunks with lower priority than LOD 0
+- Add separate throttling for LOD 1 chunks
+- Or: Have server pre-compute downsampled LOD 1 data (future enhancement)
+- Add server config flag to disable extended broadcast distance
+
+**Verification**: Monitor network traffic during initial load in multiplayer
+
+---
 
 **File**: `server/src/world/broadcast_world.rs`
 
