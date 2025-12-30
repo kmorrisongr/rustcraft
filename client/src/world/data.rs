@@ -61,11 +61,6 @@ impl ClientWorldMap {
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
-
-    #[inline]
-    pub fn clear_dirty(&mut self) {
-        self.dirty = false;
-    }
 }
 
 impl WorldMap for ClientWorldMap {

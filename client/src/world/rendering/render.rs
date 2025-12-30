@@ -115,13 +115,20 @@ pub fn world_render_system(
         let map_ptr = if world_map.dirty || world_map_cache.cached.is_none() {
             let start = std::time::Instant::now();
             let new_clone = Arc::new(world_map.clone());
-            world_map.clear_dirty();
+            world_map.dirty = false;
             world_map_cache.cached = Some(Arc::clone(&new_clone));
             let delta = start.elapsed();
             info!("cloning map for render, took {:?}", delta);
             new_clone
         } else {
-            Arc::clone(world_map_cache.cached.as_ref().unwrap())
+            Arc::clone(
+                world_map_cache
+                    .cached
+                    .as_ref()
+                    .expect(
+                        "World map cache should be populated after first clone; caching logic bug",
+                    ),
+            )
         };
 
         let uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
@@ -152,8 +159,8 @@ pub fn world_render_system(
         let mut chunks_to_reload = Vec::from_iter(chunks_to_reload);
 
         chunks_to_reload.sort_by(|a, b| {
-            (a.distance_squared(player_pos) - b.distance_squared(player_pos))
-                .cmp(&a.distance_squared(player_pos))
+            a.distance_squared(player_pos)
+                .cmp(&b.distance_squared(player_pos))
         });
 
         for pos in chunks_to_reload {

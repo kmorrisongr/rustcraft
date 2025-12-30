@@ -25,8 +25,14 @@ pub fn total_blocks_text_update_system(
     for entity in query_chunks.iter() {
         let chunk_count = world_map.map.len();
         let block_entries: usize = world_map.map.values().map(|chunk| chunk.map.len()).sum();
-        let estimated_bytes = block_entries * size_of::<(IVec3, BlockData)>()
-            + chunk_count * size_of::<(IVec3, ClientChunk)>();
+        // HashMap entry overhead varies by implementation and platform; this is a rough
+        // approximation using two usize words of metadata (hash/next) per entry
+        const HASHMAP_ENTRY_OVERHEAD_USIZE: usize = 2;
+        let block_entry_bytes =
+            size_of::<IVec3>() + size_of::<BlockData>() + size_of::<usize>() * HASHMAP_ENTRY_OVERHEAD_USIZE;
+        let chunk_entry_bytes =
+            size_of::<IVec3>() + size_of::<ClientChunk>() + size_of::<usize>() * HASHMAP_ENTRY_OVERHEAD_USIZE;
+        let estimated_bytes = block_entries * block_entry_bytes + chunk_count * chunk_entry_bytes;
         let estimated_mb = estimated_bytes as f32 / (1024.0 * 1024.0);
         *writer.text(entity, 0) =
             format!("Loaded chunks: {} (~{estimated_mb:.2} MiB)", chunk_count);
