@@ -820,32 +820,32 @@ impl<'a> UiBuilder<'a> {
 
 ## Summary (Updated)
 
-| Priority | Issue | Impact | Effort |
-|----------|-------|--------|--------|
-| High | WorldMap trait duplication | Maintainability | Medium |
-| High | Input action mapping | DRY principle | Low |
-| High | Tree generation repetition | Maintainability | Medium |
-| High | Mob/Player physics duplication | Maintainability, Bugs | High |
-| Medium | Large system parameter tuples | Readability | Medium |
-| Medium | Magic numbers | Maintainability | Low |
-| Medium | Debug toggle repetition | DRY principle | Low |
-| Medium | Monolithic game plugin | Maintainability | Medium |
-| Medium | Vec for sent_to_clients | Performance | Low |
-| Medium | French comments | Accessibility | Low |
-| Medium | Asset loading repetition | DRY principle | Low |
-| Medium | TODO comments need resolution | Technical debt | Medium |
-| Medium | Broadcast clones mobs | Performance | Medium |
-| Medium | Block properties match statements | Maintainability | Medium |
-| Low | Dead code | Code cleanliness | Low |
-| Low | `.unwrap()` usage | Robustness | Medium |
-| Low | Inconsistent query handling | Consistency | Low |
-| Low | HUD setup repetition | DRY principle | Low |
-| Low | Keybinding defaults | Configuration | Low |
-| Low | `#[allow(dead_code)]` audit | Code cleanliness | Low |
-| Low | Constants scattered | Organization | Low |
-| Low | Menu system structure | Maintainability | Medium |
-| Low | Network message handling | Extensibility | High |
-| Low | UI pattern extraction | DRY principle | High |
+| Status | Priority | Issue | Impact | Effort |
+|--------|----------|-------|--------|--------|
+| Done | High | WorldMap trait duplication | Maintainability | Medium |
+| Done | High | Input action mapping | DRY principle | Low |
+| Done | High | Tree generation repetition | Maintainability | Medium |
+| Done | High | Mob/Player physics duplication | Maintainability, Bugs | High |
+| | Medium | Large system parameter tuples | Readability | Medium |
+| | Medium | Magic numbers | Maintainability | Low |
+| Done | Medium | Debug toggle repetition | DRY principle | Low |
+| | Medium | Monolithic game plugin | Maintainability | Medium |
+| Done | Medium | Vec for sent_to_clients | Performance | Low |
+| Done | Medium | French comments | Accessibility | Low |
+| | Medium | Asset loading repetition | DRY principle | Low |
+| | Medium | TODO comments need resolution | Technical debt | Medium |
+| | Medium | Broadcast clones mobs | Performance | Medium |
+| | Medium | Block properties match statements | Maintainability | Medium |
+| Done | Low | Dead code | Code cleanliness | Low |
+| | Low | `.unwrap()` usage | Robustness | Medium |
+| Partial | Low | Inconsistent query handling | Consistency | Low |
+| | Low | HUD setup repetition | DRY principle | Low |
+| Done | Low | Keybinding defaults | Configuration | Low |
+| | Low | `#[allow(dead_code)]` audit | Code cleanliness | Low |
+| | Low | Constants scattered | Organization | Low |
+| | Low | Menu system structure | Maintainability | Medium |
+| | Low | Network message handling | Extensibility | High |
+| | Low | UI pattern extraction | DRY principle | High |
 
 ---
 
