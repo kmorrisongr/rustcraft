@@ -161,10 +161,10 @@ const SERVER_CULL_ASPECT: f32 = 2.0; // Covers ultrawide
 ```rust
 fn get_frustum_visible_chunks(chunks: Vec<IVec3>, player: &Player, render_distance: i32) -> Vec<IVec3> {
     let eye = player.position + Vec3::Y * 0.8;
-    let forward = *player.camera_transform.forward();
+    let forward = player.camera_transform.forward();
     let far = (render_distance * CHUNK_SIZE) as f32;
     
-    let frustum = ViewFrustum::from_camera(eye, forward, Vec3::Y, SERVER_CULL_FOV, SERVER_CULL_ASPECT, far);
+    let frustum = ViewFrustum::from_camera(eye, *forward, Vec3::Y, SERVER_CULL_FOV, SERVER_CULL_ASPECT, far);
     chunks.into_iter().filter(|pos| frustum.is_chunk_visible(*pos, CHUNK_SIZE)).collect()
 }
 ```
