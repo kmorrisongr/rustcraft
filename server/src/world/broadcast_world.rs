@@ -31,6 +31,9 @@ const FORWARD_DOT_THRESHOLD: f32 = -0.3;
 /// -0.7 (~135° from forward) keeps a buffer to prevent visible pop-in.
 const CULL_DOT_THRESHOLD: f32 = -0.7;
 
+/// Always include chunks in a small radius around the player to avoid spawn/teleport pop-in.
+const SAFETY_BUFFER_CHUNKS: i32 = 2;
+
 /// Multiplier for view direction bias when chunks are in front of the player.
 /// A value of 500.0 creates a smooth falloff for peripheral chunks,
 /// balancing between distance and view direction importance.
@@ -226,7 +229,10 @@ fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize
         .into_iter()
         .filter(|chunk_pos| {
             let distance = (*chunk_pos - player_chunk_pos).abs();
-            if distance.x <= 2 && distance.y <= 2 && distance.z <= 2 {
+            if distance.x <= SAFETY_BUFFER_CHUNKS
+                && distance.y <= SAFETY_BUFFER_CHUNKS
+                && distance.z <= SAFETY_BUFFER_CHUNKS
+            {
                 return true;
             }
 
