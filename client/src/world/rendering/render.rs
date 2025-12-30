@@ -34,6 +34,11 @@ pub struct QueuedMeshes {
     pub meshes: Vec<MeshingTask>,
 }
 
+#[derive(Default)]
+pub(crate) struct WorldMapCache {
+    cached: Option<Arc<ClientWorldMap>>,
+}
+
 fn update_chunk(
     chunk: &mut ClientChunk,
     chunk_pos: &IVec3,
@@ -86,6 +91,7 @@ pub fn world_render_system(
     mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
     mut queued_events: Local<QueuedEvents>,
     mut queued_meshes: Local<QueuedMeshes>,
+    mut world_map_cache: Local<WorldMapCache>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     mut first_chunk_received: ResMut<FirstChunkReceived>,
@@ -105,12 +111,18 @@ pub fn world_render_system(
     let events = queued_events.events.clone();
 
     if !events.is_empty() {
-        let start = std::time::Instant::now();
-
-        // Clone map only once, then share it as read-only across all meshing threads
-        let map_ptr = Arc::new(world_map.clone());
-        let delta = start.elapsed();
-        info!("cloning map for render, took {:?}", delta);
+        // Clone map only when it changed, then share it as read-only across all meshing threads
+        let map_ptr = if world_map.dirty || world_map_cache.cached.is_none() {
+            let start = std::time::Instant::now();
+            let new_clone = Arc::new(world_map.clone());
+            world_map.clear_dirty();
+            world_map_cache.cached = Some(Arc::clone(&new_clone));
+            let delta = start.elapsed();
+            info!("cloning map for render, took {:?}", delta);
+            new_clone
+        } else {
+            Arc::clone(world_map_cache.cached.as_ref().unwrap())
+        };
 
         let uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
 

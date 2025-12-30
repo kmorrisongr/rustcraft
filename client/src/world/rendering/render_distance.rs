@@ -7,7 +7,7 @@ use bevy::prelude::*;
 
 #[derive(Resource, Default, Reflect)]
 pub struct RenderDistance {
-    pub distance: u32,
+    pub distance: i32,
 }
 
 pub fn render_distance_update_system(
@@ -15,15 +15,15 @@ pub fn render_distance_update_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     key_map: Res<KeyMap>,
 ) {
-    if render_distance.distance == 0 {
+    if render_distance.distance <= 0 {
         render_distance.distance = DEFAULT_CHUNK_RENDER_DISTANCE_RADIUS;
     }
 
     if is_action_just_pressed(GameAction::RenderDistanceMinus, &keyboard_input, &key_map) {
-        render_distance.distance -= 1;
+        render_distance.distance = (render_distance.distance - 1).max(1);
     }
 
     if is_action_just_pressed(GameAction::RenderDistancePlus, &keyboard_input, &key_map) {
-        render_distance.distance += 1;
+        render_distance.distance = render_distance.distance.saturating_add(1);
     }
 }

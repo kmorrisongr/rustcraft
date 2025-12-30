@@ -35,12 +35,37 @@ impl Default for ClientChunk {
     }
 }
 
-#[derive(Resource, Default, Clone)]
+#[derive(Resource, Clone)]
 pub struct ClientWorldMap {
     pub name: String,
     pub map: HashMap<IVec3, crate::world::ClientChunk>, // Maps global chunk positions to chunks
     pub total_blocks_count: u64,
     pub total_chunks_count: u64,
+    pub dirty: bool,
+}
+
+impl Default for ClientWorldMap {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            map: HashMap::new(),
+            total_blocks_count: 0,
+            total_chunks_count: 0,
+            dirty: true,
+        }
+    }
+}
+
+impl ClientWorldMap {
+    #[inline]
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
+
+    #[inline]
+    pub fn clear_dirty(&mut self) {
+        self.dirty = false;
+    }
 }
 
 impl WorldMap for ClientWorldMap {
@@ -64,6 +89,7 @@ impl WorldMap for ClientWorldMap {
         let chunk_map: &mut ClientChunk = self.map.get_mut(&chunk_pos)?;
 
         chunk_map.map.remove(&local_block_pos);
+        self.mark_dirty();
 
         Some(kind)
     }
@@ -73,6 +99,7 @@ impl WorldMap for ClientWorldMap {
         let chunk: &mut ClientChunk = self.map.entry(chunk_pos).or_default();
 
         chunk.map.insert(local_pos, block);
+        self.mark_dirty();
     }
 
     fn mark_block_for_update(&mut self, _block_pos: &IVec3) {
