@@ -18,6 +18,8 @@ rustcraft/
 ├── ARCHITECTURE.md              # System architecture and design
 ├── DEVELOPER_GUIDE.md           # Developer onboarding and workflows
 └── docs/
+    ├── FRUSTUM_CULLING_PLAN.md  # View frustum culling optimization
+    ├── LOD_SYSTEM_PLAN.md       # Level of Detail rendering system
     └── modules/                 # Detailed module documentation
         ├── WORLD_SYSTEM.md      # World generation and management
         ├── NETWORK_SYSTEM.md    # Multiplayer networking
@@ -46,6 +48,10 @@ rustcraft/
 
 **Understand world generation**
 - [WORLD_SYSTEM.md](./modules/WORLD_SYSTEM.md)
+
+**Optimize chunk rendering**
+- [FRUSTUM_CULLING_PLAN.md](./FRUSTUM_CULLING_PLAN.md) - View culling
+- [LOD_SYSTEM_PLAN.md](./LOD_SYSTEM_PLAN.md) - Level of Detail
 
 **Work with networking**
 - [NETWORK_SYSTEM.md](./modules/NETWORK_SYSTEM.md)
