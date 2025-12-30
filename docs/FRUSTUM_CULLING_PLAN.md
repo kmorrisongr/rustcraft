@@ -234,4 +234,4 @@ Set `CULL_DOT_THRESHOLD = -1.0` (Stage 1) or `ENABLE_FRUSTUM_CULLING = false` (S
 
 Only proceed to Stage 2 (full frustum) if more savings are needed. Skip client sync—use fixed 90° FOV.
 
-Rustcraft's 16³ chunks make this straightforward: uniform cubes, no vertical/horizontal special cases.
+Rustcraft's 16x16x16 chunks make this straightforward: uniform cubes, no vertical/horizontal special cases.
