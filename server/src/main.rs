@@ -2,7 +2,7 @@ use std::net::Ipv4Addr;
 
 use crate::init::acquire_socket_by_port;
 use clap::Parser;
-use shared::constants::DEFAULT_RENDER_DISTANCE;
+use shared::constants::{DEFAULT_RENDER_DISTANCE, SOCKET_BIND_ERROR};
 use shared::{get_game_folder_paths, GameServerConfig};
 
 mod init;
@@ -37,7 +37,13 @@ fn main() {
         std::process::exit(1);
     }
 
-    let socket = acquire_socket_by_port(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), args.port);
+    let socket = match acquire_socket_by_port(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), args.port) {
+        Ok(socket) => socket,
+        Err(err) => {
+            eprintln!("{}: {err}", SOCKET_BIND_ERROR);
+            std::process::exit(1);
+        }
+    };
 
     init::init(
         socket,

@@ -7,7 +7,7 @@ use rand::Rng;
 use shared::constants::{
     DEFAULT_RENDER_DISTANCE, NETCODE_CLIENT_TRANSPORT_ERROR, SOCKET_BIND_ERROR,
     SOCKET_LOCAL_ADDR_ERROR, TARGET_SERVER_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR,
-    USERNAME_MISSING_AUTHENTICATED_ERROR, USERNAME_MISSING_CONNECTION_ERROR,
+    USERNAME_MISSING_AUTHENTICATED_ERROR,
 };
 use shared::messages::mob::MobUpdateEvent;
 use shared::{get_shared_renet_config, GameServerConfig, STC_AUTH_CHANNEL};
@@ -115,8 +115,15 @@ pub fn launch_local_server_system(
     if let Some(world_name) = &selected_world.name {
         info!("Launching local server with world: {}", world_name);
 
-        let socket =
-            server::acquire_local_ephemeral_udp_socket(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+        let socket = match server::acquire_local_ephemeral_udp_socket(IpAddr::V4(Ipv4Addr::new(
+            127, 0, 0, 1,
+        ))) {
+            Ok(socket) => socket,
+            Err(err) => {
+                error!("{}: {err}", SOCKET_BIND_ERROR);
+                return;
+            }
+        };
         let Ok(addr) = socket.local_addr() else {
             error!("{}", SOCKET_LOCAL_ADDR_ERROR);
             return;
@@ -182,9 +189,6 @@ pub fn init_server_connection(
         world.remove_resource::<NetcodeClientTransport>();
         world.remove_resource::<CachedChatConversation>();
 
-        let client = RenetClient::new(get_shared_renet_config());
-        world.insert_resource(client);
-
         let authentication = ClientAuthentication::Unsecure {
             server_addr: addr,
             client_id: id,
@@ -219,6 +223,8 @@ pub fn init_server_connection(
             }
         };
 
+        let client = RenetClient::new(get_shared_renet_config());
+        world.insert_resource(client);
         world.insert_resource(transport);
 
         world.insert_resource(CachedChatConversation { ..default() });

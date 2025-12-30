@@ -15,12 +15,10 @@ use bevy_renet::{
     netcode::{NetcodeServerPlugin, ServerAuthentication, ServerConfig},
     renet::RenetServer,
 };
-use renet_netcode::error::NetcodeServerTransportError;
 use serde::{Deserialize, Serialize};
 use shared::{
     constants::{
-        NETCODE_SERVER_TRANSPORT_ERROR, SOCKET_BIND_ERROR, SOCKET_LOCAL_ADDR_ERROR,
-        UNIX_EPOCH_TIME_ERROR,
+        NETCODE_SERVER_TRANSPORT_ERROR, SOCKET_LOCAL_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR,
     },
     get_shared_renet_config, messages::PlayerId,
     world::{ServerChunkWorldMap, ServerWorldMap},
@@ -54,10 +52,10 @@ pub struct ServerLobby {
 }
 
 #[derive(Debug)]
-enum NetcodeSetupError {
+pub(crate) enum NetcodeSetupError {
     SocketAddr(std::io::Error),
     Time(SystemTimeError),
-    Transport(NetcodeServerTransportError),
+    Transport(String),
 }
 
 impl Display for NetcodeSetupError {
@@ -73,13 +71,13 @@ impl Display for NetcodeSetupError {
 }
 
 #[allow(dead_code)]
-pub fn acquire_local_ephemeral_udp_socket(ip: IpAddr) -> UdpSocket {
+pub fn acquire_local_ephemeral_udp_socket(ip: IpAddr) -> std::io::Result<UdpSocket> {
     acquire_socket_by_port(ip, 0)
 }
 
-pub fn acquire_socket_by_port(ip: IpAddr, port: u16) -> UdpSocket {
+pub fn acquire_socket_by_port(ip: IpAddr, port: u16) -> std::io::Result<UdpSocket> {
     let addr = SocketAddr::new(ip, port);
-    UdpSocket::bind(addr).expect(SOCKET_BIND_ERROR)
+    UdpSocket::bind(addr)
 }
 
 pub fn add_netcode_network(
@@ -100,8 +98,8 @@ pub fn add_netcode_network(
         authentication: ServerAuthentication::Unsecure,
     };
 
-    let transport: NetcodeServerTransport =
-        NetcodeServerTransport::new(server_config, socket).map_err(NetcodeSetupError::Transport)?;
+    let transport: NetcodeServerTransport = NetcodeServerTransport::new(server_config, socket)
+        .map_err(|err| NetcodeSetupError::Transport(err.to_string()))?;
 
     let server = RenetServer::new(get_shared_renet_config());
 
