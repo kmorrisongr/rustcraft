@@ -242,15 +242,13 @@ pub fn establish_authenticated_connection_to_server(
     mut world_seed: ResMut<shared::world::WorldSeed>,
 ) {
     if target.session_token.is_some() {
+        let Some(username) = target.username.as_ref() else {
+            error!("{USERNAME_MISSING_AUTHENTICATED_ERROR}");
+            return;
+        };
         info!(
             "Successfully acquired a session token as {}",
-            match target.username.as_ref() {
-                Some(username) => username,
-                None => {
-                    error!("{USERNAME_MISSING_AUTHENTICATED_ERROR}");
-                    return;
-                }
-            }
+            username
         );
         return;
     }
@@ -260,12 +258,9 @@ pub fn establish_authenticated_connection_to_server(
             target.username = Some(current_profile.into_inner().name.clone());
         }
 
-        let username = match target.username.as_ref() {
-            Some(username) => username,
-            None => {
-                error!("{USERNAME_MISSING_CONNECTION_ERROR}");
-                return;
-            }
+        let Some(username) = target.username.as_ref() else {
+            error!("{USERNAME_MISSING_CONNECTION_ERROR}");
+            return;
         };
 
         let auth_msg = AuthRegisterRequest {
