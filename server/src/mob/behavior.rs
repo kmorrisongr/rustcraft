@@ -47,19 +47,9 @@ fn attempt_movement_with_avoidance(
         return;
     }
 
-    if !try_move(
-        body,
-        chunks,
-        Vec3::new(displacement.x, 0.0, 0.0),
-        true,
-    ) {
+    if !try_move(body, chunks, Vec3::new(displacement.x, 0.0, 0.0), true) {
         body.velocity.x = displacement.x;
-    } else if !try_move(
-        body,
-        chunks,
-        Vec3::new(0.0, 0.0, displacement.z),
-        true,
-    ) {
+    } else if !try_move(body, chunks, Vec3::new(0.0, 0.0, displacement.z), true) {
         body.velocity.z = displacement.z;
     } else {
         body.velocity.y += JUMP_VELOCITY * delta;
