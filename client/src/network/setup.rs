@@ -4,7 +4,11 @@ use bevy_renet::netcode::{
 };
 use bevy_renet::{renet::RenetClient, RenetClientPlugin};
 use rand::Rng;
-use shared::constants::DEFAULT_RENDER_DISTANCE;
+use shared::constants::{
+    DEFAULT_RENDER_DISTANCE, NETCODE_CLIENT_TRANSPORT_ERROR, SOCKET_BIND_ERROR,
+    SOCKET_LOCAL_ADDR_ERROR, TARGET_SERVER_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR,
+    USERNAME_MISSING_AUTHENTICATED_ERROR, USERNAME_MISSING_CONNECTION_ERROR,
+};
 use shared::messages::mob::MobUpdateEvent;
 use shared::{get_shared_renet_config, GameServerConfig, STC_AUTH_CHANNEL};
 
@@ -113,7 +117,9 @@ pub fn launch_local_server_system(
 
         let socket =
             server::acquire_local_ephemeral_udp_socket(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-        let addr = socket.local_addr().unwrap();
+        let addr = socket
+            .local_addr()
+            .expect(SOCKET_LOCAL_ADDR_ERROR);
         debug!("Obtained UDP socket: {}", addr);
 
         let world_name_clone = world_name.clone();
@@ -165,7 +171,7 @@ pub fn init_server_connection(
     target: Res<TargetServer>,
     current_player_id: Res<CurrentPlayerProfile>,
 ) {
-    let addr = target.address.unwrap();
+    let addr = target.address.expect(TARGET_SERVER_ADDR_ERROR);
     let id = current_player_id.into_inner().id;
     commands.queue(move |world: &mut World| {
         world.remove_resource::<RenetClient>();
@@ -187,11 +193,12 @@ pub fn init_server_connection(
             addr, authentication
         );
 
-        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+        let socket = UdpSocket::bind("0.0.0.0:0").expect(SOCKET_BIND_ERROR);
         let current_time = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap();
-        let transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
+            .expect(UNIX_EPOCH_TIME_ERROR);
+        let transport = NetcodeClientTransport::new(current_time, authentication, socket)
+            .expect(NETCODE_CLIENT_TRANSPORT_ERROR);
 
         world.insert_resource(transport);
 
@@ -218,7 +225,10 @@ pub fn establish_authenticated_connection_to_server(
     if target.session_token.is_some() {
         info!(
             "Successfully acquired a session token as {}",
-            &target.username.clone().unwrap()
+            target
+                .username
+                .as_ref()
+                .expect(USERNAME_MISSING_AUTHENTICATED_ERROR)
         );
         return;
     }
@@ -228,7 +238,10 @@ pub fn establish_authenticated_connection_to_server(
             target.username = Some(current_profile.into_inner().name.clone());
         }
 
-        let username = target.username.as_ref().unwrap();
+        let username = target
+            .username
+            .as_ref()
+            .expect(USERNAME_MISSING_CONNECTION_ERROR);
 
         let auth_msg = AuthRegisterRequest {
             username: username.clone(),

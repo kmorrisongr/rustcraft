@@ -17,8 +17,11 @@ use bevy_renet::{
 };
 use serde::{Deserialize, Serialize};
 use shared::{
-    get_shared_renet_config,
-    messages::PlayerId,
+    constants::{
+        NETCODE_SERVER_TRANSPORT_ERROR, SOCKET_BIND_ERROR, SOCKET_LOCAL_ADDR_ERROR,
+        UNIX_EPOCH_TIME_ERROR,
+    },
+    get_shared_renet_config, messages::PlayerId,
     world::{ServerChunkWorldMap, ServerWorldMap},
     GameFolderPaths, GameServerConfig, TICKS_PER_SECOND,
 };
@@ -56,7 +59,7 @@ pub fn acquire_local_ephemeral_udp_socket(ip: IpAddr) -> UdpSocket {
 
 pub fn acquire_socket_by_port(ip: IpAddr, port: u16) -> UdpSocket {
     let addr = SocketAddr::new(ip, port);
-    UdpSocket::bind(addr).unwrap()
+    UdpSocket::bind(addr).expect(SOCKET_BIND_ERROR)
 }
 
 pub fn add_netcode_network(app: &mut App, socket: UdpSocket) {
@@ -64,11 +67,13 @@ pub fn add_netcode_network(app: &mut App, socket: UdpSocket) {
 
     let server = RenetServer::new(get_shared_renet_config());
 
-    let granted_addr = &socket.local_addr().unwrap();
+    let granted_addr = &socket
+        .local_addr()
+        .expect(SOCKET_LOCAL_ADDR_ERROR);
 
     let current_time: Duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap();
+        .expect(UNIX_EPOCH_TIME_ERROR);
     let server_config = ServerConfig {
         current_time,
         max_clients: 64,
@@ -77,7 +82,8 @@ pub fn add_netcode_network(app: &mut App, socket: UdpSocket) {
         authentication: ServerAuthentication::Unsecure,
     };
 
-    let transport = NetcodeServerTransport::new(server_config, socket).unwrap();
+    let transport = NetcodeServerTransport::new(server_config, socket)
+        .expect(NETCODE_SERVER_TRANSPORT_ERROR);
     app.insert_resource(server);
     app.insert_resource(transport);
 }
@@ -102,7 +108,12 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
 
     app.insert_resource(config);
 
-    info!("Starting server on {}", socket.local_addr().unwrap());
+    info!(
+        "Starting server on {}",
+        socket
+            .local_addr()
+            .expect(SOCKET_LOCAL_ADDR_ERROR)
+    );
 
     add_netcode_network(&mut app, socket);
 
