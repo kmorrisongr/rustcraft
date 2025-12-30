@@ -83,19 +83,26 @@ impl LodLevel {
         }
     }
     
-    /// Calculate LOD level from chunk distance to player
-    pub fn from_distance(chunk_distance_sq: i32, render_distance: i32) -> Self {
-        let rd_sq = render_distance * render_distance;
-        let lod1_threshold = (render_distance as f32 * 1.0).powi(2) as i32;
+    /// Calculate LOD level from squared chunk distance to player
+    // Distances are squared to avoid sqrt; thresholds must be squared too.
+    /// Uses two thresholds: LOD0 ≤ rd, LOD1 between rd and lod1, else cull/unload.
+    pub fn from_distance(chunk_distance_sq: i32, lod0_distance: i32, lod1_distance: i32) -> Self {
+        let lod0_sq = lod0_distance * lod0_distance;
+        let lod1_sq = lod1_distance * lod1_distance;
         
-        if chunk_distance_sq <= lod1_threshold {
+        if chunk_distance_sq <= lod0_sq {
             LodLevel::Lod0
+        } else if chunk_distance_sq <= lod1_sq {
+            LodLevel::Lod1
         } else {
+            // Caller should unload/cull beyond lod1 distance
             LodLevel::Lod1
         }
     }
 }
 ```
+
+Distances use squared metrics (no sqrt); thresholds must be squared as well. Chunks beyond `lod1_distance` should be culled or unloaded by the caller once this function returns the fallback branch.
 
 #### 1.2 Extend Render Distance Configuration
 
@@ -181,6 +188,8 @@ impl Default for ClientChunk {
 }
 ```
 
+If stretched textures look blurry at distance, tile UVs by scaling them with `scale` instead of reusing the base range.
+
 ---
 
 ### Stage 2: LOD Meshing
@@ -190,7 +199,7 @@ impl Default for ClientChunk {
 
 #### 2.1 LOD Mesh Generation Function
 
-The core insight is that LOD meshing samples blocks at intervals determined by the LOD level's block scale. For LOD 1 (scale=2), we sample every 2nd block in each dimension.
+The core insight is that LOD meshing samples blocks at intervals determined by the LOD level's block scale. For LOD 1 (scale=2), we sample every 2nd block in each dimension. Assumes `CHUNK_SIZE` is divisible by the LOD scale (16 works for 2 and future 4).
 
 **File**: `client/src/world/rendering/meshing.rs`
 
@@ -309,6 +318,7 @@ pub(crate) fn generate_chunk_mesh_lod(
     let mut solid_mesh = build_mesh(&solid_mesh_creator);
     
     if should_return_solid {
+        // Optional: skip tangents for LOD>0 to save CPU if distant materials do not need normal maps
         if let Err(e) = solid_mesh.generate_tangents() {
             warn!("Error generating tangents for LOD mesh: {:?}", e);
         }
@@ -322,7 +332,8 @@ pub(crate) fn generate_chunk_mesh_lod(
 }
 
 /// Get the representative block for an LOD cell
-/// Returns the most "significant" solid block in the cell, or None if all air
+/// Returns the most "significant" solid block in the cell, or None if all air.
+/// This can smear tall/vertical features (e.g., trees) at LOD1; acceptable for distant silhouette, otherwise bias to topmost solid block in a follow-up.
 fn get_representative_block(chunk: &ClientChunk, base_pos: &IVec3, scale: i32) -> Option<BlockData> {
     // Priority: solid blocks > transparent > liquid > decoration > air
     let mut best_block: Option<BlockData> = None;
@@ -352,7 +363,7 @@ fn get_representative_block(chunk: &ClientChunk, base_pos: &IVec3, scale: i32) -
     best_block
 }
 
-/// Check if an LOD block is surrounded (at LOD scale)
+/// Check if an LOD block is surrounded (at LOD scale). Uses scaled offsets intentionally, ignoring sub-cell detail to avoid leaks between LOD cells.
 fn is_lod_block_surrounded(
     world_map: &ClientWorldMap,
     global_block_pos: &IVec3,
@@ -455,7 +466,7 @@ fn render_face_scaled(
     }
     local_colors.extend(new_colors);
     
-    // UVs remain the same - we tile the texture across the larger face
+    // UVs remain the same - this stretches the texture over the larger face
     local_uvs.extend(face.uvs.iter().map(|uv| {
         [
             (uv[0] + uv_coords.u0 + 0.001).min(uv_coords.u1 - 0.001),
@@ -516,6 +527,7 @@ pub fn world_render_system(
             let lod_level = LodLevel::from_distance(
                 chunk_distance_sq,
                 render_distance.lod0_distance(),
+                render_distance.lod1_distance(),
             );
             
             // Check if LOD level changed (requires re-mesh)
@@ -545,6 +557,8 @@ pub fn world_render_system(
     // ... rest of existing code ...
 }
 ```
+
+When applying a completed mesh, set `chunk.current_lod = task.lod_level` to prevent remesh thrashing as the player moves.
 
 ---
 
@@ -599,10 +613,11 @@ pub fn lod_transition_system(
     ));
     
     let lod0_dist = render_distance.lod0_distance();
+    let lod1_dist = render_distance.lod1_distance();
     
     for (chunk_pos, chunk) in world_map.map.iter() {
         let distance_sq = chunk_pos.distance_squared(player_chunk);
-        let expected_lod = LodLevel::from_distance(distance_sq, lod0_dist);
+        let expected_lod = LodLevel::from_distance(distance_sq, lod0_dist, lod1_dist);
         
         if expected_lod != chunk.current_lod {
             render_events.send(WorldRenderRequestUpdateEvent::ChunkToReload(*chunk_pos));
@@ -640,14 +655,14 @@ The server must also be informed about the extended render distance to send chun
 
 **File**: `server/src/world/broadcast_world.rs`
 
-The server should use the total effective render distance when determining which chunks to send:
+The server should use the total effective render distance when determining which chunks to send (match `LOD1_DISTANCE_MULTIPLIER` so the band ends at 1.5× RD):
 
 ```rust
 // In broadcast_world_state, update the render distance calculation
 let effective_render_distance = (config.broadcast_render_distance as f32 * 1.5) as i32;
 ```
 
-Alternatively, the client could request the LOD 1 distance in the authentication handshake.
+Alternatively, the client could request the LOD 1 distance in the authentication handshake and the server can respect that negotiated distance.
 
 ---
 
