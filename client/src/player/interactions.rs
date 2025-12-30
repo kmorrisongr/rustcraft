@@ -3,6 +3,7 @@ use crate::network::buffered_client::CurrentFrameInputs;
 use crate::ui::hud::UIMode;
 use crate::world::ClientWorldMap;
 use bevy::color::palettes::css::WHITE;
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use shared::messages::NetworkAction;
 use shared::players::blocks::{simulate_player_block_interactions, CallerType};
@@ -11,28 +12,45 @@ use shared::world::raycast;
 
 use super::CurrentPlayerMarker;
 
+#[derive(SystemParam)]
+pub struct PlayerInteractionQueries<'w, 's> {
+    player_query: Query<'w, 's, &'static mut Player, With<CurrentPlayerMarker>>,
+    p_transform: Query<'w, 's, &'static mut Transform, With<CurrentPlayerMarker>>,
+    camera_query: Query<'w, 's, &'static Transform, (With<Camera>, Without<CurrentPlayerMarker>)>,
+    mob_query: Query<'w, 's, &'static MobMarker>,
+}
+
+#[derive(SystemParam)]
+pub struct PlayerInteractionResources<'w> {
+    world_map: ResMut<'w, ClientWorldMap>,
+    mouse_input: Res<'w, ButtonInput<MouseButton>>,
+    ui_mode: Res<'w, UIMode>,
+    view_mode: Res<'w, ViewMode>,
+    targeted_mob: ResMut<'w, TargetedMob>,
+    frame_inputs: ResMut<'w, CurrentFrameInputs>,
+}
+
 // Function to handle block placement and breaking
 pub fn handle_block_interactions(
-    queries: (
-        Query<&mut Player, With<CurrentPlayerMarker>>,
-        Query<&mut Transform, With<CurrentPlayerMarker>>,
-        Query<&Transform, (With<Camera>, Without<CurrentPlayerMarker>)>,
-        Query<&MobMarker>,
-    ),
-    resources: (
-        ResMut<ClientWorldMap>,
-        Res<ButtonInput<MouseButton>>,
-        Res<UIMode>,
-        Res<ViewMode>,
-        ResMut<TargetedMob>,
-        ResMut<CurrentFrameInputs>,
-    ),
+    queries: PlayerInteractionQueries,
+    resources: PlayerInteractionResources,
     mut ray_cast: MeshRayCast,
     mut gizmos: Gizmos,
 ) {
-    let (mut player_query, p_transform, camera_query, mob_query) = queries;
-    let (world_map, mouse_input, ui_mode, view_mode, mut targeted_mob, mut frame_inputs) =
-        resources;
+    let PlayerInteractionQueries {
+        mut player_query,
+        p_transform,
+        camera_query,
+        mob_query,
+    } = queries;
+    let PlayerInteractionResources {
+        world_map,
+        mouse_input,
+        ui_mode,
+        view_mode,
+        mut targeted_mob,
+        mut frame_inputs,
+    } = resources;
 
     let mut player = player_query.single_mut().unwrap();
 
