@@ -9,6 +9,20 @@ use shared::{
     world::{MobAction, MobTarget, ServerChunkWorldMap, ServerWorldMap},
 };
 
+/// Attempts to move a mob toward `displacement` while avoiding obstacles.
+///
+/// Strategy:
+/// 1. Try the full (typically diagonal) displacement; if blocked, fall back.
+/// 2. If grounded with prior horizontal velocity, jump to clear the obstacle.
+/// 3. Otherwise, try per-axis moves (x first, then z) before performing a jump fallback.
+///
+/// - `body`: Mutable physics state to mutate with movement/jump outcomes.
+/// - `chunks`: World chunk map used by `try_move` for collision checks.
+/// - `displacement`: Intended horizontal step (already scaled by speed).
+/// - `delta`: Fixed timestep seconds; used when adding jump velocity.
+///
+/// `try_move` returns `true` when movement is blocked and `false` when it succeeds;
+/// this helper does not return a value but mutates `body` to reflect the final action taken.
 fn attempt_movement_with_avoidance(
     body: &mut PhysicsBody,
     chunks: &ServerChunkWorldMap,
