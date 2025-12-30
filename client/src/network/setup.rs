@@ -4,7 +4,11 @@ use bevy_renet::netcode::{
 };
 use bevy_renet::{renet::RenetClient, RenetClientPlugin};
 use rand::Rng;
-use shared::constants::DEFAULT_RENDER_DISTANCE;
+use shared::constants::{
+    DEFAULT_RENDER_DISTANCE, NETCODE_CLIENT_TRANSPORT_ERROR, SOCKET_BIND_ERROR,
+    SOCKET_LOCAL_ADDR_ERROR, TARGET_SERVER_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR,
+    USERNAME_MISSING_AUTHENTICATED_ERROR,
+};
 use shared::messages::mob::MobUpdateEvent;
 use shared::{get_shared_renet_config, GameServerConfig, STC_AUTH_CHANNEL};
 
@@ -111,9 +115,19 @@ pub fn launch_local_server_system(
     if let Some(world_name) = &selected_world.name {
         info!("Launching local server with world: {}", world_name);
 
-        let socket =
-            server::acquire_local_ephemeral_udp_socket(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-        let addr = socket.local_addr().unwrap();
+        let socket = match server::acquire_local_ephemeral_udp_socket(IpAddr::V4(Ipv4Addr::new(
+            127, 0, 0, 1,
+        ))) {
+            Ok(socket) => socket,
+            Err(err) => {
+                error!("{}: {err}", SOCKET_BIND_ERROR);
+                return;
+            }
+        };
+        let Ok(addr) = socket.local_addr() else {
+            error!("{}", SOCKET_LOCAL_ADDR_ERROR);
+            return;
+        };
         debug!("Obtained UDP socket: {}", addr);
 
         let world_name_clone = world_name.clone();
@@ -165,15 +179,15 @@ pub fn init_server_connection(
     target: Res<TargetServer>,
     current_player_id: Res<CurrentPlayerProfile>,
 ) {
-    let addr = target.address.unwrap();
+    let Some(addr) = target.address else {
+        error!("{TARGET_SERVER_ADDR_ERROR}");
+        return;
+    };
     let id = current_player_id.into_inner().id;
     commands.queue(move |world: &mut World| {
         world.remove_resource::<RenetClient>();
         world.remove_resource::<NetcodeClientTransport>();
         world.remove_resource::<CachedChatConversation>();
-
-        let client = RenetClient::new(get_shared_renet_config());
-        world.insert_resource(client);
 
         let authentication = ClientAuthentication::Unsecure {
             server_addr: addr,
@@ -187,12 +201,30 @@ pub fn init_server_connection(
             addr, authentication
         );
 
-        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-        let current_time = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap();
-        let transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
+        let socket = match UdpSocket::bind("0.0.0.0:0") {
+            Ok(socket) => socket,
+            Err(err) => {
+                error!("{}: {err}", SOCKET_BIND_ERROR);
+                return;
+            }
+        };
+        let current_time = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(time) => time,
+            Err(err) => {
+                error!("{}: {err}", UNIX_EPOCH_TIME_ERROR);
+                return;
+            }
+        };
+        let transport = match NetcodeClientTransport::new(current_time, authentication, socket) {
+            Ok(transport) => transport,
+            Err(err) => {
+                error!("{}: {err}", NETCODE_CLIENT_TRANSPORT_ERROR);
+                return;
+            }
+        };
 
+        let client = RenetClient::new(get_shared_renet_config());
+        world.insert_resource(client);
         world.insert_resource(transport);
 
         world.insert_resource(CachedChatConversation { ..default() });
@@ -216,10 +248,11 @@ pub fn establish_authenticated_connection_to_server(
     mut world_seed: ResMut<shared::world::WorldSeed>,
 ) {
     if target.session_token.is_some() {
-        info!(
-            "Successfully acquired a session token as {}",
-            &target.username.clone().unwrap()
-        );
+        let Some(username) = target.username.as_ref() else {
+            error!("{USERNAME_MISSING_AUTHENTICATED_ERROR}");
+            return;
+        };
+        info!("Successfully acquired a session token as {}", username);
         return;
     }
 

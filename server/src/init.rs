@@ -17,13 +17,14 @@ use bevy_renet::{
 };
 use serde::{Deserialize, Serialize};
 use shared::{
+    constants::{NETCODE_SERVER_TRANSPORT_ERROR, SOCKET_LOCAL_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR},
     get_shared_renet_config,
     messages::PlayerId,
     world::{ServerChunkWorldMap, ServerWorldMap},
     GameFolderPaths, GameServerConfig, TICKS_PER_SECOND,
 };
-use std::fmt::Debug;
-use std::time::{Duration, SystemTime};
+use std::fmt::{Debug, Display, Formatter};
+use std::time::{Duration, SystemTime, SystemTimeError};
 use std::{collections::HashMap, net::IpAddr};
 
 use std::net::{SocketAddr, UdpSocket};
@@ -49,40 +50,68 @@ pub struct ServerLobby {
     pub players: HashMap<PlayerId, LobbyPlayer>,
 }
 
+#[derive(Debug)]
+pub(crate) enum NetcodeSetupError {
+    SocketAddr(std::io::Error),
+    Time(SystemTimeError),
+    Transport(String),
+}
+
+impl Display for NetcodeSetupError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NetcodeSetupError::SocketAddr(err) => write!(f, "{}: {err}", SOCKET_LOCAL_ADDR_ERROR),
+            NetcodeSetupError::Time(err) => write!(f, "{}: {err}", UNIX_EPOCH_TIME_ERROR),
+            NetcodeSetupError::Transport(err) => {
+                write!(f, "{}: {err}", NETCODE_SERVER_TRANSPORT_ERROR)
+            }
+        }
+    }
+}
+
 #[allow(dead_code)]
-pub fn acquire_local_ephemeral_udp_socket(ip: IpAddr) -> UdpSocket {
+pub fn acquire_local_ephemeral_udp_socket(ip: IpAddr) -> std::io::Result<UdpSocket> {
     acquire_socket_by_port(ip, 0)
 }
 
-pub fn acquire_socket_by_port(ip: IpAddr, port: u16) -> UdpSocket {
+pub fn acquire_socket_by_port(ip: IpAddr, port: u16) -> std::io::Result<UdpSocket> {
     let addr = SocketAddr::new(ip, port);
-    UdpSocket::bind(addr).unwrap()
+    UdpSocket::bind(addr)
 }
 
-pub fn add_netcode_network(app: &mut App, socket: UdpSocket) {
-    app.add_plugins(NetcodeServerPlugin);
-
-    let server = RenetServer::new(get_shared_renet_config());
-
-    let granted_addr = &socket.local_addr().unwrap();
+pub fn add_netcode_network(
+    socket: UdpSocket,
+) -> Result<(RenetServer, NetcodeServerTransport, SocketAddr), NetcodeSetupError> {
+    let granted_addr: SocketAddr = socket.local_addr().map_err(NetcodeSetupError::SocketAddr)?;
 
     let current_time: Duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap();
+        .map_err(NetcodeSetupError::Time)?;
     let server_config = ServerConfig {
         current_time,
         max_clients: 64,
         protocol_id: shared::PROTOCOL_ID,
-        public_addresses: vec![*granted_addr],
+        public_addresses: vec![granted_addr],
         authentication: ServerAuthentication::Unsecure,
     };
 
-    let transport = NetcodeServerTransport::new(server_config, socket).unwrap();
-    app.insert_resource(server);
-    app.insert_resource(transport);
+    let transport: NetcodeServerTransport = NetcodeServerTransport::new(server_config, socket)
+        .map_err(|err| NetcodeSetupError::Transport(err.to_string()))?;
+
+    let server = RenetServer::new(get_shared_renet_config());
+
+    Ok((server, transport, granted_addr))
 }
 
 pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: GameFolderPaths) {
+    let (server, transport, addr) = match add_netcode_network(socket) {
+        Ok(data) => data,
+        Err(err) => {
+            error!("{err}");
+            return;
+        }
+    };
+
     let mut app = App::new();
     app.add_plugins(
         MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
@@ -102,9 +131,11 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
 
     app.insert_resource(config);
 
-    info!("Starting server on {}", socket.local_addr().unwrap());
+    info!("Starting server on {}", addr);
 
-    add_netcode_network(&mut app, socket);
+    app.add_plugins(NetcodeServerPlugin);
+    app.insert_resource(server);
+    app.insert_resource(transport);
 
     setup_resources_and_events(&mut app);
 
