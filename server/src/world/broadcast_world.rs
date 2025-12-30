@@ -28,7 +28,7 @@ const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
 const FORWARD_DOT_THRESHOLD: f32 = -0.3;
 
 /// Hard culling threshold for chunks behind the player.
-/// -0.7 (~134° half-angle from forward, ~268° total viewing angle) keeps a buffer to prevent visible pop-in.
+/// -0.7 (~134° half-angle, ~268° full cone) keeps a buffer to prevent visible pop-in.
 const CULL_DOT_THRESHOLD: f32 = -0.7;
 
 /// Always include chunks in a small radius around the player to avoid spawn/teleport pop-in.
