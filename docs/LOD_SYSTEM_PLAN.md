@@ -53,7 +53,7 @@ The LOD system is implemented **entirely client-side** in the meshing pipeline. 
 ## Phase 1: LOD Infrastructure
 > **Effort**: Low (~20 min) | **Impact**: None (foundation only) | **Prerequisite**: None
 
-This phase adds the data structures and helper methods needed by later phases. No user-visible changes, but these additions are safe to merge independently.
+This phase adds the data structures and helper methods needed by later phases. No user-visible changes, but these additions are safe to merge independently. Deliverables in this phase: `LodLevel` enum, render-distance helpers (lod0/lod1 thresholds), and `current_lod` on `ClientChunk`. While here, fix the two pre-existing correctness/perf issues (Arc cloning and distance typing) and add a simple memory readout so later phases have observability.
 
 ### Prerequisites / Standalone Fixes
 
@@ -74,12 +74,12 @@ let map_ptr = Arc::new(world_map.clone());
 
 **Severity**: High — Could negate all LOD performance gains
 
-**Mitigation**:
-- Consider storing `Arc<ClientWorldMap>` as the resource type
-- Only clone when the map has actually changed (use a dirty flag)
-- Or: Batch LOD remesh requests to minimize clone frequency
+**Mitigation (pick one)**
+- Store `Arc<ClientWorldMap>` as the resource type, or
+- Clone only on dirty map (dirty flag), or
+- Batch LOD remesh requests to reduce clone frequency
 
-**Verification**: Profile `world_render_system` with LOD enabled; clone time should be < 1ms
+**Verification**: `world_render_system` clone time < 1ms with LOD enabled
 
 ---
 
@@ -91,8 +91,8 @@ let map_ptr = Arc::new(world_map.clone());
 
 **Severity**: Low — Only affects edge cases at extreme coordinates
 
-**Mitigation**:
-- Use consistent types throughout (recommend `i32` since positions are signed)
+**Mitigation**
+- Use `i32` consistently for positions/distances
 - Add explicit casts with overflow checks in debug builds
 
 ---
@@ -105,11 +105,11 @@ let map_ptr = Arc::new(world_map.clone());
 
 **Severity**: Medium — May make game unplayable on some systems
 
-**Mitigation**:
-- Consider storing LOD 1 chunks in a separate, more compact format
-- Add config option to disable LOD for low-memory systems
-- Implement chunk unloading for chunks beyond `lod1_distance`
-- Monitor memory in F3 debug overlay
+**Mitigation**
+- Consider a compact format for LOD 1 chunks
+- Add a config flag to disable LOD on low-memory systems
+- Unload chunks beyond `lod1_distance`
+- Add F3 memory readout early
 
 **Verification**: Check memory usage with `top`/Activity Monitor at max render distance
 
@@ -207,7 +207,7 @@ pub struct ClientChunk {
 ## Phase 2: LOD Meshing
 > **Effort**: Medium (~45 min) | **Impact**: High | **Prerequisite**: Phase 1
 
-This phase implements the core LOD mesh generation. After this phase, the codebase *can* generate LOD meshes, but they won't be used until Phase 3 wires them into the render system.
+This phase implements the core LOD mesh generation. After this phase, the codebase can generate LOD meshes, but they are not yet plugged into rendering. Scope: mirror `generate_chunk_mesh` with a `scale` parameter, add scaled variants of face-culling helpers, and enforce chunk-size divisibility plus boundary safety when sampling.
 
 ### Gotchas to Address in This Phase
 
@@ -223,7 +223,7 @@ for lod_x in 0..(CHUNK_SIZE / scale) { ... }
 
 **Severity**: High — Will cause visible rendering artifacts (missing blocks at chunk edges, visible gaps)
 
-**Mitigation**:
+**Mitigation**
 - Assert `CHUNK_SIZE % scale == 0` at compile time
 - Current `CHUNK_SIZE=16` is safe for scale=2, but document this constraint
 - Add a static assertion:
@@ -244,9 +244,9 @@ for lod_x in 0..(CHUNK_SIZE / scale) { ... }
 
 **Severity**: High — Will cause visible seams at every chunk boundary (holes, z-fighting)
 
-**Mitigation**:
-- Always render faces at chunk boundaries (conservative approach)
-- Or: When neighbor chunk has different LOD, fall back to "render face"
+**Mitigation**
+- Always render faces at chunk boundaries (conservative)
+- If neighbor chunk is missing/different LOD, render the face
 - Add boundary check before cross-chunk neighbor lookup:
   ```rust
   fn is_at_chunk_boundary(local_pos: IVec3, scale: i32) -> bool {
@@ -266,10 +266,10 @@ for lod_x in 0..(CHUNK_SIZE / scale) { ... }
 
 **Severity**: Low-Medium — Console spam, subtle lighting artifacts on LOD 1 chunks
 
-**Mitigation**:
-- Ensure LOD meshes either have valid tangent data OR use a material that doesn't require tangents
-- If skipping tangents, ensure normal mapping is also disabled for LOD materials
-- Consider a separate material for LOD chunks without normal maps
+**Mitigation**
+- Either generate tangents for LOD meshes or use a material that ignores them
+- If skipping tangents, also disable normal mapping on LOD materials
+- A separate material for LOD chunks is acceptable
 
 **Verification**: Check console for tangent-related warnings with LOD chunks
 
@@ -361,7 +361,7 @@ local_vertices.extend(face.vertices.iter().map(|v| {
 ## Phase 3: Render System Integration
 > **Effort**: Medium (~30 min) | **Impact**: High | **Prerequisite**: Phase 2
 
-This phase wires LOD meshing into the render pipeline.
+This phase wires LOD meshing into the render pipeline. Scope: carry LOD level through meshing tasks and chunk state, pick LOD via squared-distance thresholds consistent with existing sorting, and keep the meshing priority order based on squared distances.
 
 ### Gotchas to Address in This Phase
 
@@ -371,9 +371,9 @@ This phase wires LOD meshing into the render pipeline.
 
 **Severity**: Low — May cause minor LOD boundary irregularities
 
-**Mitigation**:
+**Mitigation**
 - Use squared distances consistently for both comparison and thresholds
-- Document that LOD boundaries are "squared distance" based, creating slightly circular (not square) boundaries
+- Document that LOD boundaries are "squared distance" based (slightly circular boundaries)
 
 ---
 
@@ -412,7 +412,7 @@ chunk.current_lod = task.lod_level;
 ## Phase 4: LOD Transition System
 > **Effort**: Low (~20 min) | **Impact**: Medium | **Prerequisite**: Phase 3
 
-Adds automatic LOD transitions as the player moves. Without this, chunks only get their LOD level set on initial load.
+Adds automatic LOD transitions as the player moves. Without this, chunks only get their LOD level set on initial load. Scope: periodic LOD checks with hysteresis and cooldown, remesh only when expected LOD differs from current, and rely on Bevy `Timer` to avoid drift.
 
 ### Gotchas to Address in This Phase
 
@@ -424,7 +424,7 @@ Adds automatic LOD transitions as the player moves. Without this, chunks only ge
 
 **Severity**: Medium — FPS drops when walking near LOD boundaries, visual flickering
 
-**Mitigation**:
+**Mitigation**
 - Add hysteresis to LOD transitions (different thresholds for upgrade vs downgrade):
   ```rust
   const LOD_HYSTERESIS: f32 = 0.1; // 10% buffer
@@ -445,7 +445,7 @@ Adds automatic LOD transitions as the player moves. Without this, chunks only ge
 
 **Severity**: Low — Negligible gameplay impact
 
-**Mitigation**: Use Bevy's built-in `Timer` resource which handles this correctly:
+**Mitigation**: Use Bevy's built-in `Timer` resource:
 ```rust
 #[derive(Resource)]
 struct LodCheckTimer(Timer);
@@ -498,7 +498,7 @@ pub fn lod_transition_system(
 ## Phase 5: Server Broadcast Distance
 > **Effort**: Low (~5 min) | **Impact**: High | **Prerequisite**: Phase 3
 
-Without this phase, the server only sends chunks within the original render distance—LOD 1 zones will be empty.
+Without this phase, the server only sends chunks within the original render distance—LOD 1 zones will be empty. Scope: increase broadcast radius to cover the LOD 1 zone, keep chunk-per-tick limits sane (throttle LOD 1 preferentially), and ensure the multiplier matches client config.
 
 ### Gotchas to Address in This Phase
 
