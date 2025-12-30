@@ -27,6 +27,10 @@ const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
 /// This ensures chunks slightly behind the player are still prioritized.
 const FORWARD_DOT_THRESHOLD: f32 = -0.3;
 
+/// Hard culling threshold for chunks behind the player.
+/// -0.7 (~135° from forward) keeps a buffer to prevent visible pop-in.
+const CULL_DOT_THRESHOLD: f32 = -0.7;
+
 /// Multiplier for view direction bias when chunks are in front of the player.
 /// A value of 500.0 creates a smooth falloff for peripheral chunks,
 /// balancing between distance and view direction importance.
@@ -216,10 +220,20 @@ fn get_items_stacks() -> Vec<ItemStackUpdateEvent> {
 /// up to max_chunks.
 fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize) -> Vec<IVec3> {
     let player_chunk_pos = world_position_to_chunk_position(player.position);
-    let mut chunks = get_player_nearby_chunks_coords(player_chunk_pos, radius);
-
-    // Prioritize chunks based on player's view direction
     let forward = player.camera_transform.forward();
+
+    let mut chunks: Vec<IVec3> = get_player_nearby_chunks_coords(player_chunk_pos, radius)
+        .into_iter()
+        .filter(|chunk_pos| {
+            let distance = (*chunk_pos - player_chunk_pos).abs();
+            if distance.x <= 2 && distance.y <= 2 && distance.z <= 2 {
+                return true;
+            }
+
+            let direction = (*chunk_pos - player_chunk_pos).as_vec3().normalize_or_zero();
+            forward.dot(direction) > CULL_DOT_THRESHOLD
+        })
+        .collect();
 
     let sort_count = chunks.len().min(max_chunks);
     if chunks.len() > 1 {
