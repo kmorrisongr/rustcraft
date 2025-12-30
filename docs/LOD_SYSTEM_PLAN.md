@@ -20,6 +20,22 @@ The LOD system extends the render distance by allowing chunks beyond the normal 
 
 ---
 
+## Implementation Phases
+
+This plan is organized into independent implementation phases. Each phase provides incremental value and can be merged separately. Complete phases in order for best results, though Phase 1 has no user-visible impact on its own.
+
+| Phase | Description | Effort | Impact | Prerequisite |
+|-------|-------------|--------|--------|--------------|
+| **1** | LOD Infrastructure | Low | None (foundation) | — |
+| **2** | LOD Meshing | Medium | High | Phase 1 |
+| **3** | Render Integration | Medium | High | Phase 2 |
+| **4** | LOD Transitions | Low | Medium | Phase 3 |
+| **5** | Server Broadcast | Low | High | Phase 3 |
+
+**Recommended MVP**: Phases 1–3 + 5 provide a working LOD system. Phase 4 adds polish.
+
+---
+
 ## Architecture Design
 
 ### Key Principle: Client-Side LOD Meshing
@@ -49,16 +65,19 @@ Server                              Client
 
 ---
 
-## Implementation
+## Phase 1: LOD Infrastructure
+> **Effort**: Low (~20 min) | **Impact**: None (foundation only) | **Prerequisite**: None
 
-### Stage 1: LOD Infrastructure
+This phase adds the data structures and helper methods needed by later phases. No user-visible changes, but these additions are safe to merge independently.
 
-**Files to modify/create**:
-- `shared/src/world/mod.rs` - Add LOD level enum
-- `client/src/world/rendering/render_distance.rs` - LOD distance configuration  
-- `client/src/world/data.rs` - Track LOD level per chunk
+### Existing Code to Leverage
 
-#### 1.1 Define LOD Level Enum
+| Component | Location | Reuse |
+|-----------|----------|-------|
+| `RenderDistance` resource | [render_distance.rs](../client/src/world/rendering/render_distance.rs) | Add helper methods |
+| `ClientChunk` struct | [data.rs](../client/src/world/data.rs) | Add `current_lod` field |
+
+### 1.1 Define LOD Level Enum
 
 **File**: `shared/src/world/mod.rs`
 
@@ -203,12 +222,24 @@ If stretched textures look blurry at distance, tile UVs by scaling them with `sc
 
 ---
 
-### Stage 2: LOD Meshing
+## Phase 2: LOD Meshing
+> **Effort**: Medium (~45 min) | **Impact**: High | **Prerequisite**: Phase 1
 
-**Files to modify**:
-- `client/src/world/rendering/meshing.rs` - Add LOD mesh generation
+This phase implements the core LOD mesh generation. After this phase, the codebase *can* generate LOD meshes, but they won't be used until Phase 3 wires them into the render system.
 
-#### 2.1 LOD Mesh Generation Function
+### Existing Code to Leverage
+
+| Component | Location | Reuse Strategy |
+|-----------|----------|----------------|
+| `generate_chunk_mesh()` | [meshing.rs#L50](../client/src/world/rendering/meshing.rs#L50) | Mirror structure, delegate for LOD 0 |
+| `MeshCreator` struct | [meshing.rs#L27](../client/src/world/rendering/meshing.rs#L27) | Use unchanged |
+| `build_mesh()` | [meshing.rs#L35](../client/src/world/rendering/meshing.rs#L35) | Use unchanged |
+| `is_block_surrounded()` | [meshing.rs#L172](../client/src/world/rendering/meshing.rs#L172) | Create scaled variant |
+| `should_render_face()` | [meshing.rs#L262](../client/src/world/rendering/meshing.rs#L262) | Create scaled variant |
+| `render_face()` | [meshing.rs#L224](../client/src/world/rendering/meshing.rs#L224) | Add `scale` parameter |
+| `VoxelShape` | [voxel.rs](../client/src/world/rendering/voxel.rs) | Use unchanged |
+
+### 2.1 LOD Mesh Generation Function
 
 The core insight is that LOD meshing samples blocks at intervals determined by the LOD level's block scale. For LOD 1 (scale=2), we sample every 2nd block in each dimension. Assumes `CHUNK_SIZE` is divisible by the LOD scale (16 works for 2 and future 4).
 
@@ -466,14 +497,37 @@ fn render_face_scaled(
 }
 ```
 
+### 2.2 Performance Optimization: Skip Tangents for LOD Meshes
+
+Distant chunks don't benefit from normal mapping. Skip tangent generation to save CPU:
+
+```rust
+// In generate_chunk_mesh_lod, after build_mesh():
+if should_return_solid && lod_level == LodLevel::Lod0 {
+    // Only generate tangents for full-detail meshes
+    if let Err(e) = solid_mesh.generate_tangents() {
+        warn!("Error generating tangents for LOD mesh: {:?}", e);
+    }
+}
+```
+
 ---
 
-### Stage 3: Render System Integration
+## Phase 3: Render System Integration
+> **Effort**: Medium (~30 min) | **Impact**: High | **Prerequisite**: Phase 2
 
-**Files to modify**:
-- `client/src/world/rendering/render.rs` - Use LOD in mesh generation
+This phase wires LOD meshing into the render pipeline. After this phase, chunks will render at the appropriate LOD level based on distance.
 
-#### 3.1 Update Mesh Generation to Use LOD
+### Existing Code to Leverage
+
+| Component | Location | Reuse Strategy |
+|-----------|----------|----------------|
+| `MeshingTask` struct | [render.rs#L27](../client/src/world/rendering/render.rs#L27) | Add `lod_level` field |
+| `world_render_system()` | [render.rs#L78](../client/src/world/rendering/render.rs#L78) | Add LOD calculation |
+| Distance sorting | [render.rs#L140](../client/src/world/rendering/render.rs#L140) | Already computes `distance_squared` |
+| `AsyncComputeTaskPool` | [render.rs#L100](../client/src/world/rendering/render.rs#L100) | Use unchanged |
+
+### 3.1 Update Mesh Generation to Use LOD
 
 The render system needs to:
 1. Calculate the LOD level for each chunk based on player distance
@@ -569,11 +623,24 @@ This prevents remesh thrashing as the player moves.
 
 ---
 
-### Stage 4: LOD Transition System
+## Phase 4: LOD Transition System
+> **Effort**: Low (~20 min) | **Impact**: Medium | **Prerequisite**: Phase 3
+
+This phase adds automatic LOD transitions as the player moves. Without this phase, chunks only get their LOD level set when first loaded or explicitly reloaded—moving toward/away from a chunk won't update its LOD.
+
+### Existing Code to Leverage
+
+| Component | Location | Reuse Strategy |
+|-----------|----------|----------------|
+| `WorldRenderRequestUpdateEvent` | [data.rs#L89](../client/src/world/data.rs#L89) | Emit to trigger remesh |
+| `CurrentPlayerMarker` | [player/mod.rs](../client/src/player/mod.rs) | Query for player position |
+| Bevy `Time` resource | Built-in | For timer-based checks |
+
+### 4.1 Create LOD Transition System
 
 **New file**: `client/src/world/rendering/lod_transitions.rs`
 
-This system is the **sole authority** for LOD-based remeshing. It periodically checks all loaded chunks and triggers re-meshing when their LOD level should change based on player movement. The render system (Stage 3) only responds to these events—it does not independently check for LOD changes.
+This system is the **sole authority** for LOD-based remeshing. It periodically checks all loaded chunks and triggers re-meshing when their LOD level should change based on player movement. The render system (Phase 3) only responds to these events—it does not independently check for LOD changes.
 
 ```rust
 use bevy::prelude::*;
@@ -635,14 +702,50 @@ pub fn lod_transition_system(
 
 ---
 
+## Phase 5: Server Broadcast Distance
+> **Effort**: Low (~5 min) | **Impact**: High | **Prerequisite**: Phase 3
+
+Without this phase, the server only sends chunks within the original render distance—LOD 1 zones will be empty. This is a critical piece for the system to function.
+
+### Existing Code to Leverage
+
+| Component | Location | Reuse Strategy |
+|-----------|----------|----------------|
+| `broadcast_render_distance` | [broadcast_world.rs#L156](../server/src/world/broadcast_world.rs#L156) | Multiply by LOD factor |
+| `get_world_map_chunks_to_send()` | [broadcast_world.rs#L153](../server/src/world/broadcast_world.rs#L153) | Use unchanged |
+
+### 5.1 Expand Server Broadcast Distance
+
+**File**: `server/src/world/broadcast_world.rs`
+
+```rust
+/// Must match LOD1_DISTANCE_MULTIPLIER in client render_distance.rs
+const SERVER_LOD1_MULTIPLIER: f32 = 1.5;
+
+// In broadcast_world_state or get_world_map_chunks_to_send:
+let effective_render_distance = (config.broadcast_render_distance as f32 * SERVER_LOD1_MULTIPLIER) as i32;
+```
+
+### Bandwidth Consideration
+
+Expanding broadcast to 1.5× render distance increases chunk volume by ~3.4× (sphere volume scales with r³). Consider:
+- Throttling LOD 1 chunk sends to lower priority
+- Sending LOD 1 chunks at reduced frequency
+- Adding a server config flag to disable extended broadcast
+
+**Future enhancement**: Negotiate LOD distance in the authentication handshake instead of hardcoding.
+
+---
+
 ## Configuration
 
 ### Constants Summary
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `LOD1_DISTANCE_MULTIPLIER` | 1.5 | LOD 1 extends from 1× to 1.5× render distance |
-| `LOD_CHECK_INTERVAL` | 0.5s | How often to check for LOD transitions |
+| Constant | Value | Location | Description |
+|----------|-------|----------|-------------|
+| `LOD1_DISTANCE_MULTIPLIER` | 1.5 | Client | LOD 1 extends from 1× to 1.5× render distance |
+| `LOD_CHECK_INTERVAL` | 0.5s | Client | How often to check for LOD transitions |
+| `SERVER_LOD1_MULTIPLIER` | 1.5 | Server | Must match client multiplier |
 
 ### Tuning Recommendations
 
@@ -653,24 +756,6 @@ pub fn lod_transition_system(
 2. **LOD_CHECK_INTERVAL**:
    - Lower values (0.1) = Smoother transitions, more CPU overhead
    - Higher values (1.0) = Less CPU, but transitions may be noticeable
-
----
-
-## Server Broadcast Distance
-
-The server must send chunks for the LOD 1 zone (up to 1.5× render distance).
-
-**File**: `server/src/world/broadcast_world.rs`
-
-```rust
-/// Must match LOD1_DISTANCE_MULTIPLIER in client render_distance.rs
-const SERVER_LOD1_MULTIPLIER: f32 = 1.5;
-
-// In broadcast_world_state, update the render distance calculation:
-let effective_render_distance = (config.broadcast_render_distance as f32 * SERVER_LOD1_MULTIPLIER) as i32;
-```
-
-**Future enhancement**: Negotiate LOD distance in the authentication handshake instead of hardcoding.
 
 ---
 
@@ -694,6 +779,20 @@ let effective_render_distance = (config.broadcast_render_distance as f32 * SERVE
 - [ ] Teleporting long distances handles LOD correctly
 - [ ] Chunks at exactly LOD boundary distance behave consistently
 
+---
+
+## Known Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| **Texture stretching** looks blurry on high-contrast blocks | Medium | Low | Acceptable at distance; can tile UVs if needed |
+| **LOD boundary seams** where LOD 0/1 chunks meet | Medium | Medium | Only visible at chunk edges; consider crossfade in future |
+| **Block interactions** on LOD 1 chunks confuse players | Low | Medium | Ensure raycast respects LOD 0 boundary |
+| **Memory spike** during LOD transitions | Low | Low | Current despawn-before-spawn pattern handles this |
+| **Server bandwidth** increase (~3.4× chunk volume) | High | Medium | Throttle LOD 1 sends; add server config flag |
+
+---
+
 ## Performance Expectations
 
 | Metric | LOD 0 Only | With LOD 1 |
@@ -707,8 +806,11 @@ let effective_render_distance = (config.broadcast_render_distance as f32 * SERVE
 
 ## Future Enhancements
 
-1. **LOD 2**: 4:1 scale for very distant terrain (2× to 3× RD)
-2. **Greedy Meshing for LOD**: Apply greedy meshing optimization to LOD meshes
-3. **Terrain-Only LOD**: Only render terrain blocks (no flora/decorations) at LOD 1+
-4. **Smooth Transitions**: Fade/blend between LOD levels to reduce pop-in
-5. **Configurable Per-Biome**: Different LOD settings for different biomes
+| Enhancement | Effort | Impact | Description |
+|-------------|--------|--------|-------------|
+| **LOD 2** | Medium | High | 4:1 scale for very distant terrain (2× to 3× RD) |
+| **Greedy Meshing for LOD** | High | Medium | Apply greedy meshing optimization to LOD meshes |
+| **Terrain-Only LOD** | Low | Medium | Only render terrain blocks (no flora/decorations) at LOD 1+ |
+| **Smooth Transitions** | High | Low | Fade/blend between LOD levels to reduce pop-in |
+| **Configurable Per-Biome** | Medium | Low | Different LOD settings for different biomes |
+| **Negotiate LOD in Auth** | Low | Medium | Client/server agree on LOD multiplier during handshake |
