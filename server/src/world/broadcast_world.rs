@@ -28,7 +28,7 @@ const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
 const FORWARD_DOT_THRESHOLD: f32 = -0.3;
 
 /// Hard culling threshold for chunks behind the player.
-/// -0.7 (~135° from forward) keeps a buffer to prevent visible pop-in.
+/// -0.7 (~134° half-angle from forward, ~268° total viewing angle) keeps a buffer to prevent visible pop-in.
 const CULL_DOT_THRESHOLD: f32 = -0.7;
 
 /// Always include chunks in a small radius around the player to avoid spawn/teleport pop-in.
@@ -228,15 +228,13 @@ fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize
     let mut chunks: Vec<IVec3> = get_player_nearby_chunks_coords(player_chunk_pos, radius)
         .into_iter()
         .filter(|chunk_pos| {
-            let distance = (*chunk_pos - player_chunk_pos).abs();
-            if distance
-                .cmple(IVec3::splat(SAFETY_BUFFER_CHUNKS))
-                .all()
-            {
+            let offset = *chunk_pos - player_chunk_pos;
+            let distance_sq = offset.length_squared();
+            if distance_sq <= SAFETY_BUFFER_CHUNKS * SAFETY_BUFFER_CHUNKS {
                 return true;
             }
 
-            let direction = (*chunk_pos - player_chunk_pos).as_vec3().normalize_or_zero();
+            let direction = offset.as_vec3().normalize_or_zero();
             forward.dot(direction) > CULL_DOT_THRESHOLD
         })
         .collect();
