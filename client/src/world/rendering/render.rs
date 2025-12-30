@@ -112,24 +112,20 @@ pub fn world_render_system(
 
     if !events.is_empty() {
         // Clone map only when it changed, then share it as read-only across all meshing threads
-        let map_ptr = if world_map.dirty || world_map_cache.cached.is_none() {
-            let start = std::time::Instant::now();
-            let new_clone = Arc::new(world_map.clone());
-            world_map.dirty = false;
-            world_map_cache.cached = Some(Arc::clone(&new_clone));
-            let delta = start.elapsed();
-            info!("cloning map for render, took {:?}", delta);
-            new_clone
-        } else {
-            Arc::clone(
-                world_map_cache
-                    .cached
-                    .as_ref()
-                    .expect(
-                        "World map cache should be populated after first clone; caching logic bug",
-                    ),
-            )
-        };
+        let map_ptr =
+            if world_map.dirty || world_map_cache.cached.is_none() {
+                let start = std::time::Instant::now();
+                let new_clone = Arc::new(world_map.clone());
+                world_map.dirty = false;
+                world_map_cache.cached = Some(Arc::clone(&new_clone));
+                let delta = start.elapsed();
+                info!("cloning map for render, took {:?}", delta);
+                new_clone
+            } else {
+                Arc::clone(world_map_cache.cached.as_ref().expect(
+                    "World map cache should be populated after first clone; caching logic bug",
+                ))
+            };
 
         let uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
 
