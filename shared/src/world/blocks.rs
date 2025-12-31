@@ -7,7 +7,7 @@ use bevy::math::{bounding::Aabb3d, IVec3, Vec3, Vec3A};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialOrd)]
+#[derive(Copy, Clone)]
 pub struct RayHitboxArgs {
     center: [f32; 3],
     half_size: [f32; 3],
@@ -22,41 +22,7 @@ impl RayHitboxArgs {
     }
 }
 
-impl PartialEq for RayHitboxArgs {
-    fn eq(&self, other: &Self) -> bool {
-        self.center == other.center && self.half_size == other.half_size
-    }
-}
-
-impl Eq for RayHitboxArgs {}
-
-impl Ord for RayHitboxArgs {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        for i in 0..3 {
-            match self.center[i].total_cmp(&other.center[i]) {
-                std::cmp::Ordering::Equal => continue,
-                ord => return ord,
-            }
-        }
-        for i in 0..3 {
-            match self.half_size[i].total_cmp(&other.half_size[i]) {
-                std::cmp::Ordering::Equal => continue,
-                ord => return ord,
-            }
-        }
-        std::cmp::Ordering::Equal
-    }
-}
-
-impl std::hash::Hash for RayHitboxArgs {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        for f in self.center.iter().chain(self.half_size.iter()) {
-            f.to_bits().hash(state);
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone)]
 pub struct DropStatistics {
     relative_chance: u32,
     corresponding_item: ItemId,
@@ -73,7 +39,7 @@ impl DropStatistics {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone)]
 pub struct BlockProperties {
     break_time: u8,
     hitbox: InternalBlockHitbox,
@@ -82,7 +48,7 @@ pub struct BlockProperties {
     drop_table: DropStatistics,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone)]
 pub struct UnbreakableBlockProperties {
     hitbox: InternalBlockHitbox,
     ray_hitbox_args: Option<RayHitboxArgs>,
@@ -176,9 +142,6 @@ pub enum BlockId {
     Water,
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, Hash,
-)]
 pub enum BlockDefinition {
     Debug,
     Dirt(BlockProperties),
