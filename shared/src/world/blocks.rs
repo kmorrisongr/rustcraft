@@ -415,7 +415,7 @@ pub enum BlockHitbox {
 }
 
 impl BlockId {
-    fn properties(&self) -> GetPropertiesResult {
+    pub fn properties(&self) -> GetPropertiesResult {
         BlockDefinition::from_block_id(*self).properties()
     }
 
