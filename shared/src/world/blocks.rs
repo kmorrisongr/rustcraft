@@ -254,10 +254,7 @@ impl BlockDefinition {
     }
 
     pub fn oak_leaves() -> Self {
-        BlockDefinition::OakLeaves(BlockProperties::full_transparent_base_block(
-            12,
-            ItemId::OakLeaves,
-        ))
+        BlockDefinition::OakLeaves(BlockProperties::full_transparent_block(12, None))
     }
 
     pub fn sand() -> Self {
@@ -309,10 +306,7 @@ impl BlockDefinition {
     }
 
     pub fn cobblestone() -> Self {
-        BlockDefinition::Cobblestone(BlockProperties::full_solid_base_block(
-            12,
-            ItemId::Cobblestone,
-        ))
+        BlockDefinition::Cobblestone(BlockProperties::full_solid_block(12, None))
     }
 
     pub fn snow() -> Self {
@@ -324,11 +318,7 @@ impl BlockDefinition {
     }
 
     pub fn spruce_leaves() -> Self {
-        BlockDefinition::SpruceLeaves(BlockProperties::full_transparent_base_block(
-            12,
-            // TODO: spruce leaves item
-            ItemId::OakLeaves,
-        ))
+        BlockDefinition::SpruceLeaves(BlockProperties::full_transparent_block(12, None))
     }
 
     pub fn spruce_log() -> Self {
