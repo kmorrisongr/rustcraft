@@ -7,6 +7,138 @@ use bevy::math::{bounding::Aabb3d, IVec3, Vec3, Vec3A};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialOrd)]
+pub struct RayHitboxArgs {
+    center: [f32; 3],
+    half_size: [f32; 3],
+}
+
+impl RayHitboxArgs {
+    pub fn short_flower() -> Self {
+        RayHitboxArgs {
+            center: [0.5, 0.3, 0.5],
+            half_size: [0.3, 0.3, 0.3],
+        }
+    }
+}
+
+impl PartialEq for RayHitboxArgs {
+    fn eq(&self, other: &Self) -> bool {
+        self.center == other.center && self.half_size == other.half_size
+    }
+}
+
+impl Eq for RayHitboxArgs {}
+
+impl Ord for RayHitboxArgs {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        for i in 0..3 {
+            match self.center[i].total_cmp(&other.center[i]) {
+                std::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            }
+        }
+        for i in 0..3 {
+            match self.half_size[i].total_cmp(&other.half_size[i]) {
+                std::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            }
+        }
+        std::cmp::Ordering::Equal
+    }
+}
+
+impl std::hash::Hash for RayHitboxArgs {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for f in self.center.iter().chain(self.half_size.iter()) {
+            f.to_bits().hash(state);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct DropStatistics {
+    relative_chance: u32,
+    corresponding_item: ItemId,
+    base_number: u32,
+}
+
+impl DropStatistics {
+    pub fn with_base_chance(corresponding_item: ItemId) -> Self {
+        DropStatistics {
+            relative_chance: 1,
+            corresponding_item,
+            base_number: 1,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+pub struct BlockProperties {
+    break_time: u8,
+    hitbox: InternalBlockHitbox,
+    ray_hitbox_args: Option<RayHitboxArgs>,
+    visibility: BlockTransparency,
+    drop_table: DropStatistics,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+pub struct UnbreakableBlockProperties {
+    hitbox: InternalBlockHitbox,
+    ray_hitbox_args: Option<RayHitboxArgs>,
+    visibility: BlockTransparency,
+}
+
+impl BlockProperties {
+    pub fn full_solid_block(break_time: u8, drop_table: DropStatistics) -> Self {
+        BlockProperties {
+            break_time,
+            hitbox: InternalBlockHitbox::FullBlock,
+            ray_hitbox_args: None,
+            visibility: BlockTransparency::Solid,
+            drop_table,
+        }
+    }
+
+    pub fn full_solid_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
+        BlockProperties::full_solid_block(
+            break_time,
+            DropStatistics::with_base_chance(corresponding_item),
+        )
+    }
+
+    pub fn decoration_base_block(
+        break_time: u8,
+        ray_hitbox_args: RayHitboxArgs,
+        corresponding_item: ItemId,
+    ) -> Self {
+        BlockProperties {
+            break_time,
+            hitbox: InternalBlockHitbox::None,
+            ray_hitbox_args: Some(ray_hitbox_args),
+            visibility: BlockTransparency::Decoration,
+            drop_table: DropStatistics::with_base_chance(corresponding_item),
+        }
+    }
+
+    pub fn full_transparent_block(break_time: u8, drop_table: DropStatistics) -> Self {
+        BlockProperties {
+            break_time,
+            hitbox: InternalBlockHitbox::FullBlock,
+            ray_hitbox_args: None,
+            visibility: BlockTransparency::Transparent,
+            drop_table,
+        }
+    }
+
+    pub fn full_transparent_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
+        BlockProperties::full_transparent_block(
+            break_time,
+            DropStatistics::with_base_chance(corresponding_item),
+        )
+    }
+}
+
 #[derive(
     Debug,
     Clone,
@@ -44,6 +176,214 @@ pub enum BlockId {
     Water,
 }
 
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, Hash,
+)]
+pub enum BlockDefinition {
+    Debug,
+    Dirt(BlockProperties),
+    Grass(BlockProperties),
+    Stone(BlockProperties),
+    OakLog(BlockProperties),
+    OakPlanks(BlockProperties),
+    OakLeaves(BlockProperties),
+    Sand(BlockProperties),
+    Cactus(BlockProperties),
+    Ice(BlockProperties),
+    Glass(BlockProperties),
+    Bedrock(BlockProperties),
+    Dandelion(BlockProperties),
+    Poppy(BlockProperties),
+    TallGrass(BlockProperties),
+    Cobblestone(BlockProperties),
+    Snow(BlockProperties),
+    SpruceLeaves(BlockProperties),
+    SpruceLog(BlockProperties),
+    Water(UnbreakableBlockProperties),
+}
+
+pub enum GetPropertiesResult {
+    Breakable(BlockProperties),
+    Unbreakable(UnbreakableBlockProperties),
+    None,
+}
+
+impl BlockDefinition {
+    pub fn properties(&self) -> GetPropertiesResult {
+        match self {
+            BlockDefinition::Debug => GetPropertiesResult::None,
+            BlockDefinition::Dirt(props)
+            | BlockDefinition::Grass(props)
+            | BlockDefinition::Stone(props)
+            | BlockDefinition::OakLog(props)
+            | BlockDefinition::OakPlanks(props)
+            | BlockDefinition::OakLeaves(props)
+            | BlockDefinition::Sand(props)
+            | BlockDefinition::Cactus(props)
+            | BlockDefinition::Ice(props)
+            | BlockDefinition::Glass(props)
+            | BlockDefinition::Bedrock(props)
+            | BlockDefinition::Dandelion(props)
+            | BlockDefinition::Poppy(props)
+            | BlockDefinition::TallGrass(props)
+            | BlockDefinition::Cobblestone(props)
+            | BlockDefinition::Snow(props)
+            | BlockDefinition::SpruceLeaves(props)
+            | BlockDefinition::SpruceLog(props) => GetPropertiesResult::Breakable(*props),
+            BlockDefinition::Water(props) => GetPropertiesResult::Unbreakable(*props),
+        }
+    }
+
+    pub fn from_block_id(id: BlockId) -> Self {
+        match id {
+            BlockId::Debug => BlockDefinition::debug(),
+            BlockId::Dirt => BlockDefinition::dirt(),
+            BlockId::Grass => BlockDefinition::grass(),
+            BlockId::Stone => BlockDefinition::stone(),
+            BlockId::OakLog => BlockDefinition::oak_log(),
+            BlockId::OakPlanks => BlockDefinition::oak_planks(),
+            BlockId::OakLeaves => BlockDefinition::oak_leaves(),
+            BlockId::Sand => BlockDefinition::sand(),
+            BlockId::Cactus => BlockDefinition::cactus(),
+            BlockId::Ice => BlockDefinition::ice(),
+            BlockId::Glass => BlockDefinition::glass(),
+            BlockId::Bedrock => BlockDefinition::bedrock(),
+            BlockId::Dandelion => BlockDefinition::dandelion(),
+            BlockId::Poppy => BlockDefinition::poppy(),
+            BlockId::TallGrass => BlockDefinition::tall_grass(),
+            BlockId::Cobblestone => BlockDefinition::cobblestone(),
+            BlockId::Snow => BlockDefinition::snow(),
+            BlockId::SpruceLeaves => BlockDefinition::spruce_leaves(),
+            BlockId::SpruceLog => BlockDefinition::spruce_log(),
+            BlockId::Water => BlockDefinition::water(),
+        }
+    }
+
+    pub fn debug() -> Self {
+        BlockDefinition::Debug
+    }
+
+    pub fn dirt() -> Self {
+        BlockDefinition::Dirt(BlockProperties::full_solid_base_block(30, ItemId::Dirt))
+    }
+
+    pub fn grass() -> Self {
+        BlockDefinition::Grass(BlockProperties::full_solid_base_block(36, ItemId::Dirt))
+    }
+
+    pub fn stone() -> Self {
+        BlockDefinition::Stone(BlockProperties::full_solid_base_block(
+            60,
+            ItemId::Cobblestone,
+        ))
+    }
+
+    pub fn oak_log() -> Self {
+        BlockDefinition::OakLog(BlockProperties::full_solid_base_block(60, ItemId::OakLog))
+    }
+
+    pub fn oak_planks() -> Self {
+        BlockDefinition::OakPlanks(BlockProperties::full_solid_base_block(
+            60,
+            ItemId::OakPlanks,
+        ))
+    }
+
+    pub fn oak_leaves() -> Self {
+        BlockDefinition::OakLeaves(BlockProperties::full_transparent_base_block(
+            12,
+            ItemId::OakLeaves,
+        ))
+    }
+
+    pub fn sand() -> Self {
+        BlockDefinition::Sand(BlockProperties::full_solid_base_block(30, ItemId::Sand))
+    }
+
+    pub fn cactus() -> Self {
+        BlockDefinition::Cactus(BlockProperties::full_solid_base_block(24, ItemId::Cactus))
+    }
+
+    pub fn ice() -> Self {
+        BlockDefinition::Ice(BlockProperties::full_solid_base_block(30, ItemId::Ice))
+    }
+
+    pub fn glass() -> Self {
+        BlockDefinition::Glass(BlockProperties::full_transparent_base_block(
+            18,
+            ItemId::Glass,
+        ))
+    }
+
+    pub fn bedrock() -> Self {
+        BlockDefinition::Bedrock(BlockProperties::full_solid_base_block(255, ItemId::Bedrock))
+    }
+
+    pub fn dandelion() -> Self {
+        BlockDefinition::Dandelion(BlockProperties::decoration_base_block(
+            6,
+            RayHitboxArgs::short_flower(),
+            ItemId::Dandelion,
+        ))
+    }
+
+    pub fn poppy() -> Self {
+        BlockDefinition::Poppy(BlockProperties::decoration_base_block(
+            6,
+            RayHitboxArgs::short_flower(),
+            ItemId::Poppy,
+        ))
+    }
+
+    pub fn tall_grass() -> Self {
+        BlockDefinition::TallGrass(BlockProperties::decoration_base_block(
+            6,
+            RayHitboxArgs::short_flower(),
+            ItemId::TallGrass,
+        ))
+    }
+
+    pub fn cobblestone() -> Self {
+        BlockDefinition::Cobblestone(BlockProperties::full_solid_base_block(
+            12,
+            ItemId::Cobblestone,
+        ))
+    }
+
+    pub fn snow() -> Self {
+        BlockDefinition::Snow(BlockProperties::full_solid_base_block(54, ItemId::Snowball))
+    }
+
+    pub fn spruce_leaves() -> Self {
+        BlockDefinition::SpruceLeaves(BlockProperties::full_transparent_base_block(
+            12,
+            // TODO: spruce leaves item
+            ItemId::OakLeaves,
+        ))
+    }
+
+    pub fn spruce_log() -> Self {
+        BlockDefinition::SpruceLog(BlockProperties::full_solid_base_block(
+            60,
+            ItemId::SpruceLog,
+        ))
+    }
+
+    pub fn water() -> Self {
+        BlockDefinition::Water(UnbreakableBlockProperties {
+            hitbox: InternalBlockHitbox::None,
+            ray_hitbox_args: None,
+            visibility: BlockTransparency::Liquid,
+        })
+    }
+}
+
+impl Default for BlockDefinition {
+    fn default() -> Self {
+        BlockDefinition::dirt()
+    }
+}
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BlockDirection {
     Front,
@@ -79,12 +419,28 @@ pub enum BlockTags {
     Stone,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialOrd, Ord)]
 pub enum BlockTransparency {
     Transparent,
     Liquid,
     Solid,
     Decoration,
+}
+
+// Backwards compatability
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+enum InternalBlockHitbox {
+    FullBlock,
+    None,
+}
+
+impl InternalBlockHitbox {
+    pub fn to_public(&self) -> BlockHitbox {
+        match *self {
+            Self::FullBlock => BlockHitbox::FullBlock,
+            Self::None => BlockHitbox::None,
+        }
+    }
 }
 
 pub enum BlockHitbox {
@@ -94,45 +450,46 @@ pub enum BlockHitbox {
 }
 
 impl BlockId {
+    fn properties(&self) -> GetPropertiesResult {
+        BlockDefinition::from_block_id(*self).properties()
+    }
+
     pub fn get_hitbox(&self) -> BlockHitbox {
         match *self {
-            Self::Water | Self::TallGrass | Self::Poppy | Self::Dandelion => BlockHitbox::None,
-            _ => BlockHitbox::FullBlock,
+            Self::Debug => BlockHitbox::FullBlock,
+            _ => match self.properties() {
+                GetPropertiesResult::Breakable(props) => props.hitbox.to_public(),
+                GetPropertiesResult::Unbreakable(props) => props.hitbox.to_public(),
+                GetPropertiesResult::None => BlockHitbox::FullBlock,
+            },
         }
     }
 
     pub fn get_ray_hitbox(&self) -> BlockHitbox {
         match *self {
-            Self::Water => BlockHitbox::None,
-            Self::TallGrass | Self::Poppy | Self::Dandelion => BlockHitbox::Aabb(Aabb3d::new(
-                Vec3A::splat(0.5).with_y(0.3),
-                Vec3A::splat(0.3),
-            )),
-            _ => BlockHitbox::FullBlock,
+            Self::Debug => BlockHitbox::FullBlock,
+            _ => match self.properties() {
+                GetPropertiesResult::Breakable(props) => match props.ray_hitbox_args {
+                    Some(args) => BlockHitbox::Aabb(Aabb3d::new(
+                        Vec3A::from_slice(&args.center),
+                        Vec3A::from_slice(&args.half_size),
+                    )),
+                    None => props.hitbox.to_public(),
+                },
+                GetPropertiesResult::Unbreakable(_) => BlockHitbox::None,
+                GetPropertiesResult::None => BlockHitbox::FullBlock,
+            },
         }
     }
 
     pub fn get_break_time(&self) -> u8 {
-        6 * match *self {
-            Self::Dirt => 5,
-            Self::Debug => 7,
-            Self::Grass => 6,
-            Self::Stone => 10,
-            Self::OakLog => 10,
-            Self::OakPlanks => 10,
-            Self::OakLeaves => 2,
-            Self::Sand => 5,
-            Self::Cactus => 4,
-            Self::Ice => 5,
-            Self::Glass => 3,
-            Self::Dandelion => 1,
-            Self::Poppy => 1,
-            Self::TallGrass => 1,
-            Self::Cobblestone => 2,
-            Self::Snow => 9,
-            Self::SpruceLeaves => 2,
-            Self::SpruceLog => 10,
-            _ => 100,
+        match *self {
+            Self::Debug => 42,
+            _ => match self.properties() {
+                GetPropertiesResult::Breakable(props) => props.break_time,
+                GetPropertiesResult::Unbreakable(_) => 255,
+                GetPropertiesResult::None => 100,
+            },
         }
     }
 
@@ -172,23 +529,13 @@ impl BlockId {
         drops
     }
 
-    /// Specifies the drop table of a given block
-    /// Drops are specified this way : `(relative_chance, corresponding_item, base_number)`
     pub fn get_drop_table(&self) -> Vec<(u32, ItemId, u32)> {
-        match *self {
-            BlockId::Dirt | BlockId::Grass => vec![(1, ItemId::Dirt, 1)],
-            BlockId::Stone => vec![(1, ItemId::Cobblestone, 1)],
-            BlockId::Sand => vec![(1, ItemId::Sand, 1)],
-            BlockId::Cactus => vec![(1, ItemId::Cactus, 1)],
-            BlockId::OakLog => vec![(1, ItemId::OakLog, 1)],
-            BlockId::OakPlanks => vec![(1, ItemId::OakPlanks, 1)],
-            BlockId::Ice => vec![(1, ItemId::Ice, 1)],
-            BlockId::Dandelion => vec![(1, ItemId::Dandelion, 1)],
-            BlockId::Poppy => vec![(1, ItemId::Dandelion, 1)],
-            BlockId::TallGrass => vec![(1, ItemId::TallGrass, 1)],
-            BlockId::SpruceLog => vec![(1, ItemId::SpruceLog, 1)],
-            BlockId::Snow => vec![(1, ItemId::Snowball, 4)],
-            BlockId::Water => vec![],
+        match self.properties() {
+            GetPropertiesResult::Breakable(props) => vec![(
+                props.drop_table.relative_chance,
+                props.drop_table.corresponding_item,
+                props.drop_table.base_number,
+            )],
             _ => vec![],
         }
     }
@@ -202,10 +549,12 @@ impl BlockId {
 
     pub fn get_visibility(&self) -> BlockTransparency {
         match *self {
-            Self::Dandelion | Self::Poppy | Self::TallGrass => BlockTransparency::Decoration,
-            Self::Glass | Self::OakLeaves | Self::SpruceLeaves => BlockTransparency::Transparent,
-            Self::Water => BlockTransparency::Liquid,
-            _ => BlockTransparency::Solid,
+            Self::Debug => BlockTransparency::Solid,
+            _ => match self.properties() {
+                GetPropertiesResult::Breakable(props) => props.visibility,
+                GetPropertiesResult::Unbreakable(props) => props.visibility,
+                GetPropertiesResult::None => BlockTransparency::Solid,
+            },
         }
     }
 
