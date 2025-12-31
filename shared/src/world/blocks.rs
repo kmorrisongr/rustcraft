@@ -154,7 +154,7 @@ pub enum BlockDefinition {
     Cactus(BlockProperties),
     Ice(BlockProperties),
     Glass(BlockProperties),
-    Bedrock(BlockProperties),
+    Bedrock(UnbreakableBlockProperties),
     Dandelion(BlockProperties),
     Poppy(BlockProperties),
     TallGrass(BlockProperties),
@@ -185,7 +185,6 @@ impl BlockDefinition {
             | BlockDefinition::Cactus(props)
             | BlockDefinition::Ice(props)
             | BlockDefinition::Glass(props)
-            | BlockDefinition::Bedrock(props)
             | BlockDefinition::Dandelion(props)
             | BlockDefinition::Poppy(props)
             | BlockDefinition::TallGrass(props)
@@ -193,7 +192,9 @@ impl BlockDefinition {
             | BlockDefinition::Snow(props)
             | BlockDefinition::SpruceLeaves(props)
             | BlockDefinition::SpruceLog(props) => GetPropertiesResult::Breakable(*props),
-            BlockDefinition::Water(props) => GetPropertiesResult::Unbreakable(*props),
+            BlockDefinition::Water(props) | BlockDefinition::Bedrock(props) => {
+                GetPropertiesResult::Unbreakable(*props)
+            }
         }
     }
 
@@ -279,7 +280,11 @@ impl BlockDefinition {
     }
 
     pub fn bedrock() -> Self {
-        BlockDefinition::Bedrock(BlockProperties::full_solid_base_block(255, ItemId::Bedrock))
+        BlockDefinition::Bedrock(UnbreakableBlockProperties {
+            hitbox: InternalBlockHitbox::FullBlock,
+            ray_hitbox_args: None,
+            visibility: BlockTransparency::Solid,
+        })
     }
 
     pub fn dandelion() -> Self {
