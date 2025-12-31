@@ -125,7 +125,6 @@ pub fn game_plugin(app: &mut App) {
                 init_server_connection,
                 setup_materials,
                 setup_server_connect_loading_screen,
-                spawn_camera,
             )
                 .chain(),
         )
@@ -144,6 +143,7 @@ pub fn game_plugin(app: &mut App) {
         .add_systems(
             OnEnter(GameState::Game),
             (
+                spawn_camera,
                 setup_main_lighting,
                 spawn_reticle,
                 setup_hud,
