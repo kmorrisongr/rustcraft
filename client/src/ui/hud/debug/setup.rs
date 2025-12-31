@@ -87,35 +87,29 @@ pub fn setup_hud(mut commands: Commands) {
             ),
         ))
         .id();
-    let default_text_bundle = || {
-        (
-            Text::new("..."),
-            TextFont {
-                font_size: 16.0,
-                ..default()
-            },
-            TextColor(Color::WHITE),
-        )
-    };
-    let coords_text = commands.spawn((CoordsText, default_text_bundle())).id();
-    let biome_text = commands.spawn((BiomeText, default_text_bundle())).id();
-    let blocks_number_text = commands
-        .spawn((BlocksNumberText, default_text_bundle()))
-        .id();
-    let chunks_number_text = commands
-        .spawn((ChunksNumberText, default_text_bundle()))
-        .id();
-    let time_text = commands
-        .spawn((
-            TimeText,
-            Text::new("Time: N/A"),
-            TextColor(Color::WHITE),
-            TextFont {
-                font_size: 16.0,
-                ..default()
-            },
-        ))
-        .id();
+    fn spawn_debug_text<T: Component>(
+        commands: &mut Commands,
+        marker: T,
+        initial_text: &str,
+    ) -> Entity {
+        commands
+            .spawn((
+                marker,
+                Text::new(initial_text),
+                TextFont {
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ))
+            .id()
+    }
+
+    let coords_text = spawn_debug_text(&mut commands, CoordsText, "...");
+    let biome_text = spawn_debug_text(&mut commands, BiomeText, "...");
+    let blocks_number_text = spawn_debug_text(&mut commands, BlocksNumberText, "...");
+    let chunks_number_text = spawn_debug_text(&mut commands, ChunksNumberText, "...");
+    let time_text = spawn_debug_text(&mut commands, TimeText, "Time: N/A");
     commands.entity(root).add_children(&[
         text_fps,
         coords_text,

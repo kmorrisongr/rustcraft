@@ -197,47 +197,9 @@ let Ok((mut player, mut player_transform)) = player_query.single_mut() else {
 
 ---
 
-### 7. HUD Setup Code Repetition
-
-**File:** [client/src/ui/hud/debug/setup.rs](../client/src/ui/hud/debug/setup.rs)
-
-**Issue:** Text node creation is repetitive:
-
-```rust
-let default_text_bundle = || {
-    (
-        Text::new("..."),
-        TextFont { font_size: 16.0, ..default() },
-        TextColor(Color::WHITE),
-    )
-};
-let coords_text = commands.spawn((CoordsText, default_text_bundle())).id();
-let blocks_number_text = commands.spawn((BlocksNumberText, default_text_bundle())).id();
-// ... repeated many times
-```
-
-**Recommendation:** Create a builder pattern or macro for HUD text elements:
-
-```rust
-fn spawn_debug_text<T: Component>(
-    commands: &mut Commands,
-    marker: T,
-    initial_text: &str,
-) -> Entity {
-    commands.spawn((
-        marker,
-        Text::new(initial_text),
-        TextFont { font_size: 16.0, ..default() },
-        TextColor(Color::WHITE),
-    )).id()
-}
-```
-
----
-
 ## Code Organization
 
-### 8. Module Re-exports Could Be Cleaner
+### 7. Module Re-exports Could Be Cleaner
 
 **Files:** Various `mod.rs` files
 
@@ -253,7 +215,7 @@ pub use render_distance::*;
 
 ---
 
-### 9. Consider Feature Flags for Debug Systems
+### 8. Consider Feature Flags for Debug Systems
 
 **Files:** Debug-related code throughout client
 
@@ -281,7 +243,7 @@ app.add_systems(Update, (
 
 ## Additional Suggestions (December 2025)
 
-### 10. Asset Loading Functions Are Repetitive
+### 9. Asset Loading Functions Are Repetitive
 
 **File:** [client/src/ui/assets.rs](../client/src/ui/assets.rs)
 
@@ -316,7 +278,7 @@ Or consolidate into a single `AssetPaths` struct with lazy loading.
 
 ---
 
-### 11. TODO/FIXME Comments Need Resolution
+### 10. TODO/FIXME Comments Need Resolution
 
 **Files:** Multiple
 
@@ -336,7 +298,7 @@ Or consolidate into a single `AssetPaths` struct with lazy loading.
 
 ---
 
-### 12. `#[allow(dead_code)]` Annotations Mask Unused Code
+### 11. `#[allow(dead_code)]` Annotations Mask Unused Code
 
 **Files:** 
 - [client/src/mob/mod.rs](../client/src/mob/mod.rs)
@@ -361,7 +323,7 @@ pub struct MobRoot {
 
 ---
 
-### 13. Broadcast World Clones Entire Mobs Collection
+### 12. Broadcast World Clones Entire Mobs Collection
 
 **File:** [server/src/world/broadcast_world.rs](../server/src/world/broadcast_world.rs#L92)
 
@@ -380,7 +342,7 @@ mobs: mobs.clone(),
 
 ---
 
-### 14. Constants Scattered Across Multiple Files
+### 13. Constants Scattered Across Multiple Files
 
 **Files:** 
 - [shared/src/constants.rs](../shared/src/constants.rs)
@@ -408,7 +370,7 @@ const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
 
 ---
 
-### 15. Mob Behavior Has Duplicated Movement Logic
+### 14. Mob Behavior Has Duplicated Movement Logic
 
 **File:** [server/src/mob/behavior.rs](../server/src/mob/behavior.rs)
 
@@ -445,7 +407,7 @@ fn attempt_movement_with_avoidance(
 
 ---
 
-### 16. Block Properties Use Large Match Statements
+### 15. Block Properties Use Large Match Statements
 
 **File:** [shared/src/world/blocks.rs](../shared/src/world/blocks.rs)
 
@@ -487,7 +449,7 @@ impl BlockId {
 
 ---
 
-### 17. Menu System Has Deep Nesting in `menu_plugin`
+### 16. Menu System Has Deep Nesting in `menu_plugin`
 
 **File:** [client/src/ui/menus/mod.rs](../client/src/ui/menus/mod.rs)
 
@@ -515,7 +477,7 @@ fn register_menu<M: MenuPlugin>(app: &mut App) {
 
 ---
 
-### 18. Network Message Handling Could Use Command Pattern
+### 17. Network Message Handling Could Use Command Pattern
 
 **File:** [server/src/network/dispatcher.rs](../server/src/network/dispatcher.rs)
 
@@ -551,7 +513,7 @@ if let Some(handler) = handlers.get(&message.type_id()) {
 
 ---
 
-### 19. Consider Extracting Common UI Patterns
+### 18. Consider Extracting Common UI Patterns
 
 **Files:** Various UI files in `client/src/ui/`
 
