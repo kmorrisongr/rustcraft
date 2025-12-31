@@ -13,7 +13,7 @@ This document outlines opportunities for refactoring and simplification across t
 
 ## Medium Priority
 
-### 2. Magic Numbers Throughout Codebase
+### 1. Magic Numbers Throughout Codebase
 
 **Files:** Multiple files contain hardcoded values
 
@@ -43,7 +43,7 @@ pub mod world {
 
 ---
 
-### 3. `game.rs` Plugin Registration is Monolithic
+### 2. `game.rs` Plugin Registration is Monolithic
 
 **File:** [client/src/game.rs](../client/src/game.rs)
 
@@ -82,7 +82,7 @@ impl Plugin for GameInputPlugin {
 
 ## Low Priority
 
-### 6. Inconsistent Query Error Handling [PARTIAL-COMPLETE]
+### 3. Inconsistent Query Error Handling [PARTIAL-COMPLETE]
 
 **Files:** [client/src/player/controller.rs](../client/src/player/controller.rs), [camera/controller.rs](../client/src/camera/controller.rs)
 
@@ -114,7 +114,7 @@ let Ok((mut player, mut player_transform)) = player_query.single_mut() else {
 
 ## Code Organization
 
-### 7. Module Re-exports Could Be Cleaner
+### 4. Module Re-exports Could Be Cleaner
 
 **Files:** Various `mod.rs` files
 
@@ -130,7 +130,7 @@ pub use render_distance::*;
 
 ---
 
-### 8. Consider Feature Flags for Debug Systems
+### 5. Consider Feature Flags for Debug Systems
 
 **Files:** Debug-related code throughout client
 
@@ -154,11 +154,9 @@ app.add_systems(Update, (
 
 ---
 
----
-
 ## Additional Suggestions (December 2025)
 
-### 9. Asset Loading Functions Are Repetitive
+### 6. Asset Loading Functions Are Repetitive
 
 **File:** [client/src/ui/assets.rs](../client/src/ui/assets.rs)
 
@@ -193,7 +191,7 @@ Or consolidate into a single `AssetPaths` struct with lazy loading.
 
 ---
 
-### 10. TODO/FIXME Comments Need Resolution
+### 7. TODO/FIXME Comments Need Resolution
 
 **Files:** Multiple
 
@@ -213,7 +211,7 @@ Or consolidate into a single `AssetPaths` struct with lazy loading.
 
 ---
 
-### 11. `#[allow(dead_code)]` Annotations Mask Unused Code
+### 8. `#[allow(dead_code)]` Annotations Mask Unused Code
 
 **Files:** 
 - [client/src/mob/mod.rs](../client/src/mob/mod.rs)
@@ -238,7 +236,7 @@ pub struct MobRoot {
 
 ---
 
-### 12. Broadcast World Clones Entire Mobs Collection
+### 9. Broadcast World Clones Entire Mobs Collection
 
 **File:** [server/src/world/broadcast_world.rs](../server/src/world/broadcast_world.rs#L92)
 
@@ -257,7 +255,7 @@ mobs: mobs.clone(),
 
 ---
 
-### 13. Constants Scattered Across Multiple Files
+### 10. Constants Scattered Across Multiple Files
 
 **Files:** 
 - [shared/src/constants.rs](../shared/src/constants.rs)
@@ -285,7 +283,7 @@ const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
 
 ---
 
-### 15. Block Properties Use Large Match Statements
+### 11. Block Properties Use Large Match Statements
 
 **File:** [shared/src/world/blocks.rs](../shared/src/world/blocks.rs)
 
@@ -327,7 +325,7 @@ impl BlockId {
 
 ---
 
-### 16. Menu System Has Deep Nesting in `menu_plugin`
+### 12. Menu System Has Deep Nesting in `menu_plugin`
 
 **File:** [client/src/ui/menus/mod.rs](../client/src/ui/menus/mod.rs)
 
@@ -355,7 +353,7 @@ fn register_menu<M: MenuPlugin>(app: &mut App) {
 
 ---
 
-### 17. Network Message Handling Could Use Command Pattern
+### 13. Network Message Handling Could Use Command Pattern
 
 **File:** [server/src/network/dispatcher.rs](../server/src/network/dispatcher.rs)
 
@@ -391,7 +389,7 @@ if let Some(handler) = handlers.get(&message.type_id()) {
 
 ---
 
-### 18. Consider Extracting Common UI Patterns
+### 14. Consider Extracting Common UI Patterns
 
 **Files:** Various UI files in `client/src/ui/`
 
