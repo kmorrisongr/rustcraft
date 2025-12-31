@@ -13,45 +13,6 @@ This document outlines opportunities for refactoring and simplification across t
 
 ## Medium Priority
 
-### 1. System Parameter Tuples in Controllers
-
-**File:** [client/src/player/interactions.rs](../client/src/player/interactions.rs)
-
-**Issue:** Large tuples for queries and resources make the code harder to read:
-
-```rust
-pub fn handle_block_interactions(
-    queries: (
-        Query<&mut Player, With<CurrentPlayerMarker>>,
-        Query<&mut Transform, With<CurrentPlayerMarker>>,
-        Query<&Transform, (With<Camera>, Without<CurrentPlayerMarker>)>,
-        Query<&MobMarker>,
-    ),
-    resources: (
-        ResMut<ClientWorldMap>,
-        Res<ButtonInput<MouseButton>>,
-        Res<UIMode>,
-        Res<ViewMode>,
-        ResMut<TargetedMob>,
-        ResMut<CurrentFrameInputs>,
-    ),
-    // ...
-)
-```
-
-**Recommendation:** Use `SystemParam` derive macro to create reusable parameter bundles:
-
-```rust
-#[derive(SystemParam)]
-pub struct PlayerQueries<'w, 's> {
-    player: Query<'w, 's, &'static mut Player, With<CurrentPlayerMarker>>,
-    transform: Query<'w, 's, &'static mut Transform, With<CurrentPlayerMarker>>,
-    camera: Query<'w, 's, &'static Transform, (With<Camera>, Without<CurrentPlayerMarker>)>,
-}
-```
-
----
-
 ### 2. Magic Numbers Throughout Codebase
 
 **Files:** Multiple files contain hardcoded values
@@ -120,52 +81,6 @@ impl Plugin for GameInputPlugin {
 ---
 
 ## Low Priority
-
-### 4. Unused/Dead Code
-
-**Files:** Various
-
-**Examples:**
-- `bounce_ray` function in [interactions.rs](../client/src/player/interactions.rs#L100) - appears to be debug code that draws nothing
-- Commented-out code blocks in multiple files (e.g., debug prints in movement.rs)
-- `BlockId::is_biome_colored()` always returns `false` in [blocks.rs](../shared/src/world/blocks.rs#L104)
-
-**Recommendation:** 
-- Remove unused debug code or gate behind a feature flag
-- Run `cargo clippy` with `warn(dead_code)` to identify unused items
-- Delete commented-out code (use version control to recover if needed)
-
----
-
-### 5. Error Handling with `.unwrap()`
-
-**Files:** Multiple files use `.unwrap()` on Results and Options
-
-**Examples:**
-- [setup.rs](../client/src/network/setup.rs#L191): `socket.local_addr().unwrap()`
-- [init.rs](../server/src/init.rs#L75): `socket.local_addr().unwrap()`
-- Query unwraps throughout controller code
-
-**Recommendation:** Add proper error handling or use `expect()` with descriptive messages:
-
-```rust
-// Instead of
-let addr = socket.local_addr().unwrap();
-
-// Use
-let addr = socket.local_addr().expect("Failed to get socket address");
-
-// Or handle gracefully
-let addr = match socket.local_addr() {
-    Ok(addr) => addr,
-    Err(e) => {
-        error!("Failed to get socket address: {}", e);
-        return;
-    }
-};
-```
-
----
 
 ### 6. Inconsistent Query Error Handling [PARTIAL-COMPLETE]
 
@@ -367,43 +282,6 @@ const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
 - Consolidate all game configuration constants into `shared/src/constants.rs`
 - Use sub-modules for organization: `constants::rendering`, `constants::physics`, etc.
 - Consider a configuration file (RON) for runtime-adjustable values
-
----
-
-### 14. Mob Behavior Has Duplicated Movement Logic
-
-**File:** [server/src/mob/behavior.rs](../server/src/mob/behavior.rs)
-
-**Issue:** The `MobAction::Walk` branch contains repeated movement attempts with similar patterns:
-
-```rust
-if !try_move(&mut body, &world_map.chunks, displacement, true) {
-    // ...
-} else if body.on_ground && (body.velocity.x != 0.0 && body.velocity.z != 0.0) {
-    // jump logic
-} else if body.on_ground {
-    // Try to move in the other direction
-    if !try_move(&mut body, &world_map.chunks, Vec3::new(displacement.x, 0.0, 0.0), true) {
-        // ...
-    } else if !try_move(&mut body, &world_map.chunks, Vec3::new(0.0, 0.0, displacement.z), true) {
-        // ...
-    } else {
-        // jump again
-    }
-}
-```
-
-**Recommendation:** Extract pathfinding/obstacle avoidance into a dedicated helper:
-
-```rust
-fn attempt_movement_with_avoidance(
-    body: &mut PhysicsBody,
-    chunks: &ServerChunkWorldMap,
-    displacement: Vec3,
-) -> MovementResult {
-    // Centralized movement + obstacle avoidance logic
-}
-```
 
 ---
 
