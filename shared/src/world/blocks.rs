@@ -390,7 +390,7 @@ pub enum BlockTransparency {
     Decoration,
 }
 
-// Backwards compatability
+// Backwards compatibility
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
 enum InternalBlockHitbox {
     FullBlock,
