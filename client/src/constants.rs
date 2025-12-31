@@ -3,7 +3,7 @@ pub const BASE_ROUGHNESS: f32 = 0.6;
 pub const BASE_SPECULAR_HIGHLIGHT: f32 = 0.;
 
 // increase render distance if we build the project in release mode
-pub const DEFAULT_CHUNK_RENDER_DISTANCE_RADIUS: u32 = if cfg!(debug_assertions) { 2 } else { 4 };
+pub const DEFAULT_CHUNK_RENDER_DISTANCE_RADIUS: i32 = if cfg!(debug_assertions) { 2 } else { 4 };
 
 pub const CELESTIAL_SIZE: f32 = 10.;
 pub const CELESTIAL_DISTANCE: f32 = 50.; // Low value for testing ; will be increased later

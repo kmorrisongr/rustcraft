@@ -49,6 +49,7 @@ pub fn update_world_from_network(
                     };
 
                     world.map.insert(pos, chunk.clone());
+                    world.mark_dirty();
                     ev_render.write(WorldRenderRequestUpdateEvent::ChunkToReload(pos));
                 }
 

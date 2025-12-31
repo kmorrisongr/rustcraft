@@ -249,6 +249,7 @@ fn clear_resources(mut world_map: ResMut<ClientWorldMap>) {
     world_map.total_blocks_count = 0;
     world_map.total_chunks_count = 0;
     world_map.name = "".into();
+    world_map.mark_dirty();
 }
 
 fn reset_preload_tracking(
