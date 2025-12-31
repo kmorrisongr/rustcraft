@@ -314,7 +314,9 @@ impl BlockDefinition {
     }
 
     pub fn snow() -> Self {
-        BlockDefinition::Snow(BlockProperties::full_solid_base_block(54, ItemId::Snowball))
+        let mut props = BlockProperties::full_solid_base_block(54, ItemId::Snowball);
+        props.drop_statistics.base_number = 4;
+        BlockDefinition::Snow(props)
     }
 
     pub fn spruce_leaves() -> Self {
