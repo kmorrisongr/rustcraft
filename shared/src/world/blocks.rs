@@ -476,7 +476,13 @@ impl BlockId {
                     )),
                     None => props.hitbox.to_public(),
                 },
-                GetPropertiesResult::Unbreakable(_) => BlockHitbox::None,
+                GetPropertiesResult::Unbreakable(props) => match props.ray_hitbox_args {
+                    Some(args) => BlockHitbox::Aabb(Aabb3d::new(
+                        Vec3A::from_slice(&args.center),
+                        Vec3A::from_slice(&args.half_size),
+                    )),
+                    None => props.hitbox.to_public(),
+                },
                 GetPropertiesResult::None => BlockHitbox::FullBlock,
             },
         }
