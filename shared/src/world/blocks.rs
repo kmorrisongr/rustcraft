@@ -45,7 +45,7 @@ pub struct BlockProperties {
     hitbox: InternalBlockHitbox,
     ray_hitbox_args: Option<RayHitboxArgs>,
     visibility: BlockTransparency,
-    drop_table: DropStatistics,
+    drop_table: Option<DropStatistics>,
 }
 
 #[derive(Copy, Clone)]
@@ -56,7 +56,7 @@ pub struct UnbreakableBlockProperties {
 }
 
 impl BlockProperties {
-    pub fn full_solid_block(break_time: u8, drop_table: DropStatistics) -> Self {
+    pub fn full_solid_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
         BlockProperties {
             break_time,
             hitbox: InternalBlockHitbox::FullBlock,
@@ -69,7 +69,7 @@ impl BlockProperties {
     pub fn full_solid_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
         BlockProperties::full_solid_block(
             break_time,
-            DropStatistics::with_base_chance(corresponding_item),
+            Some(DropStatistics::with_base_chance(corresponding_item)),
         )
     }
 
@@ -83,11 +83,11 @@ impl BlockProperties {
             hitbox: InternalBlockHitbox::None,
             ray_hitbox_args: Some(ray_hitbox_args),
             visibility: BlockTransparency::Decoration,
-            drop_table: DropStatistics::with_base_chance(corresponding_item),
+            drop_table: Some(DropStatistics::with_base_chance(corresponding_item)),
         }
     }
 
-    pub fn full_transparent_block(break_time: u8, drop_table: DropStatistics) -> Self {
+    pub fn full_transparent_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
         BlockProperties {
             break_time,
             hitbox: InternalBlockHitbox::FullBlock,
@@ -100,7 +100,7 @@ impl BlockProperties {
     pub fn full_transparent_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
         BlockProperties::full_transparent_block(
             break_time,
-            DropStatistics::with_base_chance(corresponding_item),
+            Some(DropStatistics::with_base_chance(corresponding_item)),
         )
     }
 }
@@ -273,10 +273,7 @@ impl BlockDefinition {
     }
 
     pub fn glass() -> Self {
-        BlockDefinition::Glass(BlockProperties::full_transparent_base_block(
-            18,
-            ItemId::Glass,
-        ))
+        BlockDefinition::Glass(BlockProperties::full_transparent_block(18, None))
     }
 
     pub fn bedrock() -> Self {
@@ -320,7 +317,9 @@ impl BlockDefinition {
 
     pub fn snow() -> Self {
         let mut props = BlockProperties::full_solid_base_block(54, ItemId::Snowball);
-        props.drop_table.base_number = 4;
+        if let Some(drop_table) = &mut props.drop_table {
+            drop_table.base_number = 4;
+        }
         BlockDefinition::Snow(props)
     }
 
@@ -507,11 +506,14 @@ impl BlockId {
 
     pub fn get_drop_table(&self) -> Vec<(u32, ItemId, u32)> {
         match self.properties() {
-            GetPropertiesResult::Breakable(props) => vec![(
-                props.drop_table.relative_chance,
-                props.drop_table.corresponding_item,
-                props.drop_table.base_number,
-            )],
+            GetPropertiesResult::Breakable(props) => match &props.drop_table {
+                Some(drop_table) => vec![(
+                    drop_table.relative_chance,
+                    drop_table.corresponding_item,
+                    drop_table.base_number,
+                )],
+                None => vec![],
+            },
             _ => vec![],
         }
     }
