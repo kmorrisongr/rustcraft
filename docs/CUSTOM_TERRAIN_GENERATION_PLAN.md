@@ -29,9 +29,10 @@ This document outlines a plan to make Rustcraft's terrain generation fully custo
 The system will support:
 
 1. **Custom biomes** with configurable terrain, layers, and flora
-2. **Custom terrain algorithms** via sandboxed Rhai scripts
-3. **Rule overrides** for existing biomes (e.g., sea level, height variation)
-4. **Safe extensibility** with resource limits and API sandboxing
+2. **Height-based biomes** for underground caves, sky islands, etc.
+3. **Custom terrain algorithms** via sandboxed Rhai scripts
+4. **Rule overrides** for existing biomes (e.g., sea level, height variation)
+5. **Safe extensibility** with resource limits and API sandboxing
 
 The approach prioritizes **simplicity** (data-first, scripts when needed), **safety** (sandboxed execution), and **expressiveness** (full scripting for power users).
 
@@ -121,14 +122,17 @@ Invalid or missing configurations fall back to defaults with warnings logged:
 
 ## System Architecture
 
+> **Note:** Rustcraft uses 16×16×16 chunks (not Minecraft's 16×16×320 sections). This means vertical biome boundaries can align cleanly with chunk boundaries, simplifying chunk generation and enabling efficient per-chunk biome caching.
+
 ### High-Level Data Flow
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  terrain_config/                                         │
-│  ├── world.ron           (global settings)               │
+│  ├── world.ron           (global settings + biome map)   │
 │  ├── biomes/                                            │
 │  │   ├── plains.ron      (simple - data only)            │
+│  │   ├── caves.ron       (underground biome)             │
 │  │   └── volcanic.ron    (complex - references script)   │
 │  └── scripts/                                           │
 │      └── volcanic.rhai   (custom generation logic)       │
@@ -143,12 +147,15 @@ Invalid or missing configurations fall back to defaults with warnings logged:
 │      ├── Compiled scripts (cached AST)                  │
 │      └── Exposed API (perlin, ridged, lerp, etc.)       │
 └─────────────────────────────────────────────────────────┘
-                      │ Generate Chunks
+                      │ Generate Chunks (16×16×16)
                       ▼
 ┌─────────────────────────────────────────────────────────┐
 │  ChunkGenerator                                         │
 │  For each block position (x, y, z):                     │
-│    1. Determine biome at (x, z)                         │
+│    1. Determine biome at (x, y, z)                      │
+│       a. Filter biome_climate_map by y_range            │
+│       b. Among matching entries, find closest climate   │
+│       c. More specific y_range wins ties                │
 │    2. If biome.script exists:                           │
 │         height = call script.get_height(x, z, seed)     │
 │       Else:                                             │
@@ -195,19 +202,28 @@ Global parameters that affect all terrain generation:
     temperature_seed_offset: 1,
     humidity_seed_offset: 2,
     
-    // Biome climate mapping (point-based, closest wins)
-    // This replaces the hardcoded BiomeType::from_climate() logic
+    // Biome climate mapping (point-based, closest wins within y_range)
+    // y_range is optional: None means all heights, Some((min, max)) restricts to that range
+    // When multiple biomes match at a position, the one with the narrowest y_range wins
     biome_climate_map: [
-        (biome: "deep_ocean",       climate: (temp: 0.5, humid: 0.95)),
-        (biome: "ocean",            climate: (temp: 0.5, humid: 0.85)),
-        (biome: "shallow_ocean",    climate: (temp: 0.5, humid: 0.75)),
-        (biome: "desert",           climate: (temp: 0.8, humid: 0.2)),
-        (biome: "forest",           climate: (temp: 0.7, humid: 0.5)),
-        (biome: "plains",           climate: (temp: 0.5, humid: 0.4)),
-        (biome: "flower_plains",    climate: (temp: 0.5, humid: 0.55)),
-        (biome: "mountains",        climate: (temp: 0.4, humid: 0.3)),
-        (biome: "high_mountains",   climate: (temp: 0.2, humid: 0.2)),
-        (biome: "ice_plains",       climate: (temp: 0.1, humid: 0.4)),
+        // Underground biomes (selected by y, not climate)
+        (biome: "deep_caves",      climate: (temp: 0.5, humid: 0.5), y_range: Some((0, 20))),
+        (biome: "caves",           climate: (temp: 0.5, humid: 0.5), y_range: Some((20, 50))),
+        
+        // Surface biomes (default y_range covers surface and above)
+        (biome: "deep_ocean",      climate: (temp: 0.5, humid: 0.95), y_range: None),
+        (biome: "ocean",           climate: (temp: 0.5, humid: 0.85), y_range: None),
+        (biome: "shallow_ocean",   climate: (temp: 0.5, humid: 0.75), y_range: None),
+        (biome: "desert",          climate: (temp: 0.8, humid: 0.2),  y_range: None),
+        (biome: "forest",          climate: (temp: 0.7, humid: 0.5),  y_range: None),
+        (biome: "plains",          climate: (temp: 0.5, humid: 0.4),  y_range: None),
+        (biome: "flower_plains",   climate: (temp: 0.5, humid: 0.55), y_range: None),
+        (biome: "mountains",       climate: (temp: 0.4, humid: 0.3),  y_range: None),
+        (biome: "high_mountains",  climate: (temp: 0.2, humid: 0.2),  y_range: None),
+        (biome: "ice_plains",      climate: (temp: 0.1, humid: 0.4),  y_range: None),
+        
+        // Sky biomes (high altitude only)
+        (biome: "sky_islands",     climate: (temp: 0.5, humid: 0.3), y_range: Some((200, 256))),
     ],
 )
 ```
@@ -285,6 +301,67 @@ Biomes needing custom terrain logic reference a Rhai script:
     // Reference to script for custom logic
     script: Some("volcanic.rhai"),
 )
+```
+
+### 3b. Underground Biome Example
+
+Biomes with `y_range` in the climate map control underground generation:
+
+```ron
+// terrain_config/biomes/caves.ron
+(
+    id: "caves",
+    display_name: "Caves",
+    
+    // Underground biomes typically don't define terrain height
+    // (surface biome determines that), just block placement
+    terrain: (
+        base_height: 0,       // Not used for underground biomes
+        height_variation: 0,
+        noise_scale: 0.1,
+    ),
+    
+    // Layers define what blocks appear at this depth
+    layers: [
+        (depth: 0, block: "Stone"),
+    ],
+    
+    flora: [],
+    
+    // Script can carve caves, place ores, etc.
+    script: Some("caves.rhai"),
+)
+```
+
+```rhai
+// terrain_config/scripts/caves.rhai
+
+// For underground biomes, get_height isn't used for terrain surface
+// Instead, it can return a "density" value for 3D noise carving
+fn get_height(x, z, seed) {
+    // Return surface biome's height (not used for caves)
+    64
+}
+
+// Custom block placement creates cave structure
+fn get_surface_block(x, y, z, terrain_height, seed) {
+    // 3D noise for cave carving
+    let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 0.1, 3, 0.5);
+    let cave_threshold = 0.4 + (y as f64 / 256.0) * 0.2;  // Fewer caves deeper
+    
+    if cave_noise > cave_threshold {
+        "Air"  // Carve out cave
+    } else {
+        // Ore generation based on depth
+        let ore_noise = perlin(x, z, seed + 1000, 0.2);
+        if y < 16 && ore_noise > 0.9 {
+            "Bedrock"  // Placeholder for diamond ore
+        } else {
+            "Stone"
+        }
+    }
+}
+```
 ```
 
 ```rhai
@@ -389,17 +466,20 @@ If optional functions are not defined, the system uses the RON config values.
 ```
 data/
 ├── terrain_config/
-│   ├── world.ron                    # Global world settings
+│   ├── world.ron                    # Global world settings + biome map
 │   ├── biomes/
-│   │   ├── plains.ron               # Simple biome (data-only)
+│   │   ├── plains.ron               # Simple surface biome (data-only)
 │   │   ├── forest.ron
 │   │   ├── desert.ron
 │   │   ├── ocean.ron
 │   │   ├── mountains.ron
+│   │   ├── caves.ron                # Underground biome
+│   │   ├── deep_caves.ron           # Deep underground biome
 │   │   ├── volcanic.ron             # Complex biome (references script)
 │   │   └── ... (other biomes)
 │   └── scripts/
-│       ├── volcanic.rhai            # Custom generation logic
+│       ├── volcanic.rhai            # Custom surface generation
+│       ├── caves.rhai               # Cave carving logic
 │       └── ... (other scripts)
 │
 └── mods/                            # User modifications (future)
@@ -436,6 +516,13 @@ data/
    }
    
    #[derive(Deserialize)]
+   struct BiomeClimateEntry {
+       biome: String,
+       climate: Climate,
+       y_range: Option<(i32, i32)>,  // None = all heights
+   }
+   
+   #[derive(Deserialize)]
    struct TerrainSettings {
        base_height: i32,
        height_variation: i32,
@@ -454,7 +541,7 @@ data/
 
 2. **Create `TerrainConfig` Bevy resource**
    - Load `terrain_config/world.ron` and `terrain_config/biomes/*.ron` at startup
-   - Implement point-based biome climate selection
+   - Implement 3D biome selection (filter by y_range, then climate)
    - Create `BlockId` string mapping
 
 3. **Modify `generation.rs` to use config**
@@ -704,7 +791,47 @@ match engine.call_fn(&mut scope, &ast, "get_height", args) {
 
 ## Implementation Gotchas
 
-### 1. Biome Boundary Interpolation
+### 1. 3D Biome Selection Algorithm
+
+With height-based biomes, selection becomes more complex:
+
+```rust
+fn select_biome(x: i32, y: i32, z: i32, climate: &Climate, map: &[BiomeClimateEntry]) -> &str {
+    // 1. Filter entries whose y_range contains this y
+    let candidates: Vec<_> = map.iter()
+        .filter(|e| match e.y_range {
+            None => true,  // No range = matches all heights
+            Some((min, max)) => y >= min && y < max,
+        })
+        .collect();
+    
+    // 2. Among candidates, prefer more specific y_range (narrower range wins)
+    // 3. Among equal specificity, find closest climate match
+    candidates.iter()
+        .min_by(|a, b| {
+            // Specificity: narrower y_range = more specific
+            let spec_a = a.y_range.map(|(min, max)| max - min).unwrap_or(i32::MAX);
+            let spec_b = b.y_range.map(|(min, max)| max - min).unwrap_or(i32::MAX);
+            
+            // Compare specificity first, then climate distance
+            spec_a.cmp(&spec_b)
+                .then_with(|| climate_distance(climate, &a.climate)
+                    .partial_cmp(&climate_distance(climate, &b.climate))
+                    .unwrap())
+        })
+        .map(|e| e.biome.as_str())
+        .unwrap_or("plains")
+}
+```
+
+### 2. Surface vs Underground Biome Interaction
+
+For a column at (x, z):
+1. **Surface biome** (no y_range or y_range covering surface) determines terrain height
+2. **Underground biomes** only affect block placement below the surface
+3. Scripts for underground biomes should focus on `get_surface_block()`, not `get_height()`
+
+### 3. Biome Boundary Interpolation
 
 The current `generation.rs` uses `interpolated_height()` to blend terrain at biome boundaries. **Scripted biomes present a challenge**: if biome A uses a script and biome B is data-driven, how do we blend?
 
@@ -712,7 +839,7 @@ The current `generation.rs` uses `interpolated_height()` to blend terrain at bio
 
 **Future improvement**: Sample heights from both biomes (calling scripts for both) and blend. This requires careful performance tuning.
 
-### 2. BlockId Validation at Load Time
+### 4. BlockId Validation at Load Time
 
 To avoid spamming warnings during generation ("invalid block 'Obsdian' in biome X" thousands of times), validate all block name strings when loading RON configs:
 
@@ -730,7 +857,7 @@ fn validate_biome_config(config: &BiomeConfig) -> Result<(), ConfigError> {
 }
 ```
 
-### 3. Test Fixture Location
+### 5. Test Fixture Location
 
 Integration tests reference `test_fixtures/`. These should live in:
 ```
@@ -742,11 +869,11 @@ shared/tests/fixtures/terrain_config/
     └── test_script.rhai
 ```
 
-### 4. Rhai Scope Lifetime
+### 6. Rhai Scope Lifetime
 
 Rhai's `Scope` cannot be stored in the `TerrainConfig` resource—it must be created fresh for each script call. The `Engine` and compiled `AST` can be stored and reused.
 
-### 5. Data-Driven Height Formula
+### 7. Data-Driven Height Formula
 
 The data-driven path should use:
 ```rust
@@ -980,13 +1107,15 @@ fn get_flora(x, z, height, seed) {
 ```
 
 #### 5. Cave Generation
-Expose cave generation to scripts:
+Building on the height-based biome system, expose dedicated cave generation:
 ```rhai
 fn is_cave(x, y, z, seed) {
     let cave_noise = perlin_3d(x, y, z, seed + 100, 0.05);
     cave_noise > 0.6  // Hollow out if true
 }
 ```
+
+> **Note:** Basic cave generation via `get_surface_block()` in underground biomes is already supported. This extension adds a dedicated `is_cave()` hook for cleaner separation.
 
 #### 6. Ore Distribution
 Per-biome ore configuration:
