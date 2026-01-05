@@ -40,35 +40,55 @@ impl DropStatistics {
 }
 
 #[derive(Copy, Clone)]
-struct BlockProperties {
-    break_time: u8,
-    hitbox: InternalBlockHitbox,
-    ray_hitbox_args: Option<RayHitboxArgs>,
-    visibility: BlockTransparency,
-    drop_table: Option<DropStatistics>,
+enum Hitbox {
+    Pathable {
+        /// Will only be used for raycasting, block does not collide with players
+        ray_hitbox: BlockHitbox,
+    },
+    Solid {
+        /// Will be used for both collisions with players and raycasting
+        collision_hitbox: BlockHitbox,
+    },
 }
 
 #[derive(Copy, Clone)]
-struct UnbreakableBlockProperties {
-    hitbox: InternalBlockHitbox,
-    ray_hitbox_args: Option<RayHitboxArgs>,
-    visibility: BlockTransparency,
+enum BlockProperties {
+    Breakable {
+        break_time: u8,
+        hitbox: Hitbox,
+        visibility: BlockTransparency,
+    },
+    BreakableDroppable {
+        break_time: u8,
+        hitbox: Hitbox,
+        visibility: BlockTransparency,
+        drop_table: DropStatistics,
+    },
+    Unbreakable {
+        hitbox: Hitbox,
+        visibility: BlockTransparency,
+    },
 }
 
-enum Block {
-    Breakable(BlockProperties),
-    Unbreakable(UnbreakableBlockProperties),
-}
-
-impl Block {
+impl BlockProperties {
     fn full_solid_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
-        Block::Breakable(BlockProperties {
-            break_time,
-            hitbox: InternalBlockHitbox::FullBlock,
-            ray_hitbox_args: None,
-            visibility: BlockTransparency::Solid,
-            drop_table,
-        })
+        match drop_table {
+            Some(drop_table) => BlockProperties::BreakableDroppable {
+                break_time,
+                hitbox: Hitbox::Solid {
+                    collision_hitbox: BlockHitbox::FullBlock,
+                },
+                visibility: BlockTransparency::Solid,
+                drop_table,
+            },
+            None => BlockProperties::Breakable {
+                break_time,
+                hitbox: Hitbox::Solid {
+                    collision_hitbox: BlockHitbox::FullBlock,
+                },
+                visibility: BlockTransparency::Solid,
+            },
+        }
     }
 
     fn full_solid_block_with_multiple_drops(
@@ -76,7 +96,7 @@ impl Block {
         corresponding_item: ItemId,
         number_of_items: u32,
     ) -> Self {
-        Block::full_solid_block(
+        BlockProperties::full_solid_block(
             break_time,
             Some(DropStatistics {
                 relative_chance: 1,
@@ -87,7 +107,7 @@ impl Block {
     }
 
     fn full_solid_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
-        Block::full_solid_block(
+        BlockProperties::full_solid_block(
             break_time,
             Some(DropStatistics::with_base_chance(corresponding_item)),
         )
@@ -98,23 +118,37 @@ impl Block {
         ray_hitbox_args: RayHitboxArgs,
         corresponding_item: ItemId,
     ) -> Self {
-        Block::Breakable(BlockProperties {
+        BlockProperties::BreakableDroppable {
             break_time,
-            hitbox: InternalBlockHitbox::None,
-            ray_hitbox_args: Some(ray_hitbox_args),
+            hitbox: Hitbox::Pathable {
+                ray_hitbox: BlockHitbox::from_args(
+                    ray_hitbox_args.center,
+                    ray_hitbox_args.half_size,
+                ),
+            },
             visibility: BlockTransparency::Decoration,
-            drop_table: Some(DropStatistics::with_base_chance(corresponding_item)),
-        })
+            drop_table: DropStatistics::with_base_chance(corresponding_item),
+        }
     }
 
     fn full_transparent_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
-        Block::Breakable(BlockProperties {
-            break_time,
-            hitbox: InternalBlockHitbox::FullBlock,
-            ray_hitbox_args: None,
-            visibility: BlockTransparency::Transparent,
-            drop_table,
-        })
+        match drop_table {
+            Some(drop_table) => BlockProperties::BreakableDroppable {
+                break_time,
+                hitbox: Hitbox::Solid {
+                    collision_hitbox: BlockHitbox::FullBlock,
+                },
+                visibility: BlockTransparency::Transparent,
+                drop_table,
+            },
+            None => BlockProperties::Breakable {
+                break_time,
+                hitbox: Hitbox::Solid {
+                    collision_hitbox: BlockHitbox::FullBlock,
+                },
+                visibility: BlockTransparency::Transparent,
+            },
+        }
     }
 }
 
@@ -155,80 +189,106 @@ pub enum BlockId {
     Water,
 }
 
-static BLOCK_PROPERTIES: once_cell::sync::Lazy<HashMap<BlockId, Block>> =
+static BLOCK_PROPERTIES: once_cell::sync::Lazy<HashMap<BlockId, BlockProperties>> =
     once_cell::sync::Lazy::new(|| {
         HashMap::from([
             (
                 BlockId::Dirt,
-                Block::full_solid_base_block(30, ItemId::Dirt),
+                BlockProperties::full_solid_base_block(30, ItemId::Dirt),
             ),
             (
                 BlockId::Grass,
-                Block::full_solid_base_block(36, ItemId::Dirt),
+                BlockProperties::full_solid_base_block(36, ItemId::Dirt),
             ),
             (
                 BlockId::Stone,
-                Block::full_solid_base_block(60, ItemId::Cobblestone),
+                BlockProperties::full_solid_base_block(60, ItemId::Cobblestone),
             ),
             (
                 BlockId::OakLog,
-                Block::full_solid_base_block(60, ItemId::OakLog),
+                BlockProperties::full_solid_base_block(60, ItemId::OakLog),
             ),
             (
                 BlockId::OakPlanks,
-                Block::full_solid_base_block(60, ItemId::OakPlanks),
+                BlockProperties::full_solid_base_block(60, ItemId::OakPlanks),
             ),
-            (BlockId::OakLeaves, Block::full_transparent_block(12, None)),
+            (
+                BlockId::OakLeaves,
+                BlockProperties::full_transparent_block(12, None),
+            ),
             (
                 BlockId::Sand,
-                Block::full_solid_base_block(30, ItemId::Sand),
+                BlockProperties::full_solid_base_block(30, ItemId::Sand),
             ),
             (
                 BlockId::Cactus,
-                Block::full_solid_base_block(24, ItemId::Cactus),
+                BlockProperties::full_solid_base_block(24, ItemId::Cactus),
             ),
-            (BlockId::Ice, Block::full_solid_base_block(30, ItemId::Ice)),
-            (BlockId::Glass, Block::full_transparent_block(18, None)),
+            (
+                BlockId::Ice,
+                BlockProperties::full_solid_base_block(30, ItemId::Ice),
+            ),
+            (
+                BlockId::Glass,
+                BlockProperties::full_transparent_block(18, None),
+            ),
             (
                 BlockId::Bedrock,
-                Block::Unbreakable(UnbreakableBlockProperties {
-                    hitbox: InternalBlockHitbox::FullBlock,
-                    ray_hitbox_args: None,
+                BlockProperties::Unbreakable {
+                    hitbox: Hitbox::Solid {
+                        collision_hitbox: BlockHitbox::FullBlock,
+                    },
                     visibility: BlockTransparency::Solid,
-                }),
+                },
             ),
             (
                 BlockId::Dandelion,
-                Block::decoration_base_block(6, RayHitboxArgs::short_flower(), ItemId::Dandelion),
+                BlockProperties::decoration_base_block(
+                    6,
+                    RayHitboxArgs::short_flower(),
+                    ItemId::Dandelion,
+                ),
             ),
             (
                 BlockId::Poppy,
-                Block::decoration_base_block(6, RayHitboxArgs::short_flower(), ItemId::Poppy),
+                BlockProperties::decoration_base_block(
+                    6,
+                    RayHitboxArgs::short_flower(),
+                    ItemId::Poppy,
+                ),
             ),
             (
                 BlockId::TallGrass,
-                Block::decoration_base_block(6, RayHitboxArgs::short_flower(), ItemId::TallGrass),
+                BlockProperties::decoration_base_block(
+                    6,
+                    RayHitboxArgs::short_flower(),
+                    ItemId::TallGrass,
+                ),
             ),
-            (BlockId::Cobblestone, Block::full_solid_block(12, None)),
+            (
+                BlockId::Cobblestone,
+                BlockProperties::full_solid_block(12, None),
+            ),
             (
                 BlockId::Snow,
-                Block::full_solid_block_with_multiple_drops(54, ItemId::Snowball, 4),
+                BlockProperties::full_solid_block_with_multiple_drops(54, ItemId::Snowball, 4),
             ),
             (
                 BlockId::SpruceLeaves,
-                Block::full_transparent_block(12, None),
+                BlockProperties::full_transparent_block(12, None),
             ),
             (
                 BlockId::SpruceLog,
-                Block::full_solid_base_block(60, ItemId::SpruceLog),
+                BlockProperties::full_solid_base_block(60, ItemId::SpruceLog),
             ),
             (
                 BlockId::Water,
-                Block::Unbreakable(UnbreakableBlockProperties {
-                    hitbox: InternalBlockHitbox::None,
-                    ray_hitbox_args: None,
+                BlockProperties::Unbreakable {
+                    hitbox: Hitbox::Pathable {
+                        ray_hitbox: BlockHitbox::None,
+                    },
                     visibility: BlockTransparency::Liquid,
-                }),
+                },
             ),
         ])
     });
@@ -277,20 +337,6 @@ pub enum BlockTransparency {
 }
 
 #[derive(Copy, Clone)]
-enum InternalBlockHitbox {
-    FullBlock,
-    None,
-}
-
-impl InternalBlockHitbox {
-    fn to_public(&self) -> BlockHitbox {
-        match *self {
-            Self::FullBlock => BlockHitbox::FullBlock,
-            Self::None => BlockHitbox::None,
-        }
-    }
-}
-
 pub enum BlockHitbox {
     FullBlock,
     Aabb(Aabb3d),
@@ -303,23 +349,10 @@ impl BlockHitbox {
             Vec3A::from_slice(&half_size),
         ))
     }
-
-    fn get_ray_hitbox_from_block(block: &Block) -> Self {
-        match block {
-            Block::Breakable(props) => match props.ray_hitbox_args {
-                Some(args) => BlockHitbox::from_args(args.center, args.half_size),
-                None => props.hitbox.to_public(),
-            },
-            Block::Unbreakable(props) => match props.ray_hitbox_args {
-                Some(args) => BlockHitbox::from_args(args.center, args.half_size),
-                None => props.hitbox.to_public(),
-            },
-        }
-    }
 }
 
 impl BlockId {
-    fn properties(&self) -> Option<&Block> {
+    fn properties(&self) -> Option<&BlockProperties> {
         BLOCK_PROPERTIES.get(self)
     }
 
@@ -327,29 +360,31 @@ impl BlockId {
         match *self {
             Self::Debug => BlockHitbox::FullBlock,
             _ => match self.properties() {
-                Some(Block::Breakable(props)) => props.hitbox.to_public(),
-                Some(Block::Unbreakable(props)) => props.hitbox.to_public(),
+                Some(BlockProperties::Breakable { hitbox, .. })
+                | Some(BlockProperties::Unbreakable { hitbox, .. })
+                | Some(BlockProperties::BreakableDroppable { hitbox, .. }) => match hitbox {
+                    Hitbox::Pathable { ray_hitbox } => *ray_hitbox,
+                    Hitbox::Solid { collision_hitbox } => *collision_hitbox,
+                },
                 None => BlockHitbox::FullBlock,
             },
         }
     }
 
     pub fn get_ray_hitbox(&self) -> BlockHitbox {
-        match *self {
-            Self::Debug => BlockHitbox::FullBlock,
-            _ => match self.properties() {
-                Some(block) => BlockHitbox::get_ray_hitbox_from_block(block),
-                None => BlockHitbox::FullBlock,
-            },
-        }
+        // NOTE: for now, leave this as backwards-compatability. I am having trouble imagining a
+        // use-case for having two separate hitboxes.
+        return BlockId::get_hitbox(self);
     }
 
     pub fn get_break_time(&self) -> u8 {
         match *self {
             Self::Debug => 42,
             _ => match self.properties() {
-                Some(Block::Breakable(props)) => props.break_time,
-                Some(Block::Unbreakable(_)) => 255,
+                Some(BlockProperties::Breakable { break_time, .. })
+                | Some(BlockProperties::BreakableDroppable { break_time, .. }) => *break_time,
+                // TODO: unbreakable should actually be unbreakable
+                Some(BlockProperties::Unbreakable { .. }) => 255,
                 None => 100,
             },
         }
@@ -393,14 +428,11 @@ impl BlockId {
 
     pub fn get_drop_table(&self) -> Vec<(u32, ItemId, u32)> {
         match self.properties() {
-            Some(Block::Breakable(props)) => match &props.drop_table {
-                Some(drop_table) => vec![(
-                    drop_table.relative_chance,
-                    drop_table.corresponding_item,
-                    drop_table.base_number,
-                )],
-                None => vec![],
-            },
+            Some(BlockProperties::BreakableDroppable { drop_table, .. }) => vec![(
+                drop_table.relative_chance,
+                drop_table.corresponding_item,
+                drop_table.base_number,
+            )],
             _ => vec![],
         }
     }
@@ -416,8 +448,9 @@ impl BlockId {
         match *self {
             Self::Debug => BlockTransparency::Solid,
             _ => match self.properties() {
-                Some(Block::Breakable(props)) => props.visibility,
-                Some(Block::Unbreakable(props)) => props.visibility,
+                Some(BlockProperties::Breakable { visibility, .. })
+                | Some(BlockProperties::Unbreakable { visibility, .. })
+                | Some(BlockProperties::BreakableDroppable { visibility, .. }) => *visibility,
                 None => BlockTransparency::Solid,
             },
         }
