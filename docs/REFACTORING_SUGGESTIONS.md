@@ -407,48 +407,6 @@ fn attempt_movement_with_avoidance(
 
 ---
 
-### 15. Block Properties Use Large Match Statements
-
-**File:** [shared/src/world/blocks.rs](../shared/src/world/blocks.rs)
-
-**Issue:** Each `BlockId` method uses a match statement that must be updated for every new block:
-
-```rust
-pub fn get_break_time(&self) -> u8 {
-    6 * match *self {
-        Self::Dirt => 5,
-        Self::Debug => 7,
-        Self::Grass => 6,
-        // ... 15+ more cases
-        _ => 100,
-    }
-}
-```
-
-**Recommendation:** Use a data-driven approach with a static lookup table:
-
-```rust
-struct BlockProperties {
-    break_time: u8,
-    hitbox: BlockHitbox,
-    visibility: BlockTransparency,
-    drops: &'static [(u32, ItemId, u32)],
-}
-
-static BLOCK_PROPERTIES: phf::Map<BlockId, BlockProperties> = phf_map! {
-    BlockId::Dirt => BlockProperties { break_time: 30, ... },
-    // ...
-};
-
-impl BlockId {
-    pub fn properties(&self) -> &'static BlockProperties {
-        BLOCK_PROPERTIES.get(self).unwrap_or(&DEFAULT_PROPERTIES)
-    }
-}
-```
-
----
-
 ### 16. Menu System Has Deep Nesting in `menu_plugin`
 
 **File:** [client/src/ui/menus/mod.rs](../client/src/ui/menus/mod.rs)
