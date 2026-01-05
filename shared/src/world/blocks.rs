@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use super::{GameElementId, ItemId};
 use bevy::math::{bounding::Aabb3d, Vec3A};
+use nonempty::{nonempty, NonEmpty};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -57,13 +58,13 @@ enum Hitbox {
     },
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 struct BlockBreakability {
     break_time: u8,
-    drop_table: Option<DropStatistics>,
+    drop_table: Option<NonEmpty<DropStatistics>>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 /// Properties associated with a given block type.
 ///
 /// These are static and common to all instances of a block type.
@@ -74,7 +75,7 @@ struct BlockProperties {
 }
 
 impl BlockProperties {
-    fn full_solid_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
+    fn full_solid_block(break_time: u8, drop_table: Option<NonEmpty<DropStatistics>>) -> Self {
         BlockProperties {
             hitbox: Hitbox::Solid {
                 collision_hitbox: BlockHitbox::FullBlock,
@@ -94,18 +95,20 @@ impl BlockProperties {
     ) -> Self {
         BlockProperties::full_solid_block(
             break_time,
-            Some(DropStatistics {
+            Some(nonempty![DropStatistics {
                 relative_chance: 1,
                 corresponding_item,
                 base_number: number_of_items,
-            }),
+            }]),
         )
     }
 
     fn full_solid_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
         BlockProperties::full_solid_block(
             break_time,
-            Some(DropStatistics::with_base_chance(corresponding_item)),
+            Some(nonempty![DropStatistics::with_base_chance(
+                corresponding_item
+            )]),
         )
     }
 
@@ -117,7 +120,9 @@ impl BlockProperties {
         BlockProperties {
             breakability: Some(BlockBreakability {
                 break_time,
-                drop_table: Some(DropStatistics::with_base_chance(corresponding_item)),
+                drop_table: Some(nonempty![DropStatistics::with_base_chance(
+                    corresponding_item
+                )]),
             }),
             hitbox: Hitbox::Pathable {
                 ray_hitbox: BlockHitbox::from_args(
@@ -129,7 +134,10 @@ impl BlockProperties {
         }
     }
 
-    fn full_transparent_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
+    fn full_transparent_block(
+        break_time: u8,
+        drop_table: Option<NonEmpty<DropStatistics>>,
+    ) -> Self {
         BlockProperties {
             hitbox: Hitbox::Solid {
                 collision_hitbox: BlockHitbox::FullBlock,
@@ -373,7 +381,7 @@ impl BlockId {
             Self::Debug => 42,
             _ => self
                 .properties()
-                .and_then(|props| props.breakability)
+                .and_then(|props| props.breakability.as_ref())
                 .and_then(|b| Some(b.break_time))
                 // TODO: unbreakable should return None
                 .unwrap_or(255),
@@ -419,9 +427,14 @@ impl BlockId {
     pub fn get_drop_table(&self) -> Vec<(u32, ItemId, u32)> {
         return self
             .properties()
-            .and_then(|props| props.breakability)
-            .and_then(|breakability| breakability.drop_table)
-            .and_then(|drop_table| drop_table.as_vector().into())
+            .and_then(|props| props.breakability.as_ref())
+            .and_then(|breakability| breakability.drop_table.as_ref())
+            .map(|drop_table| {
+                drop_table
+                    .iter()
+                    .flat_map(|drop_stats| drop_stats.as_vector())
+                    .collect()
+            })
             .unwrap_or(vec![]);
     }
 
