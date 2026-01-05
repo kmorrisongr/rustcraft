@@ -15,7 +15,7 @@ impl Plugin for WaterShaderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<WaterMaterial>::default())
             .init_resource::<WaterShaderTime>()
-            .add_systems(Update, update_water_shader_time);
+            .add_systems(Update, (update_water_shader_time, update_water_materials));
     }
 }
 
@@ -99,7 +99,7 @@ impl Material for WaterMaterial {
 pub struct WaterMesh;
 
 /// System to update water material time uniforms
-pub fn update_water_materials(
+fn update_water_materials(
     water_time: Res<WaterShaderTime>,
     mut materials: ResMut<Assets<WaterMaterial>>,
 ) {

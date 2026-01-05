@@ -27,7 +27,6 @@ use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use crate::ui::hud::debug::targeted_block::block_text_update_system;
 use crate::world::celestial::setup_main_lighting;
 
-use crate::shaders::water::update_water_materials;
 use crate::ui::hud::debug::*;
 use crate::ui::hud::hotbar::*;
 use crate::ui::hud::set_ui_mode;
@@ -197,7 +196,6 @@ pub fn game_plugin(app: &mut App) {
                 toggle_wireframe_system,
                 handle_mouse_system,
                 update_celestial_bodies,
-                update_water_materials,
             )
                 .run_if(in_state(GameState::Game)),
         )
