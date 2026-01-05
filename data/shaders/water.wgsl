@@ -112,9 +112,9 @@ fn calculate_wave_height(pos: vec2<f32>, time: f32) -> f32 {
 }
 
 // Calculate wave normal using finite differences
-fn calculate_wave_normal(pos: vec2<f32>, time: f32) -> vec3<f32> {
+// Takes pre-calculated center height to avoid redundant calculation
+fn calculate_wave_normal(pos: vec2<f32>, time: f32, height_center: f32) -> vec3<f32> {
     let epsilon = 0.08;
-    let height_center = calculate_wave_height(pos, time);
     let height_x = calculate_wave_height(pos + vec2<f32>(epsilon, 0.0), time);
     let height_z = calculate_wave_height(pos + vec2<f32>(0.0, epsilon), time);
     let dx = (height_x - height_center) / epsilon;
@@ -144,11 +144,8 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     if is_top_face {
         let wave_height = calculate_wave_height(world_position.xz, water.time);
         world_position.y += wave_height;
-    }
-    
-    // Transform normal
-    if is_top_face {
-        out.world_normal = calculate_wave_normal(world_position.xz, water.time);
+        // Pass pre-calculated height to avoid redundant calculation
+        out.world_normal = calculate_wave_normal(world_position.xz, water.time, wave_height);
     } else {
         out.world_normal = mesh_functions::mesh_normal_local_to_world(
             vertex.normal,
