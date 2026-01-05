@@ -362,11 +362,9 @@ fn get_surface_block(x, y, z, terrain_height, seed) {
     }
 }
 ```
-```
 
 ```rhai
 // terrain_config/scripts/volcanic.rhai
-
 // Called for each (x, z) position to determine terrain height
 // Must be deterministic (same inputs = same output)
 fn get_height(x, z, seed) {
