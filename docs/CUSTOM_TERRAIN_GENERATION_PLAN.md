@@ -346,10 +346,11 @@ fn get_height(x, z, seed) {
 // Custom block placement creates cave structure
 fn get_surface_block(x, y, z, terrain_height, seed) {
     // 3D noise for cave carving
-    // Manual coordinate scaling (x * 0.05, z * 0.05) used here because:
-    // - We're also incorporating y into the seed (seed + y * 100)
-    // - Manual scaling makes the coordinate transformations more explicit
-    // - The 0.1 scale parameter adds additional fine detail on top
+    // Manual coordinate scaling (x * 0.05, z * 0.05) is used here because:
+    // - We call perlin_fbm with 2D coordinates (x, z) but use it for 3D cave carving
+    // - The y dimension influences the seed (seed + y * 100) rather than being a third coordinate
+    // - This keeps cave patterns horizontally coherent while varying with depth via the seed
+    // - The 0.1 scale parameter then adds additional fine detail on top of the manually scaled base
     let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 0.1, 3, 0.5);
     let cave_threshold = 0.4 + (y.to_float() / WORLD_HEIGHT as f64) * 0.2;  // Fewer caves deeper
     
