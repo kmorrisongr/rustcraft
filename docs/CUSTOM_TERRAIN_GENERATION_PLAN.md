@@ -94,7 +94,7 @@ Invalid or missing configurations fall back to defaults with warnings logged:
 ### Configuration Format: RON
 
 **Rationale:**
-- Already used in Rustcraft for keybindings (`data/keybindings.ron`)
+- Integrates cleanly with Rust via serde (widely used in Rust ecosystem)
 - Native Rust integration via serde
 - Human-readable and editor-friendly
 - Supports comments (unlike JSON)
@@ -218,9 +218,9 @@ Global parameters that affect all terrain generation:
         (biome: "forest",          climate: (temp: 0.7, humid: 0.5),  y_range: None),
         (biome: "plains",          climate: (temp: 0.5, humid: 0.4),  y_range: None),
         (biome: "flower_plains",   climate: (temp: 0.5, humid: 0.55), y_range: None),
-        (biome: "mountains",       climate: (temp: 0.4, humid: 0.3),  y_range: None),
-        (biome: "high_mountains",  climate: (temp: 0.2, humid: 0.2),  y_range: None),
-        (biome: "ice_plains",      climate: (temp: 0.1, humid: 0.4),  y_range: None),
+        (biome: "medium_mountain", climate: (temp: 0.4, humid: 0.3),  y_range: None),
+        (biome: "high_mountain_grass",  climate: (temp: 0.2, humid: 0.2),  y_range: None),
+        (biome: "ice_plain",       climate: (temp: 0.1, humid: 0.4),  y_range: None),
         
         // Sky biomes (high altitude only)
         (biome: "sky_islands",     climate: (temp: 0.5, humid: 0.3), y_range: Some((200, 256))),
@@ -351,7 +351,7 @@ fn get_surface_block(x, y, z, terrain_height, seed) {
     // - Manual scaling makes the coordinate transformations more explicit
     // - The 0.1 scale parameter adds additional fine detail on top
     let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 0.1, 3, 0.5);
-    let cave_threshold = 0.4 + (y as f64 / 256.0) * 0.2;  // Fewer caves deeper
+    let cave_threshold = 0.4 + (y.to_float() / 256.0) * 0.2;  // Fewer caves deeper
     
     if cave_noise > cave_threshold {
         "Air"  // Carve out cave
@@ -369,11 +369,9 @@ fn get_surface_block(x, y, z, terrain_height, seed) {
     }
 }
 ```
-```
 
 ```rhai
 // terrain_config/scripts/volcanic.rhai
-
 // Called for each (x, z) position to determine terrain height
 // Must be deterministic (same inputs = same output)
 fn get_height(x, z, seed) {
@@ -419,7 +417,9 @@ Functions exposed to Rhai scripts:
 ```rhai
 // === Noise Functions ===
 // All noise functions return values in range [-1.0, 1.0]
-// Note: Scripts are called once per (x, z) column, not per block
+// Note: Terrain height scripts (get_height) are typically called once per (x, z) column.
+//       For underground / 3D biomes, get_surface_block may be called per-block (x, y, z)
+//       to support operations like cave carving and other volumetric edits.
 
 perlin(x, z, seed, scale)           // Classic Perlin noise
 ridged(x, z, seed, scale)           // Ridged multifractal (sharp ridges)
@@ -864,7 +864,7 @@ fn select_biome(x: i32, y: i32, z: i32, climate: &Climate, map: &[BiomeClimateEn
             let spec_b = b.y_range.map(|(min, max)| max - min).unwrap_or(i32::MAX);
             
             // Compare specificity first, then climate distance
-            spec_a.cmp(&spec_b)
+            spec_b.cmp(&spec_a)
                 .then_with(|| climate_distance(climate, &a.climate)
                     .partial_cmp(&climate_distance(climate, &b.climate))
                     .unwrap())
@@ -931,7 +931,7 @@ fn data_driven_height(x: i32, z: i32, terrain: &TerrainSettings, seed: u32) -> i
     let noise = perlin_noise(x as f64 * terrain.noise_scale, 
                               z as f64 * terrain.noise_scale, 
                               seed);
-    terrain.base_height + (noise * terrain.height_variation as f64).round() as i32
+    terrain.base_height + ((noise * terrain.height_variation as f64).round() as i32)
 }
 ```
 
@@ -949,7 +949,9 @@ This keeps the formula simple and predictable for modders.
 
 2. **Existing worlds continue to work**
    - World seed determines terrain (unchanged)
-   - Only affects newly generated chunks
+   - Newly generated chunks use the current terrain config; previously generated chunks remain as-is
+   - Note: if an existing chunk is deleted and regenerated after a config change, its terrain may differ from neighboring older chunks even with the same seed
+   - Mitigation: track a world/terrain-generator or chunk-format version in world metadata so engines can (a) continue to use the original settings for regeneration or (b) explicitly migrate worlds while warning about visible chunk boundaries
 
 3. **Gradual adoption**
    - Existing code paths remain until deprecated
@@ -992,7 +994,9 @@ fn test_script_compilation() {
         }
     "#;
     let ast = engine.compile(script).expect("Script should compile");
-    assert!(ast.iter_functions().any(|f| f.name == "get_height"));
+    let mut scope = Scope::new();
+    let result: Result<f64, _> = engine.call_fn(&mut scope, &ast, "get_height", (0_i64, 0_i64, 0_i64));
+    assert!(result.is_ok(), "get_height function should exist and be callable");
 }
 
 #[test]
@@ -1047,8 +1051,25 @@ fn test_default_config_matches_current_behavior() {
     // Generate chunk with old hardcoded system (current generation.rs)
     let old_chunk = generate_chunk(chunk_pos, seed);
     
-    // Should produce identical results
-    assert_eq!(new_chunk.map, old_chunk.map);
+    // The overall terrain shape/contents should match at representative positions,
+    // but internal map representations may differ.
+    let sample_positions = [
+        IVec3::new(0, 0, 0),
+        IVec3::new(1, 0, 0),
+        IVec3::new(0, 0, 1),
+        IVec3::new(8, 0, 8),
+        IVec3::new(15, 0, 15),
+    ];
+
+    for pos in &sample_positions {
+        let new_block = new_chunk.map.get(pos);
+        let old_block = old_chunk.map.get(pos);
+        assert_eq!(
+            new_block, old_block,
+            "terrain mismatch at sampled position {:?}",
+            pos
+        );
+    }
 }
 
 #[test]
