@@ -692,13 +692,14 @@ data/
    }
    
    // In chunk generation, cache heights in a 16x16 array
+   // Returns heights[z][x] for intuitive row-major access
    fn generate_chunk_heights(chunk_x: i32, chunk_z: i32, ...) -> [[i32; 16]; 16] {
        let mut heights = [[0i32; 16]; 16];
-       for lx in 0..16 {
-           for lz in 0..16 {
+       for lz in 0..16 {
+           for lx in 0..16 {
                let world_x = chunk_x * 16 + lx as i32;
                let world_z = chunk_z * 16 + lz as i32;
-               heights[lx][lz] = get_terrain_height(world_x, world_z, biome, seed, engine);
+               heights[lz][lx] = get_terrain_height(world_x, world_z, biome, seed, engine);
            }
        }
        heights
