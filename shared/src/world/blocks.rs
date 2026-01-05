@@ -328,7 +328,7 @@ pub enum BlockTags {
     Stone,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum BlockTransparency {
     Transparent,
     Liquid,
