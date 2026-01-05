@@ -172,9 +172,8 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 // ============================================================================
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Calculate wave height for shading effects
-    let wave_height = calculate_wave_height(in.world_position.xz, water.time);
-    let height_factor = clamp(wave_height / water.wave_amplitude * 0.5 + 0.5, 0.0, 1.0);
+    // Use displaced world_position.y (already includes wave height for top faces) for shading effects
+    let height_factor = clamp(in.world_position.y / water.wave_amplitude * 0.5 + 0.5, 0.0, 1.0);
     
     // Base color with depth variation - troughs are darker
     var color = mix(water.deep_color.rgb, water.base_color.rgb, height_factor * 0.6 + 0.4);
