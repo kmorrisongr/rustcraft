@@ -340,14 +340,14 @@ Biomes with `y_range` in the climate map control underground generation:
 // Instead, it can return a "density" value for 3D noise carving
 fn get_height(x, z, seed) {
     // Return surface biome's height (not used for caves)
-    64
+    SEA_LEVEL  // Use world constant
 }
 
 // Custom block placement creates cave structure
 fn get_surface_block(x, y, z, terrain_height, seed) {
     // 3D noise for cave carving
     let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 0.1, 3, 0.5);
-    let cave_threshold = 0.4 + (y as f64 / 256.0) * 0.2;  // Fewer caves deeper
+    let cave_threshold = 0.4 + (y as f64 / WORLD_HEIGHT as f64) * 0.2;  // Fewer caves deeper
     
     if cave_noise > cave_threshold {
         "Air"  // Carve out cave
@@ -592,6 +592,16 @@ data/
        
        engine
    }
+   
+   // Helper function to create a scope with world constants
+   // Call this before each script execution to provide constants to the script
+   pub fn create_scope_with_constants(sea_level: i64, world_height: i64, chunk_size: i64) -> Scope<'static> {
+       let mut scope = Scope::new();
+       scope.push_constant("SEA_LEVEL", sea_level);
+       scope.push_constant("WORLD_HEIGHT", world_height);
+       scope.push_constant("CHUNK_SIZE", chunk_size);
+       scope
+   }
    ```
 
 3. **Compile scripts at load time**
@@ -602,10 +612,21 @@ data/
 4. **Integrate with chunk generation**
    ```rust
    // Height is computed per-column (x, z), then cached for block placement
-   fn get_terrain_height(x: i32, z: i32, biome: &BiomeConfig, seed: u32, engine: &Engine) -> i32 {
+   fn get_terrain_height(
+       x: i32, z: i32, 
+       biome: &BiomeConfig, 
+       seed: u32, 
+       engine: &Engine,
+       world_settings: &WorldSettings
+   ) -> i32 {
        if let Some(ast) = &biome.compiled_script {
-           // Call script (once per column, not per block)
-           let mut scope = Scope::new();  // Fresh scope per call
+           // Create scope with world constants for this script call
+           let mut scope = create_scope_with_constants(
+               world_settings.sea_level as i64,
+               world_settings.world_height as i64,
+               16  // CHUNK_SIZE is always 16
+           );
+           
            let result: f64 = engine.call_fn(
                &mut scope, ast, "get_height",
                (x as i64, z as i64, seed as i64)
@@ -869,9 +890,25 @@ shared/tests/fixtures/terrain_config/
     └── test_script.rhai
 ```
 
-### 6. Rhai Scope Lifetime
+### 6. Rhai Scope Lifetime and Constants
 
 Rhai's `Scope` cannot be stored in the `TerrainConfig` resource—it must be created fresh for each script call. The `Engine` and compiled `AST` can be stored and reused.
+
+**Important:** World constants (SEA_LEVEL, WORLD_HEIGHT, CHUNK_SIZE) must be added to the scope before each script execution. Use the `create_scope_with_constants()` helper function:
+
+```rust
+// Create scope with world constants before calling script
+let mut scope = create_scope_with_constants(
+    world_settings.sea_level as i64,
+    world_settings.world_height as i64,
+    16  // CHUNK_SIZE is always 16
+);
+
+// Now call the script with the scope that has constants
+let height: f64 = engine.call_fn(&mut scope, &ast, "get_height", (x, z, seed))?;
+```
+
+This pattern ensures that scripts can access SEA_LEVEL, WORLD_HEIGHT, and CHUNK_SIZE constants as documented in the Script API Reference.
 
 ### 7. Data-Driven Height Formula
 
@@ -942,7 +979,9 @@ fn test_script_compilation() {
         }
     "#;
     let ast = engine.compile(script).expect("Script should compile");
-    let mut scope = Scope::new();
+    
+    // Create scope with world constants
+    let mut scope = create_scope_with_constants(62, 256, 16);
     let result: Result<f64, _> = engine.call_fn(&mut scope, &ast, "get_height", (0_i64, 0_i64, 0_i64));
     assert!(result.is_ok(), "get_height function should exist and be callable");
 }
@@ -954,7 +993,8 @@ fn test_script_execution() {
         fn get_height(x, z, seed) { 64 }
     "#).unwrap();
     
-    let mut scope = Scope::new();
+    // Create scope with world constants
+    let mut scope = create_scope_with_constants(62, 256, 16);
     let result: f64 = engine.call_fn(&mut scope, &ast, "get_height", (0i64, 0i64, 12345i64)).unwrap();
     assert_eq!(result, 64.0);
 }
@@ -968,11 +1008,34 @@ fn test_noise_determinism() {
         }
     "#).unwrap();
     
-    let mut scope = Scope::new();
+    // Create scope with world constants
+    let mut scope = create_scope_with_constants(62, 256, 16);
     let result1: f64 = engine.call_fn(&mut scope, &ast, "get_height", (100i64, 200i64, 42i64)).unwrap();
     let result2: f64 = engine.call_fn(&mut scope, &ast, "get_height", (100i64, 200i64, 42i64)).unwrap();
     
     assert_eq!(result1, result2, "Noise must be deterministic");
+}
+
+#[test]
+fn test_constants_available_in_scripts() {
+    let engine = create_terrain_engine();
+    let ast = engine.compile(r#"
+        fn get_height(x, z, seed) {
+            // Use world constants in terrain generation
+            if perlin(x, z, seed, 0.1) < 0.0 {
+                SEA_LEVEL - 10  // Below sea level
+            } else {
+                SEA_LEVEL + 20  // Above sea level
+            }
+        }
+    "#).unwrap();
+    
+    // Create scope with world constants
+    let mut scope = create_scope_with_constants(62, 256, 16);
+    let result: f64 = engine.call_fn(&mut scope, &ast, "get_height", (0i64, 0i64, 0i64)).unwrap();
+    
+    // Result should use SEA_LEVEL (62) in calculation
+    assert!(result == 52.0 || result == 82.0, "Script should use SEA_LEVEL constant");
 }
 ```
 
@@ -1027,7 +1090,8 @@ fn test_infinite_loop_protection() {
         }
     "#).unwrap();
     
-    let mut scope = Scope::new();
+    // Create scope with world constants
+    let mut scope = create_scope_with_constants(62, 256, 16);
     let result = engine.call_fn::<f64>(&mut scope, &ast, "get_height", (0i64, 0i64, 0i64));
     
     // Should error, not hang
