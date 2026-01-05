@@ -4762,7 +4762,6 @@ dependencies = [
  "lz4",
  "noise",
  "nonempty",
- "once_cell",
  "rand",
  "serde",
 ]

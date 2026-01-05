@@ -188,8 +188,8 @@ pub enum BlockId {
     Water,
 }
 
-static BLOCK_PROPERTIES: once_cell::sync::Lazy<HashMap<BlockId, BlockProperties>> =
-    once_cell::sync::Lazy::new(|| {
+static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> =
+    std::sync::LazyLock::new(|| {
         HashMap::from([
             (
                 BlockId::Dirt,
