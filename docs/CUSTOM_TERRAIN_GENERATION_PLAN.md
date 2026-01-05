@@ -618,7 +618,7 @@ data/
    // shared/src/terrain/scripting.rs
    use rhai::{Engine, Scope, AST};
    
-   pub fn create_terrain_engine() -> Engine {
+   pub fn create_terrain_engine(world_settings: &WorldSettings) -> Engine {
        let mut engine = Engine::new();
        
        // Register noise functions
@@ -633,6 +633,11 @@ data/
        engine.register_fn("clamp", math_clamp);
        engine.register_fn("smoothstep", math_smoothstep);
        engine.register_fn("remap", math_remap);
+       
+       // Register constants from world settings
+       engine.register_global_const("SEA_LEVEL", world_settings.sea_level);
+       engine.register_global_const("WORLD_HEIGHT", world_settings.world_height);
+       engine.register_global_const("CHUNK_SIZE", 16i64);  // Always 16 in Rustcraft
        
        // Safety limits
        engine.set_max_operations(100_000);
@@ -1030,7 +1035,12 @@ fn test_biome_config_parsing() {
 
 #[test]
 fn test_script_compilation() {
-    let engine = create_terrain_engine();
+    let world_settings = WorldSettings {
+        sea_level: 62,
+        world_height: 256,
+        // ... other fields
+    };
+    let engine = create_terrain_engine(&world_settings);
     let script = r#"
         fn get_height(x, z, seed) {
             perlin(x, z, seed, 0.1) * 10 + 64
@@ -1046,7 +1056,12 @@ fn test_script_compilation() {
 
 #[test]
 fn test_script_execution() {
-    let engine = create_terrain_engine();
+    let world_settings = WorldSettings {
+        sea_level: 62,
+        world_height: 256,
+        // ... other fields
+    };
+    let engine = create_terrain_engine(&world_settings);
     let ast = engine.compile(r#"
         fn get_height(x, z, seed) { 64 }
     "#).unwrap();
@@ -1059,7 +1074,12 @@ fn test_script_execution() {
 
 #[test]
 fn test_noise_determinism() {
-    let engine = create_terrain_engine();
+    let world_settings = WorldSettings {
+        sea_level: 62,
+        world_height: 256,
+        // ... other fields
+    };
+    let engine = create_terrain_engine(&world_settings);
     let ast = engine.compile(r#"
         fn get_height(x, z, seed) {
             perlin(x, z, seed, 0.1) * 100
@@ -1157,7 +1177,12 @@ fn test_script_error_falls_back_to_data() {
 ```rust
 #[test]
 fn test_infinite_loop_protection() {
-    let engine = create_terrain_engine();
+    let world_settings = WorldSettings {
+        sea_level: 62,
+        world_height: 256,
+        // ... other fields
+    };
+    let engine = create_terrain_engine(&world_settings);
     let ast = engine.compile(r#"
         fn get_height(x, z, seed) {
             loop { }  // Infinite loop
@@ -1175,7 +1200,12 @@ fn test_infinite_loop_protection() {
 
 #[test]
 fn test_no_file_access() {
-    let engine = create_terrain_engine();
+    let world_settings = WorldSettings {
+        sea_level: 62,
+        world_height: 256,
+        // ... other fields
+    };
+    let engine = create_terrain_engine(&world_settings);
     
     // Should fail to compile - no file functions available
     let result = engine.compile(r#"
