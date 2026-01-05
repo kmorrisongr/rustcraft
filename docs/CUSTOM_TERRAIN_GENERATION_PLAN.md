@@ -897,7 +897,9 @@ This keeps the formula simple and predictable for modders.
 
 2. **Existing worlds continue to work**
    - World seed determines terrain (unchanged)
-   - Only affects newly generated chunks
+   - Newly generated chunks use the current terrain config; previously generated chunks remain as-is
+   - Note: if an existing chunk is deleted and regenerated after a config change, its terrain may differ from neighboring older chunks even with the same seed
+   - Mitigation: track a world/terrain-generator or chunk-format version in world metadata so engines can (a) continue to use the original settings for regeneration or (b) explicitly migrate worlds while warning about visible chunk boundaries
 
 3. **Gradual adoption**
    - Existing code paths remain until deprecated
