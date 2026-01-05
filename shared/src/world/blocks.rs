@@ -383,7 +383,7 @@ impl BlockId {
     pub fn get_break_time(&self) -> u8 {
         self.properties()
             .and_then(|props| props.breakability.as_ref())
-            .and_then(|b| Some(b.break_time))
+            .map(|b| b.break_time)
             // TODO: unbreakable should return None
             .unwrap_or(255)
     }
