@@ -1,11 +1,151 @@
 use std::collections::HashMap;
 
-use crate::HALF_BLOCK;
-
 use super::{GameElementId, ItemId};
-use bevy::math::{bounding::Aabb3d, IVec3, Vec3, Vec3A};
+use bevy::math::{bounding::Aabb3d, Vec3A};
+use nonempty::{nonempty, NonEmpty};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+
+#[derive(Copy, Clone)]
+struct RayHitboxArgs {
+    center: [f32; 3],
+    half_size: [f32; 3],
+}
+
+impl RayHitboxArgs {
+    fn short_flower() -> Self {
+        RayHitboxArgs {
+            center: [0.5, 0.3, 0.5],
+            half_size: [0.3, 0.3, 0.3],
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct DropStatistics {
+    relative_chance: u32,
+    corresponding_item: ItemId,
+    base_number: u32,
+}
+
+impl DropStatistics {
+    fn with_base_chance(corresponding_item: ItemId) -> Self {
+        DropStatistics {
+            relative_chance: 1,
+            corresponding_item,
+            base_number: 1,
+        }
+    }
+
+    fn as_vector(&self) -> Vec<(u32, ItemId, u32)> {
+        vec![(
+            self.relative_chance,
+            self.corresponding_item,
+            self.base_number,
+        )]
+    }
+}
+
+#[derive(Copy, Clone)]
+enum Hitbox {
+    Pathable {
+        /// Will only be used for raycasting, block does not collide with players
+        ray_hitbox: BlockHitbox,
+    },
+    Solid {
+        /// Will be used for both collisions with players and raycasting
+        collision_hitbox: BlockHitbox,
+    },
+}
+
+#[derive(Clone)]
+struct BlockBreakability {
+    break_time: u8,
+    drop_table: Option<NonEmpty<DropStatistics>>,
+}
+
+#[derive(Clone)]
+/// Properties associated with a given block type.
+///
+/// These are static and common to all instances of a block type.
+struct BlockProperties {
+    hitbox: Hitbox,
+    visibility: BlockTransparency,
+    breakability: Option<BlockBreakability>,
+}
+
+impl BlockProperties {
+    fn full_block(visibility: BlockTransparency, breakability: Option<BlockBreakability>) -> Self {
+        BlockProperties {
+            hitbox: Hitbox::Solid {
+                collision_hitbox: BlockHitbox::FullBlock,
+            },
+            visibility,
+            breakability,
+        }
+    }
+
+    fn full_solid_block(breakability: Option<BlockBreakability>) -> Self {
+        BlockProperties::full_block(BlockTransparency::Solid, breakability)
+    }
+
+    fn full_transparent_block(breakability: Option<BlockBreakability>) -> Self {
+        BlockProperties::full_block(BlockTransparency::Transparent, breakability)
+    }
+
+    fn full_transparent_block_no_drop(break_time: u8) -> Self {
+        BlockProperties::full_transparent_block(Some(BlockBreakability {
+            break_time,
+            drop_table: None,
+        }))
+    }
+
+    fn full_solid_block_single_drop(break_time: u8, drop_statistics: DropStatistics) -> Self {
+        BlockProperties::full_solid_block(Some(BlockBreakability {
+            break_time,
+            drop_table: Some(nonempty![drop_statistics]),
+        }))
+    }
+
+    fn full_solid_block_single_drop_item(break_time: u8, corresponding_item: ItemId) -> Self {
+        BlockProperties::full_solid_block_single_drop(
+            break_time,
+            DropStatistics::with_base_chance(corresponding_item),
+        )
+    }
+
+    fn decoration_block(
+        breakability: Option<BlockBreakability>,
+        ray_hitbox_args: RayHitboxArgs,
+    ) -> Self {
+        BlockProperties {
+            breakability,
+            hitbox: Hitbox::Pathable {
+                ray_hitbox: BlockHitbox::from_args(
+                    ray_hitbox_args.center,
+                    ray_hitbox_args.half_size,
+                ),
+            },
+            visibility: BlockTransparency::Decoration,
+        }
+    }
+
+    fn decoration_block_single_drop(
+        break_time: u8,
+        corresponding_item: ItemId,
+        ray_hitbox_args: RayHitboxArgs,
+    ) -> Self {
+        BlockProperties::decoration_block(
+            Some(BlockBreakability {
+                break_time,
+                drop_table: Some(nonempty![DropStatistics::with_base_chance(
+                    corresponding_item
+                )]),
+            }),
+            ray_hitbox_args,
+        )
+    }
+}
 
 #[derive(
     Debug,
@@ -44,6 +184,123 @@ pub enum BlockId {
     Water,
 }
 
+static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> =
+    std::sync::LazyLock::new(|| {
+        HashMap::from([
+            (
+                BlockId::Debug,
+                BlockProperties::full_solid_block_single_drop_item(42, ItemId::Dirt),
+            ),
+            (
+                BlockId::Dirt,
+                BlockProperties::full_solid_block_single_drop_item(30, ItemId::Dirt),
+            ),
+            (
+                BlockId::Grass,
+                BlockProperties::full_solid_block_single_drop_item(36, ItemId::Dirt),
+            ),
+            (
+                BlockId::Stone,
+                BlockProperties::full_solid_block_single_drop_item(60, ItemId::Cobblestone),
+            ),
+            (
+                BlockId::OakLog,
+                BlockProperties::full_solid_block_single_drop_item(60, ItemId::OakLog),
+            ),
+            (
+                BlockId::OakPlanks,
+                BlockProperties::full_solid_block_single_drop_item(60, ItemId::OakPlanks),
+            ),
+            (
+                BlockId::OakLeaves,
+                BlockProperties::full_transparent_block_no_drop(12),
+            ),
+            (
+                BlockId::Sand,
+                BlockProperties::full_solid_block_single_drop_item(30, ItemId::Sand),
+            ),
+            (
+                BlockId::Cactus,
+                BlockProperties::full_solid_block_single_drop_item(24, ItemId::Cactus),
+            ),
+            (
+                BlockId::Ice,
+                BlockProperties::full_solid_block_single_drop_item(30, ItemId::Ice),
+            ),
+            (
+                BlockId::Glass,
+                BlockProperties::full_transparent_block_no_drop(18),
+            ),
+            (
+                BlockId::Bedrock,
+                BlockProperties {
+                    breakability: None,
+                    hitbox: Hitbox::Solid {
+                        collision_hitbox: BlockHitbox::FullBlock,
+                    },
+                    visibility: BlockTransparency::Solid,
+                },
+            ),
+            (
+                BlockId::Dandelion,
+                BlockProperties::decoration_block_single_drop(
+                    6,
+                    ItemId::Dandelion,
+                    RayHitboxArgs::short_flower(),
+                ),
+            ),
+            (
+                BlockId::Poppy,
+                BlockProperties::decoration_block_single_drop(
+                    6,
+                    ItemId::Poppy,
+                    RayHitboxArgs::short_flower(),
+                ),
+            ),
+            (
+                BlockId::TallGrass,
+                BlockProperties::decoration_block_single_drop(
+                    6,
+                    ItemId::TallGrass,
+                    RayHitboxArgs::short_flower(),
+                ),
+            ),
+            (
+                BlockId::Cobblestone,
+                BlockProperties::full_solid_block_single_drop_item(12, ItemId::Cobblestone),
+            ),
+            (
+                BlockId::Snow,
+                BlockProperties::full_solid_block_single_drop(
+                    54,
+                    DropStatistics {
+                        relative_chance: 1,
+                        corresponding_item: ItemId::Snowball,
+                        base_number: 4,
+                    },
+                ),
+            ),
+            (
+                BlockId::SpruceLeaves,
+                BlockProperties::full_transparent_block_no_drop(12),
+            ),
+            (
+                BlockId::SpruceLog,
+                BlockProperties::full_solid_block_single_drop_item(60, ItemId::SpruceLog),
+            ),
+            (
+                BlockId::Water,
+                BlockProperties {
+                    breakability: None,
+                    hitbox: Hitbox::Pathable {
+                        ray_hitbox: BlockHitbox::None,
+                    },
+                    visibility: BlockTransparency::Liquid,
+                },
+            ),
+        ])
+    });
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BlockDirection {
     Front,
@@ -79,7 +336,7 @@ pub enum BlockTags {
     Stone,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum BlockTransparency {
     Transparent,
     Liquid,
@@ -87,60 +344,48 @@ pub enum BlockTransparency {
     Decoration,
 }
 
+#[derive(Copy, Clone)]
 pub enum BlockHitbox {
     FullBlock,
     Aabb(Aabb3d),
     None,
 }
+impl BlockHitbox {
+    fn from_args(center: [f32; 3], half_size: [f32; 3]) -> Self {
+        BlockHitbox::Aabb(Aabb3d::new(
+            Vec3A::from_slice(&center),
+            Vec3A::from_slice(&half_size),
+        ))
+    }
+}
 
 impl BlockId {
+    fn properties(&self) -> Option<&BlockProperties> {
+        BLOCK_PROPERTIES.get(self)
+    }
+
     pub fn get_hitbox(&self) -> BlockHitbox {
-        match *self {
-            Self::Water | Self::TallGrass | Self::Poppy | Self::Dandelion => BlockHitbox::None,
-            _ => BlockHitbox::FullBlock,
+        match self.properties() {
+            Some(BlockProperties { hitbox, .. }) => match hitbox {
+                Hitbox::Pathable { ray_hitbox } => *ray_hitbox,
+                Hitbox::Solid { collision_hitbox } => *collision_hitbox,
+            },
+            None => BlockHitbox::FullBlock,
         }
     }
 
     pub fn get_ray_hitbox(&self) -> BlockHitbox {
-        match *self {
-            Self::Water => BlockHitbox::None,
-            Self::TallGrass | Self::Poppy | Self::Dandelion => BlockHitbox::Aabb(Aabb3d::new(
-                Vec3A::splat(0.5).with_y(0.3),
-                Vec3A::splat(0.3),
-            )),
-            _ => BlockHitbox::FullBlock,
-        }
+        // NOTE: for now, leave this as backwards-compatibility. I am having trouble imagining a
+        // use-case for having two separate hitboxes.
+        BlockId::get_hitbox(self)
     }
 
     pub fn get_break_time(&self) -> u8 {
-        6 * match *self {
-            Self::Dirt => 5,
-            Self::Debug => 7,
-            Self::Grass => 6,
-            Self::Stone => 10,
-            Self::OakLog => 10,
-            Self::OakPlanks => 10,
-            Self::OakLeaves => 2,
-            Self::Sand => 5,
-            Self::Cactus => 4,
-            Self::Ice => 5,
-            Self::Glass => 3,
-            Self::Dandelion => 1,
-            Self::Poppy => 1,
-            Self::TallGrass => 1,
-            Self::Cobblestone => 2,
-            Self::Snow => 9,
-            Self::SpruceLeaves => 2,
-            Self::SpruceLog => 10,
-            _ => 100,
-        }
-    }
-
-    pub fn get_color(&self) -> [f32; 4] {
-        match *self {
-            Self::Grass => [0.1, 1.0, 0.25, 1.],
-            _ => [1., 1., 1., 1.],
-        }
+        self.properties()
+            .and_then(|props| props.breakability.as_ref())
+            .map(|b| b.break_time)
+            // TODO: unbreakable should return None
+            .unwrap_or(255)
     }
 
     pub fn get_drops(&self, nb_drops: u32) -> HashMap<ItemId, u32> {
@@ -172,25 +417,17 @@ impl BlockId {
         drops
     }
 
-    /// Specifies the drop table of a given block
-    /// Drops are specified this way : `(relative_chance, corresponding_item, base_number)`
     pub fn get_drop_table(&self) -> Vec<(u32, ItemId, u32)> {
-        match *self {
-            BlockId::Dirt | BlockId::Grass => vec![(1, ItemId::Dirt, 1)],
-            BlockId::Stone => vec![(1, ItemId::Cobblestone, 1)],
-            BlockId::Sand => vec![(1, ItemId::Sand, 1)],
-            BlockId::Cactus => vec![(1, ItemId::Cactus, 1)],
-            BlockId::OakLog => vec![(1, ItemId::OakLog, 1)],
-            BlockId::OakPlanks => vec![(1, ItemId::OakPlanks, 1)],
-            BlockId::Ice => vec![(1, ItemId::Ice, 1)],
-            BlockId::Dandelion => vec![(1, ItemId::Dandelion, 1)],
-            BlockId::Poppy => vec![(1, ItemId::Dandelion, 1)],
-            BlockId::TallGrass => vec![(1, ItemId::TallGrass, 1)],
-            BlockId::SpruceLog => vec![(1, ItemId::SpruceLog, 1)],
-            BlockId::Snow => vec![(1, ItemId::Snowball, 4)],
-            BlockId::Water => vec![],
-            _ => vec![],
-        }
+        self.properties()
+            .and_then(|props| props.breakability.as_ref())
+            .and_then(|breakability| breakability.drop_table.as_ref())
+            .map(|drop_table| {
+                drop_table
+                    .iter()
+                    .flat_map(|drop_stats| drop_stats.as_vector())
+                    .collect()
+            })
+            .unwrap_or(vec![])
     }
 
     pub fn get_tags(&self) -> Vec<BlockTags> {
@@ -201,21 +438,9 @@ impl BlockId {
     }
 
     pub fn get_visibility(&self) -> BlockTransparency {
-        match *self {
-            Self::Dandelion | Self::Poppy | Self::TallGrass => BlockTransparency::Decoration,
-            Self::Glass | Self::OakLeaves | Self::SpruceLeaves => BlockTransparency::Transparent,
-            Self::Water => BlockTransparency::Liquid,
-            _ => BlockTransparency::Solid,
-        }
-    }
-
-    pub fn get_interaction_box(&self, position: &IVec3) -> Aabb3d {
-        let pos = Vec3::new(position.x as f32, position.y as f32, position.z as f32);
-        match *self {
-            Self::Dandelion | Self::Poppy | Self::TallGrass => {
-                Aabb3d::new(pos - Vec3::new(0f32, 0.25, 0f32), HALF_BLOCK / 2.0)
-            }
-            _ => Aabb3d::new(pos, HALF_BLOCK),
+        match self.properties() {
+            Some(BlockProperties { visibility, .. }) => *visibility,
+            None => BlockTransparency::Solid,
         }
     }
 }
