@@ -4,6 +4,7 @@
 //! water rendering that includes animated standing waves.
 
 pub mod water;
+mod water_uniforms;
 
 use bevy::prelude::*;
 
