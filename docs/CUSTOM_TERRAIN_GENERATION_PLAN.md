@@ -345,14 +345,21 @@ fn get_height(x, z, seed) {
 
 // Custom block placement creates cave structure
 fn get_surface_block(x, y, z, terrain_height, seed) {
-    // 2D FBM noise used as cave density field; vertical variation comes from y-dependent threshold
-    let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed, 0.1, 3, 0.5);
+    // 3D noise for cave carving
+    // Manual coordinate scaling (x * 0.05, z * 0.05) used here because:
+    // - We're also incorporating y into the seed (seed + y * 100)
+    // - Manual scaling makes the coordinate transformations more explicit
+    // - The 0.1 scale parameter adds additional fine detail on top
+    let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 0.1, 3, 0.5);
     let cave_threshold = 0.4 + (y.to_float() / 256.0) * 0.2;  // Fewer caves deeper
     
     if cave_noise > cave_threshold {
         "Air"  // Carve out cave
     } else {
         // Ore generation based on depth
+        // Using scale parameter (0.2) for simple 2D noise pattern
+        // Equivalent to: perlin(x * 0.2, z * 0.2, seed + 1000, 1.0)
+        // The scale parameter handles coordinate scaling internally
         let ore_noise = perlin(x, z, seed + 1000, 0.2);
         if y < 16 && ore_noise > 0.9 {
             "Bedrock"  // Placeholder for diamond ore
@@ -369,9 +376,10 @@ fn get_surface_block(x, y, z, terrain_height, seed) {
 // Must be deterministic (same inputs = same output)
 fn get_height(x, z, seed) {
     // Combine base terrain with sharp volcanic ridges
-    let base = perlin(x, z, seed, 0.05);           // Large-scale shape
-    let ridges = ridged(x, z, seed + 1, 0.08);     // Sharp peaks
-    let detail = perlin(x, z, seed + 2, 0.2);      // Fine detail
+    // Using scale parameter for clean, readable noise calls
+    let base = perlin(x, z, seed, 0.05);           // Large-scale shape (low frequency)
+    let ridges = ridged(x, z, seed + 1, 0.08);     // Sharp peaks (medium frequency)
+    let detail = perlin(x, z, seed + 2, 0.2);      // Fine detail (high frequency)
     
     // Volcanic peaks: square the ridges for sharper effect
     let volcanic = ridges * ridges;
@@ -420,6 +428,48 @@ simplex(x, z, seed, scale)          // Simplex noise (smoother than Perlin)
 // Multi-octave versions (more detail, combines multiple noise layers)
 perlin_fbm(x, z, seed, scale, octaves, persistence)
 ridged_fbm(x, z, seed, scale, octaves, persistence)
+
+
+// === Noise Function Parameter Details ===
+//
+// COORDINATE SCALING:
+// The 'scale' parameter controls the frequency of the noise pattern.
+// Internally, the noise function multiplies the coordinates by the scale:
+//     noise_value = perlin_noise(x * scale, z * scale, seed)
+//
+// Smaller scale values (e.g., 0.01-0.05) create large, smooth terrain features
+// Larger scale values (e.g., 0.1-0.5) create smaller, more detailed features
+//
+// TWO APPROACHES FOR SCALING:
+//
+// 1. Use the scale parameter (RECOMMENDED for most cases):
+//    perlin(x, z, seed, 0.05)
+//    - Clean and readable
+//    - Scale value clearly indicates feature size
+//    - Consistent with data-driven terrain configuration
+//
+// 2. Manual coordinate scaling (use for advanced control):
+//    perlin(x * 0.05, z * 0.05, seed, 1.0)
+//    - Allows different scales for x and z axes
+//    - Useful for stretching terrain in one direction
+//    - Required when combining multiple coordinate transformations
+//
+// EXAMPLES:
+//    // Large-scale terrain features (mountains, valleys)
+//    let base = perlin(x, z, seed, 0.05);
+//
+//    // Fine detail (small hills, texture)
+//    let detail = perlin(x, z, seed + 1, 0.2);
+//
+//    // Stretched terrain (wider in x-direction)
+//    let stretched = perlin(x * 0.03, z * 0.06, seed, 1.0);
+//
+//    // 3D noise often uses manual scaling for clarity
+//    let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 1.0, 3, 0.5);
+//
+// SEED PARAMETER:
+// Adding offsets to the seed (e.g., seed + 1000) creates independent noise patterns
+// that still remain deterministic for world generation.
 
 
 // === Math Utilities ===
