@@ -94,7 +94,7 @@ Invalid or missing configurations fall back to defaults with warnings logged:
 ### Configuration Format: RON
 
 **Rationale:**
-- Already used in Rustcraft for keybindings (`data/keybindings.ron`)
+- Integrates cleanly with Rust via serde (widely used in Rust ecosystem)
 - Native Rust integration via serde
 - Human-readable and editor-friendly
 - Supports comments (unlike JSON)
