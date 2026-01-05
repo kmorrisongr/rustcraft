@@ -881,7 +881,7 @@ fn data_driven_height(x: i32, z: i32, terrain: &TerrainSettings, seed: u32) -> i
     let noise = perlin_noise(x as f64 * terrain.noise_scale, 
                               z as f64 * terrain.noise_scale, 
                               seed);
-    terrain.base_height + (noise * terrain.height_variation as f64).round() as i32
+    terrain.base_height + ((noise * terrain.height_variation as f64).round() as i32)
 }
 ```
 
