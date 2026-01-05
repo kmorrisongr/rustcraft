@@ -188,6 +188,10 @@ static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> 
     std::sync::LazyLock::new(|| {
         HashMap::from([
             (
+                BlockId::Debug,
+                BlockProperties::full_solid_block_single_drop_item(42, ItemId::Dirt),
+            ),
+            (
                 BlockId::Dirt,
                 BlockProperties::full_solid_block_single_drop_item(30, ItemId::Dirt),
             ),
@@ -361,15 +365,12 @@ impl BlockId {
     }
 
     pub fn get_hitbox(&self) -> BlockHitbox {
-        match *self {
-            Self::Debug => BlockHitbox::FullBlock,
-            _ => match self.properties() {
-                Some(BlockProperties { hitbox, .. }) => match hitbox {
-                    Hitbox::Pathable { ray_hitbox } => *ray_hitbox,
-                    Hitbox::Solid { collision_hitbox } => *collision_hitbox,
-                },
-                None => BlockHitbox::FullBlock,
+        match self.properties() {
+            Some(BlockProperties { hitbox, .. }) => match hitbox {
+                Hitbox::Pathable { ray_hitbox } => *ray_hitbox,
+                Hitbox::Solid { collision_hitbox } => *collision_hitbox,
             },
+            None => BlockHitbox::FullBlock,
         }
     }
 
@@ -380,15 +381,11 @@ impl BlockId {
     }
 
     pub fn get_break_time(&self) -> u8 {
-        match *self {
-            Self::Debug => 42,
-            _ => self
-                .properties()
-                .and_then(|props| props.breakability.as_ref())
-                .and_then(|b| Some(b.break_time))
-                // TODO: unbreakable should return None
-                .unwrap_or(255),
-        }
+        self.properties()
+            .and_then(|props| props.breakability.as_ref())
+            .and_then(|b| Some(b.break_time))
+            // TODO: unbreakable should return None
+            .unwrap_or(255)
     }
 
     pub fn get_color(&self) -> [f32; 4] {
@@ -448,12 +445,9 @@ impl BlockId {
     }
 
     pub fn get_visibility(&self) -> BlockTransparency {
-        match *self {
-            Self::Debug => BlockTransparency::Solid,
-            _ => match self.properties() {
-                Some(BlockProperties { visibility, .. }) => *visibility,
-                None => BlockTransparency::Solid,
-            },
+        match self.properties() {
+            Some(BlockProperties { visibility, .. }) => *visibility,
+            None => BlockTransparency::Solid,
         }
     }
 }
