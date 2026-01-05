@@ -5,7 +5,7 @@
 
 use bevy::{
     prelude::*,
-    render::render_resource::{AsBindGroup, ShaderRef},
+    render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
 
 /// Plugin for the water shader system
@@ -30,35 +30,32 @@ fn update_water_shader_time(time: Res<Time>, mut water_time: ResMut<WaterShaderT
     water_time.elapsed = time.elapsed_secs();
 }
 
+/// Uniform data for water shader (matches WGSL WaterUniforms struct)
+#[derive(ShaderType, Debug, Clone)]
+pub struct WaterUniforms {
+    /// Current time for animation (updated each frame)
+    pub time: f32,
+    /// Wave amplitude - how high the waves rise
+    pub wave_amplitude: f32,
+    /// Wave frequency - how many waves per unit distance
+    pub wave_frequency: f32,
+    /// Wave speed - how fast the waves move
+    pub wave_speed: f32,
+    /// Base color of the water (with alpha for transparency)
+    pub base_color: Vec4,
+    /// Deep water color (blended based on depth)
+    pub deep_color: Vec4,
+}
+
 /// Custom material for water rendering with animated waves
 ///
 /// This material uses a custom WGSL shader that displaces vertices
 /// to create standing wave patterns on water surfaces.
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct WaterMaterial {
-    /// Current time for animation (updated each frame)
+    /// All water shader uniforms grouped together
     #[uniform(0)]
-    pub time: f32,
-
-    /// Wave amplitude - how high the waves rise
-    #[uniform(0)]
-    pub wave_amplitude: f32,
-
-    /// Wave frequency - how many waves per unit distance
-    #[uniform(0)]
-    pub wave_frequency: f32,
-
-    /// Wave speed - how fast the waves move
-    #[uniform(0)]
-    pub wave_speed: f32,
-
-    /// Base color of the water (with alpha for transparency)
-    #[uniform(0)]
-    pub base_color: LinearRgba,
-
-    /// Deep water color (blended based on depth)
-    #[uniform(0)]
-    pub deep_color: LinearRgba,
+    pub uniforms: WaterUniforms,
 
     /// Texture atlas for water texture
     #[texture(1)]
@@ -69,12 +66,14 @@ pub struct WaterMaterial {
 impl Default for WaterMaterial {
     fn default() -> Self {
         Self {
-            time: 0.0,
-            wave_amplitude: 0.12,                                // Visible waves
-            wave_frequency: 1.2,                                 // Gentle frequency
-            wave_speed: 1.0,                                     // Calm movement
-            base_color: LinearRgba::new(0.12, 0.40, 0.50, 0.65), // Atlantic ocean teal-blue
-            deep_color: LinearRgba::new(0.05, 0.18, 0.28, 0.8),  // Deeper ocean blue-green
+            uniforms: WaterUniforms {
+                time: 0.0,
+                wave_amplitude: 0.12,                          // Visible waves
+                wave_frequency: 1.2,                           // Gentle frequency
+                wave_speed: 1.0,                               // Calm movement
+                base_color: Vec4::new(0.12, 0.40, 0.50, 0.65), // Atlantic ocean teal-blue
+                deep_color: Vec4::new(0.05, 0.18, 0.28, 0.8),  // Deeper ocean blue-green
+            },
             texture: None,
         }
     }
@@ -104,6 +103,6 @@ pub fn update_water_materials(
     mut materials: ResMut<Assets<WaterMaterial>>,
 ) {
     for (_, material) in materials.iter_mut() {
-        material.time = water_time.elapsed;
+        material.uniforms.time = water_time.elapsed;
     }
 }
