@@ -942,7 +942,9 @@ fn test_script_compilation() {
         }
     "#;
     let ast = engine.compile(script).expect("Script should compile");
-    assert!(ast.iter_functions().any(|f| f.name == "get_height"));
+    let mut scope = Scope::new();
+    let result: Result<f64, _> = engine.call_fn(&mut scope, &ast, "get_height", (0_i64, 0_i64, 0_i64));
+    assert!(result.is_ok(), "get_height function should exist and be callable");
 }
 
 #[test]
