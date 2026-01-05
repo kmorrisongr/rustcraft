@@ -37,6 +37,14 @@ impl DropStatistics {
             base_number: 1,
         }
     }
+
+    fn as_vector(&self) -> Vec<(u32, ItemId, u32)> {
+        vec![(
+            self.relative_chance,
+            self.corresponding_item,
+            self.base_number,
+        )]
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -52,42 +60,29 @@ enum Hitbox {
 }
 
 #[derive(Copy, Clone)]
-enum BlockProperties {
-    Breakable {
-        break_time: u8,
-        hitbox: Hitbox,
-        visibility: BlockTransparency,
-    },
-    BreakableDroppable {
-        break_time: u8,
-        hitbox: Hitbox,
-        visibility: BlockTransparency,
-        drop_table: DropStatistics,
-    },
-    Unbreakable {
-        hitbox: Hitbox,
-        visibility: BlockTransparency,
-    },
+struct BlockBreakability {
+    break_time: u8,
+    drop_table: Option<DropStatistics>,
+}
+
+#[derive(Copy, Clone)]
+struct BlockProperties {
+    hitbox: Hitbox,
+    visibility: BlockTransparency,
+    breakability: Option<BlockBreakability>,
 }
 
 impl BlockProperties {
     fn full_solid_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
-        match drop_table {
-            Some(drop_table) => BlockProperties::BreakableDroppable {
+        BlockProperties {
+            hitbox: Hitbox::Solid {
+                collision_hitbox: BlockHitbox::FullBlock,
+            },
+            visibility: BlockTransparency::Solid,
+            breakability: Some(BlockBreakability {
                 break_time,
-                hitbox: Hitbox::Solid {
-                    collision_hitbox: BlockHitbox::FullBlock,
-                },
-                visibility: BlockTransparency::Solid,
                 drop_table,
-            },
-            None => BlockProperties::Breakable {
-                break_time,
-                hitbox: Hitbox::Solid {
-                    collision_hitbox: BlockHitbox::FullBlock,
-                },
-                visibility: BlockTransparency::Solid,
-            },
+            }),
         }
     }
 
@@ -118,8 +113,11 @@ impl BlockProperties {
         ray_hitbox_args: RayHitboxArgs,
         corresponding_item: ItemId,
     ) -> Self {
-        BlockProperties::BreakableDroppable {
-            break_time,
+        BlockProperties {
+            breakability: Some(BlockBreakability {
+                break_time,
+                drop_table: Some(DropStatistics::with_base_chance(corresponding_item)),
+            }),
             hitbox: Hitbox::Pathable {
                 ray_hitbox: BlockHitbox::from_args(
                     ray_hitbox_args.center,
@@ -127,27 +125,19 @@ impl BlockProperties {
                 ),
             },
             visibility: BlockTransparency::Decoration,
-            drop_table: DropStatistics::with_base_chance(corresponding_item),
         }
     }
 
     fn full_transparent_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
-        match drop_table {
-            Some(drop_table) => BlockProperties::BreakableDroppable {
+        BlockProperties {
+            hitbox: Hitbox::Solid {
+                collision_hitbox: BlockHitbox::FullBlock,
+            },
+            visibility: BlockTransparency::Transparent,
+            breakability: Some(BlockBreakability {
                 break_time,
-                hitbox: Hitbox::Solid {
-                    collision_hitbox: BlockHitbox::FullBlock,
-                },
-                visibility: BlockTransparency::Transparent,
                 drop_table,
-            },
-            None => BlockProperties::Breakable {
-                break_time,
-                hitbox: Hitbox::Solid {
-                    collision_hitbox: BlockHitbox::FullBlock,
-                },
-                visibility: BlockTransparency::Transparent,
-            },
+            }),
         }
     }
 }
@@ -234,7 +224,8 @@ static BLOCK_PROPERTIES: once_cell::sync::Lazy<HashMap<BlockId, BlockProperties>
             ),
             (
                 BlockId::Bedrock,
-                BlockProperties::Unbreakable {
+                BlockProperties {
+                    breakability: None,
                     hitbox: Hitbox::Solid {
                         collision_hitbox: BlockHitbox::FullBlock,
                     },
@@ -283,7 +274,8 @@ static BLOCK_PROPERTIES: once_cell::sync::Lazy<HashMap<BlockId, BlockProperties>
             ),
             (
                 BlockId::Water,
-                BlockProperties::Unbreakable {
+                BlockProperties {
+                    breakability: None,
                     hitbox: Hitbox::Pathable {
                         ray_hitbox: BlockHitbox::None,
                     },
@@ -360,9 +352,7 @@ impl BlockId {
         match *self {
             Self::Debug => BlockHitbox::FullBlock,
             _ => match self.properties() {
-                Some(BlockProperties::Breakable { hitbox, .. })
-                | Some(BlockProperties::Unbreakable { hitbox, .. })
-                | Some(BlockProperties::BreakableDroppable { hitbox, .. }) => match hitbox {
+                Some(BlockProperties { hitbox, .. }) => match hitbox {
                     Hitbox::Pathable { ray_hitbox } => *ray_hitbox,
                     Hitbox::Solid { collision_hitbox } => *collision_hitbox,
                 },
@@ -380,13 +370,12 @@ impl BlockId {
     pub fn get_break_time(&self) -> u8 {
         match *self {
             Self::Debug => 42,
-            _ => match self.properties() {
-                Some(BlockProperties::Breakable { break_time, .. })
-                | Some(BlockProperties::BreakableDroppable { break_time, .. }) => *break_time,
-                // TODO: unbreakable should actually be unbreakable
-                Some(BlockProperties::Unbreakable { .. }) => 255,
-                None => 100,
-            },
+            _ => self
+                .properties()
+                .and_then(|props| props.breakability)
+                .and_then(|b| Some(b.break_time))
+                // TODO: unbreakable should return None
+                .unwrap_or(255),
         }
     }
 
@@ -427,14 +416,12 @@ impl BlockId {
     }
 
     pub fn get_drop_table(&self) -> Vec<(u32, ItemId, u32)> {
-        match self.properties() {
-            Some(BlockProperties::BreakableDroppable { drop_table, .. }) => vec![(
-                drop_table.relative_chance,
-                drop_table.corresponding_item,
-                drop_table.base_number,
-            )],
-            _ => vec![],
-        }
+        return self
+            .properties()
+            .and_then(|props| props.breakability)
+            .and_then(|breakability| breakability.drop_table)
+            .and_then(|drop_table| drop_table.as_vector().into())
+            .unwrap_or(vec![]);
     }
 
     pub fn get_tags(&self) -> Vec<BlockTags> {
@@ -448,9 +435,7 @@ impl BlockId {
         match *self {
             Self::Debug => BlockTransparency::Solid,
             _ => match self.properties() {
-                Some(BlockProperties::Breakable { visibility, .. })
-                | Some(BlockProperties::Unbreakable { visibility, .. })
-                | Some(BlockProperties::BreakableDroppable { visibility, .. }) => *visibility,
+                Some(BlockProperties { visibility, .. }) => *visibility,
                 None => BlockTransparency::Solid,
             },
         }
