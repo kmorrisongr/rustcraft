@@ -814,7 +814,7 @@ fn select_biome(x: i32, y: i32, z: i32, climate: &Climate, map: &[BiomeClimateEn
             let spec_b = b.y_range.map(|(min, max)| max - min).unwrap_or(i32::MAX);
             
             // Compare specificity first, then climate distance
-            spec_a.cmp(&spec_b)
+            spec_b.cmp(&spec_a)
                 .then_with(|| climate_distance(climate, &a.climate)
                     .partial_cmp(&climate_distance(climate, &b.climate))
                     .unwrap())
