@@ -76,7 +76,7 @@ pub(crate) fn generate_chunk_mesh(
 
         // Determine which mesh creator to use based on block type
         let is_water = block.id == BlockId::Water;
-        
+
         // Select the target mesh creator once per block iteration
         let target_mesh_creator = if is_water {
             &mut water_mesh_creator
