@@ -371,7 +371,7 @@ impl BlockId {
     }
 
     pub fn get_ray_hitbox(&self) -> BlockHitbox {
-        // NOTE: for now, leave this as backwards-compatability. I am having trouble imagining a
+        // NOTE: for now, leave this as backwards-compatibility. I am having trouble imagining a
         // use-case for having two separate hitboxes.
         return BlockId::get_hitbox(self);
     }
