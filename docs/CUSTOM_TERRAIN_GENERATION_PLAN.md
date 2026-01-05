@@ -1130,20 +1130,24 @@ Cave generation is handled through `get_surface_block()` in underground biomes, 
 // Example: Advanced cave generation with ore placement
 fn get_surface_block(x, y, z, terrain_height, seed) {
     // 3D noise for cave carving
+    // perlin_3d(x, y, z, seed, scale) - scale=0.05 creates large, connected cave systems
     let cave_noise = perlin_3d(x, y, z, seed + 100, 0.05);
     let cave_threshold = 0.6;
     
     if cave_noise > cave_threshold {
         // Carve out cave, but can place different blocks based on position
+        // Rare lava pockets in deep caves (y < 10, ~5% of cave blocks)
         if y < 10 && perlin(x, z, seed + 200, 0.1) > 0.95 {
-            "Lava"  // Lava pockets in deep caves
+            "Lava"
         } else {
             "Air"   // Normal cave air
         }
     } else {
         // Solid terrain - place ores based on depth
+        // Diamond ore: y < 16, ~10% spawn rate, clustered (scale=0.2)
         if y < 16 && perlin(x, z, seed + 1000, 0.2) > 0.9 {
             "DiamondOre"
+        // Iron ore: y < 64, ~15% spawn rate, more scattered (scale=0.15)
         } else if y < 64 && perlin(x, z, seed + 2000, 0.15) > 0.85 {
             "IronOre"
         } else {
