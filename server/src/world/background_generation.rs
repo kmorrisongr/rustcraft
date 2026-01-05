@@ -10,7 +10,7 @@ use crate::world::generation::{generate_chunk, ChunkGenerationResult};
 use super::broadcast_world::get_all_active_chunks;
 use shared::GameServerConfig;
 
-const MAX_CONCURRENT_GENERATION_TASKS: usize = 10;
+const MAX_CONCURRENT_GENERATION_TASKS: usize = 4;
 
 /// Resource to track in-progress chunk generation tasks.
 ///
