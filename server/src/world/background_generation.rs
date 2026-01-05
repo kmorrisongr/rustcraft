@@ -15,9 +15,9 @@ const MAX_CONCURRENT_GENERATION_TASKS: usize = 4;
 /// Resource to track in-progress chunk generation tasks.
 ///
 /// The `in_progress` HashSet duplicates position information from `tasks`, but provides
-/// O(1) lookup vs O(n) linear scan of the tasks vec. With MAX_CONCURRENT_GENERATION_TASKS=10,
-/// the memory overhead is negligible (~240 bytes for HashSet) and the O(1) lookup is worthwhile
-/// since we check membership for every candidate chunk each frame.
+/// O(1) lookup vs O(n) linear scan of the tasks vec. With a small MAX_CONCURRENT_GENERATION_TASKS
+/// (currently 4), the memory overhead is negligible and the O(1) lookup is worthwhile since we
+/// check membership for every candidate chunk each frame.
 #[derive(Resource, Default)]
 pub struct ChunkGenerationTasks {
     /// Active generation tasks with their chunk positions
