@@ -75,55 +75,51 @@ struct BlockProperties {
 }
 
 impl BlockProperties {
-    fn full_solid_block(break_time: u8, drop_table: Option<NonEmpty<DropStatistics>>) -> Self {
+    fn full_block(visibility: BlockTransparency, breakability: Option<BlockBreakability>) -> Self {
         BlockProperties {
             hitbox: Hitbox::Solid {
                 collision_hitbox: BlockHitbox::FullBlock,
             },
-            visibility: BlockTransparency::Solid,
-            breakability: Some(BlockBreakability {
-                break_time,
-                drop_table,
-            }),
+            visibility,
+            breakability,
         }
     }
 
-    fn full_solid_block_with_multiple_drops(
-        break_time: u8,
-        corresponding_item: ItemId,
-        number_of_items: u32,
-    ) -> Self {
-        BlockProperties::full_solid_block(
+    fn full_solid_block(breakability: Option<BlockBreakability>) -> Self {
+        BlockProperties::full_block(BlockTransparency::Solid, breakability)
+    }
+
+    fn full_transparent_block(breakability: Option<BlockBreakability>) -> Self {
+        BlockProperties::full_block(BlockTransparency::Transparent, breakability)
+    }
+
+    fn full_transparent_block_no_drop(break_time: u8) -> Self {
+        BlockProperties::full_transparent_block(Some(BlockBreakability {
             break_time,
-            Some(nonempty![DropStatistics {
-                relative_chance: 1,
-                corresponding_item,
-                base_number: number_of_items,
-            }]),
+            drop_table: None,
+        }))
+    }
+
+    fn full_solid_block_single_drop(break_time: u8, drop_statistics: DropStatistics) -> Self {
+        BlockProperties::full_solid_block(Some(BlockBreakability {
+            break_time,
+            drop_table: Some(nonempty![drop_statistics]),
+        }))
+    }
+
+    fn full_solid_block_single_drop_item(break_time: u8, corresponding_item: ItemId) -> Self {
+        BlockProperties::full_solid_block_single_drop(
+            break_time,
+            DropStatistics::with_base_chance(corresponding_item),
         )
     }
 
-    fn full_solid_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
-        BlockProperties::full_solid_block(
-            break_time,
-            Some(nonempty![DropStatistics::with_base_chance(
-                corresponding_item
-            )]),
-        )
-    }
-
-    fn decoration_base_block(
-        break_time: u8,
+    fn decoration_block(
+        breakability: Option<BlockBreakability>,
         ray_hitbox_args: RayHitboxArgs,
-        corresponding_item: ItemId,
     ) -> Self {
         BlockProperties {
-            breakability: Some(BlockBreakability {
-                break_time,
-                drop_table: Some(nonempty![DropStatistics::with_base_chance(
-                    corresponding_item
-                )]),
-            }),
+            breakability,
             hitbox: Hitbox::Pathable {
                 ray_hitbox: BlockHitbox::from_args(
                     ray_hitbox_args.center,
@@ -134,20 +130,20 @@ impl BlockProperties {
         }
     }
 
-    fn full_transparent_block(
+    fn decoration_block_single_drop(
         break_time: u8,
-        drop_table: Option<NonEmpty<DropStatistics>>,
+        corresponding_item: ItemId,
+        ray_hitbox_args: RayHitboxArgs,
     ) -> Self {
-        BlockProperties {
-            hitbox: Hitbox::Solid {
-                collision_hitbox: BlockHitbox::FullBlock,
-            },
-            visibility: BlockTransparency::Transparent,
-            breakability: Some(BlockBreakability {
+        BlockProperties::decoration_block(
+            Some(BlockBreakability {
                 break_time,
-                drop_table,
+                drop_table: Some(nonempty![DropStatistics::with_base_chance(
+                    corresponding_item
+                )]),
             }),
-        }
+            ray_hitbox_args,
+        )
     }
 }
 
@@ -193,43 +189,43 @@ static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> 
         HashMap::from([
             (
                 BlockId::Dirt,
-                BlockProperties::full_solid_base_block(30, ItemId::Dirt),
+                BlockProperties::full_solid_block_single_drop_item(30, ItemId::Dirt),
             ),
             (
                 BlockId::Grass,
-                BlockProperties::full_solid_base_block(36, ItemId::Dirt),
+                BlockProperties::full_solid_block_single_drop_item(36, ItemId::Dirt),
             ),
             (
                 BlockId::Stone,
-                BlockProperties::full_solid_base_block(60, ItemId::Cobblestone),
+                BlockProperties::full_solid_block_single_drop_item(60, ItemId::Cobblestone),
             ),
             (
                 BlockId::OakLog,
-                BlockProperties::full_solid_base_block(60, ItemId::OakLog),
+                BlockProperties::full_solid_block_single_drop_item(60, ItemId::OakLog),
             ),
             (
                 BlockId::OakPlanks,
-                BlockProperties::full_solid_base_block(60, ItemId::OakPlanks),
+                BlockProperties::full_solid_block_single_drop_item(60, ItemId::OakPlanks),
             ),
             (
                 BlockId::OakLeaves,
-                BlockProperties::full_transparent_block(12, None),
+                BlockProperties::full_transparent_block_no_drop(12),
             ),
             (
                 BlockId::Sand,
-                BlockProperties::full_solid_base_block(30, ItemId::Sand),
+                BlockProperties::full_solid_block_single_drop_item(30, ItemId::Sand),
             ),
             (
                 BlockId::Cactus,
-                BlockProperties::full_solid_base_block(24, ItemId::Cactus),
+                BlockProperties::full_solid_block_single_drop_item(24, ItemId::Cactus),
             ),
             (
                 BlockId::Ice,
-                BlockProperties::full_solid_base_block(30, ItemId::Ice),
+                BlockProperties::full_solid_block_single_drop_item(30, ItemId::Ice),
             ),
             (
                 BlockId::Glass,
-                BlockProperties::full_transparent_block(18, None),
+                BlockProperties::full_transparent_block_no_drop(18),
             ),
             (
                 BlockId::Bedrock,
@@ -243,43 +239,50 @@ static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> 
             ),
             (
                 BlockId::Dandelion,
-                BlockProperties::decoration_base_block(
+                BlockProperties::decoration_block_single_drop(
                     6,
-                    RayHitboxArgs::short_flower(),
                     ItemId::Dandelion,
+                    RayHitboxArgs::short_flower(),
                 ),
             ),
             (
                 BlockId::Poppy,
-                BlockProperties::decoration_base_block(
+                BlockProperties::decoration_block_single_drop(
                     6,
-                    RayHitboxArgs::short_flower(),
                     ItemId::Poppy,
+                    RayHitboxArgs::short_flower(),
                 ),
             ),
             (
                 BlockId::TallGrass,
-                BlockProperties::decoration_base_block(
+                BlockProperties::decoration_block_single_drop(
                     6,
-                    RayHitboxArgs::short_flower(),
                     ItemId::TallGrass,
+                    RayHitboxArgs::short_flower(),
                 ),
             ),
             (
                 BlockId::Cobblestone,
-                BlockProperties::full_solid_block(12, None),
+                BlockProperties::full_solid_block_single_drop_item(12, ItemId::Cobblestone),
             ),
             (
                 BlockId::Snow,
-                BlockProperties::full_solid_block_with_multiple_drops(54, ItemId::Snowball, 4),
+                BlockProperties::full_solid_block_single_drop(
+                    54,
+                    DropStatistics {
+                        relative_chance: 1,
+                        corresponding_item: ItemId::Snowball,
+                        base_number: 4,
+                    },
+                ),
             ),
             (
                 BlockId::SpruceLeaves,
-                BlockProperties::full_transparent_block(12, None),
+                BlockProperties::full_transparent_block_no_drop(12),
             ),
             (
                 BlockId::SpruceLog,
-                BlockProperties::full_solid_base_block(60, ItemId::SpruceLog),
+                BlockProperties::full_solid_block_single_drop_item(60, ItemId::SpruceLog),
             ),
             (
                 BlockId::Water,
