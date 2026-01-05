@@ -76,6 +76,13 @@ pub(crate) fn generate_chunk_mesh(
 
         // Determine which mesh creator to use based on block type
         let is_water = block.id == BlockId::Water;
+        
+        // Select the target mesh creator once per block iteration
+        let target_mesh_creator = if is_water {
+            &mut water_mesh_creator
+        } else {
+            &mut solid_mesh_creator
+        };
 
         let mut local_vertices: Vec<[f32; 3]> = vec![];
         let mut local_indices: Vec<u32> = vec![];
@@ -97,13 +104,6 @@ pub(crate) fn generate_chunk_mesh(
             let alpha = match visibility {
                 BlockTransparency::Liquid => 0.7, // Slightly more opaque for water shader
                 _ => 1.0,
-            };
-
-            // Choose the appropriate mesh creator based on block type
-            let target_mesh_creator = if is_water {
-                &mut water_mesh_creator
-            } else {
-                &mut solid_mesh_creator
             };
 
             // Use different face culling logic for water vs other blocks
@@ -158,13 +158,7 @@ pub(crate) fn generate_chunk_mesh(
             })
             .collect();
 
-        // Add to the appropriate mesh creator
-        let target_mesh_creator = if is_water {
-            &mut water_mesh_creator
-        } else {
-            &mut solid_mesh_creator
-        };
-
+        // Add to the mesh creator (already selected at the beginning of this block iteration)
         target_mesh_creator.vertices.extend(local_vertices);
         target_mesh_creator.indices.extend(local_indices);
         target_mesh_creator.normals.extend(local_normals);
