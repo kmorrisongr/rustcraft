@@ -12,37 +12,75 @@ use shared::GameServerConfig;
 
 const MAX_CONCURRENT_GENERATION_TASKS: usize = 10;
 
-/// Resource to track in-progress chunk generation tasks
+/// Resource to track in-progress chunk generation tasks.
+///
+/// The `in_progress` HashSet duplicates position information from `tasks`, but provides
+/// O(1) lookup vs O(n) linear scan of the tasks vec. With MAX_CONCURRENT_GENERATION_TASKS=10,
+/// the memory overhead is negligible (~240 bytes for HashSet) and the O(1) lookup is worthwhile
+/// since we check membership for every candidate chunk each frame.
 #[derive(Resource, Default)]
 pub struct ChunkGenerationTasks {
-    /// Active generation tasks, keyed by chunk position
+    /// Active generation tasks with their chunk positions
     pub tasks: Vec<(IVec3, Task<ChunkGenerationResult>)>,
-    /// Chunks currently being generated (to avoid duplicate tasks)
+    /// Chunk positions currently being generated (for O(1) duplicate checking)
     pub in_progress: HashSet<IVec3>,
 }
 
-pub fn spawn_chunk_generation_tasks(
+/// System to spawn async chunk generation tasks and collect completed results.
+///
+/// Spawns up to MAX_CONCURRENT_GENERATION_TASKS parallel chunk generation tasks
+/// using Bevy's AsyncComputeTaskPool, then polls for completed tasks and integrates
+/// the results into the world map.
+pub fn background_chunk_generation_system(
     mut world_map: ResMut<ServerWorldMap>,
     seed: Res<WorldSeed>,
     config: Res<GameServerConfig>,
     mut generation_tasks: ResMut<ChunkGenerationTasks>,
 ) {
-    // Get first player for chunk prioritization (or default if no players)
-    let first_player = world_map.players.values().next();
-    if first_player.is_none() {
-        return; // No players, no need to generate chunks
+    // === Phase 1: Collect completed tasks ===
+    let mut completed: Vec<(usize, IVec3, ChunkGenerationResult)> = Vec::new();
+
+    for (index, (chunk_pos, task)) in generation_tasks.tasks.iter_mut().enumerate() {
+        if let Some(result) = future::block_on(future::poll_once(task)) {
+            completed.push((index, *chunk_pos, result));
+        }
     }
+
+    // Process completed results (in reverse order to preserve indices during removal)
+    for (index, chunk_pos, result) in completed.into_iter().rev() {
+        info!("Generated chunk: {:?}", chunk_pos);
+
+        world_map.chunks.map.insert(chunk_pos, result.chunk);
+
+        if !result.requests_for_chunk_above.is_empty() {
+            let chunk_above = IVec3::new(chunk_pos.x, chunk_pos.y + 1, chunk_pos.z);
+            world_map
+                .chunks
+                .generation_requests
+                .entry(chunk_above)
+                .or_default()
+                .extend(result.requests_for_chunk_above);
+        }
+
+        generation_tasks.in_progress.remove(&chunk_pos);
+        let _ = generation_tasks.tasks.swap_remove(index);
+    }
+
+    // === Phase 2: Spawn new tasks ===
+    let first_player = match world_map.players.values().next() {
+        Some(player) => player,
+        None => return, // No players, no need to generate chunks
+    };
 
     let all_chunks = get_all_active_chunks(
         &world_map.players,
         config.broadcast_render_distance,
-        first_player.unwrap(),
+        first_player,
     );
 
     let task_pool = AsyncComputeTaskPool::get();
     let seed_value = seed.0;
 
-    // Spawn new tasks up to the limit
     for chunk_pos in all_chunks {
         if generation_tasks.tasks.len() >= MAX_CONCURRENT_GENERATION_TASKS {
             break;
@@ -63,42 +101,5 @@ pub fn spawn_chunk_generation_tasks(
             task_pool.spawn(async move { generate_chunk(chunk_pos, seed_value, pending_requests) });
 
         generation_tasks.tasks.push((chunk_pos, task));
-    }
-}
-
-/// System to poll and collect completed chunk generation tasks
-pub fn collect_chunk_generation_tasks(
-    mut world_map: ResMut<ServerWorldMap>,
-    mut generation_tasks: ResMut<ChunkGenerationTasks>,
-) {
-    // Process completed tasks - collect results first to avoid borrow issues
-    let mut completed: Vec<(usize, IVec3, ChunkGenerationResult)> = Vec::new();
-
-    for (index, (chunk_pos, task)) in generation_tasks.tasks.iter_mut().enumerate() {
-        // Poll the task to see if it's complete
-        if let Some(result) = future::block_on(future::poll_once(task)) {
-            completed.push((index, *chunk_pos, result));
-        }
-    }
-
-    // Process completed results (in reverse order to preserve indices during removal)
-    for (index, chunk_pos, result) in completed.into_iter().rev() {
-        info!("Generated chunk: {:?}", chunk_pos);
-
-        world_map.chunks.map.insert(chunk_pos, result.chunk);
-
-        // Store any generation requests for the chunk above
-        if !result.requests_for_chunk_above.is_empty() {
-            let chunk_above = IVec3::new(chunk_pos.x, chunk_pos.y + 1, chunk_pos.z);
-            world_map
-                .chunks
-                .generation_requests
-                .entry(chunk_above)
-                .or_default()
-                .extend(result.requests_for_chunk_above);
-        }
-
-        generation_tasks.in_progress.remove(&chunk_pos);
-        let _ = generation_tasks.tasks.swap_remove(index);
     }
 }

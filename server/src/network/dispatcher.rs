@@ -4,7 +4,7 @@ use crate::network::broadcast_chat::*;
 use crate::network::cleanup::cleanup_player_from_world;
 use crate::world;
 use crate::world::background_generation::{
-    collect_chunk_generation_tasks, spawn_chunk_generation_tasks, ChunkGenerationTasks,
+    background_chunk_generation_system, ChunkGenerationTasks,
 };
 use crate::world::broadcast_world::broadcast_world_state;
 use crate::world::load_from_file::load_player_data;
@@ -47,11 +47,7 @@ pub fn register_systems(app: &mut App) {
 
     app.add_systems(Update, handle_player_inputs_system);
 
-    // Background chunk generation: spawn tasks then collect results
-    app.add_systems(
-        Update,
-        (spawn_chunk_generation_tasks, collect_chunk_generation_tasks).chain(),
-    );
+    app.add_systems(Update, background_chunk_generation_system);
 
     app.add_systems(PostUpdate, update_server_time);
 
