@@ -276,8 +276,7 @@ pub enum BlockTransparency {
     Decoration,
 }
 
-// Backwards compatibility
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone)]
 enum InternalBlockHitbox {
     FullBlock,
     None,
