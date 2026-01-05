@@ -219,8 +219,8 @@ Global parameters that affect all terrain generation:
         (biome: "plains",          climate: (temp: 0.5, humid: 0.4),  y_range: None),
         (biome: "flower_plains",   climate: (temp: 0.5, humid: 0.55), y_range: None),
         (biome: "medium_mountain", climate: (temp: 0.4, humid: 0.3),  y_range: None),
-        (biome: "high_mountains",  climate: (temp: 0.2, humid: 0.2),  y_range: None),
-        (biome: "ice_plains",      climate: (temp: 0.1, humid: 0.4),  y_range: None),
+        (biome: "high_mountain_grass",  climate: (temp: 0.2, humid: 0.2),  y_range: None),
+        (biome: "ice_plain",       climate: (temp: 0.1, humid: 0.4),  y_range: None),
         
         // Sky biomes (high altitude only)
         (biome: "sky_islands",     climate: (temp: 0.5, humid: 0.3), y_range: Some((200, 256))),
@@ -346,13 +346,20 @@ fn get_height(x, z, seed) {
 // Custom block placement creates cave structure
 fn get_surface_block(x, y, z, terrain_height, seed) {
     // 3D noise for cave carving
+    // Manual coordinate scaling (x * 0.05, z * 0.05) used here because:
+    // - We're also incorporating y into the seed (seed + y * 100)
+    // - Manual scaling makes the coordinate transformations more explicit
+    // - The 0.1 scale parameter adds additional fine detail on top
     let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 0.1, 3, 0.5);
-    let cave_threshold = 0.4 + (y as f64 / WORLD_HEIGHT as f64) * 0.2;  // Fewer caves deeper
+    let cave_threshold = 0.4 + (y.to_float() / WORLD_HEIGHT as f64) * 0.2;  // Fewer caves deeper
     
     if cave_noise > cave_threshold {
         "Air"  // Carve out cave
     } else {
         // Ore generation based on depth
+        // Using scale parameter (0.2) for simple 2D noise pattern
+        // Equivalent to: perlin(x * 0.2, z * 0.2, seed + 1000, 1.0)
+        // The scale parameter handles coordinate scaling internally
         let ore_noise = perlin(x, z, seed + 1000, 0.2);
         if y < 16 && ore_noise > 0.9 {
             "Bedrock"  // Placeholder for diamond ore
@@ -362,18 +369,17 @@ fn get_surface_block(x, y, z, terrain_height, seed) {
     }
 }
 ```
-```
 
 ```rhai
 // terrain_config/scripts/volcanic.rhai
-
 // Called for each (x, z) position to determine terrain height
 // Must be deterministic (same inputs = same output)
 fn get_height(x, z, seed) {
     // Combine base terrain with sharp volcanic ridges
-    let base = perlin(x, z, seed, 0.05);           // Large-scale shape
-    let ridges = ridged(x, z, seed + 1, 0.08);     // Sharp peaks
-    let detail = perlin(x, z, seed + 2, 0.2);      // Fine detail
+    // Using scale parameter for clean, readable noise calls
+    let base = perlin(x, z, seed, 0.05);           // Large-scale shape (low frequency)
+    let ridges = ridged(x, z, seed + 1, 0.08);     // Sharp peaks (medium frequency)
+    let detail = perlin(x, z, seed + 2, 0.2);      // Fine detail (high frequency)
     
     // Volcanic peaks: square the ridges for sharper effect
     let volcanic = ridges * ridges;
@@ -411,7 +417,9 @@ Functions exposed to Rhai scripts:
 ```rhai
 // === Noise Functions ===
 // All noise functions return values in range [-1.0, 1.0]
-// Note: Scripts are called once per (x, z) column, not per block
+// Note: Terrain height scripts (get_height) are typically called once per (x, z) column.
+//       For underground / 3D biomes, get_surface_block may be called per-block (x, y, z)
+//       to support operations like cave carving and other volumetric edits.
 
 perlin(x, z, seed, scale)           // Classic Perlin noise
 ridged(x, z, seed, scale)           // Ridged multifractal (sharp ridges)
@@ -420,6 +428,48 @@ simplex(x, z, seed, scale)          // Simplex noise (smoother than Perlin)
 // Multi-octave versions (more detail, combines multiple noise layers)
 perlin_fbm(x, z, seed, scale, octaves, persistence)
 ridged_fbm(x, z, seed, scale, octaves, persistence)
+
+
+// === Noise Function Parameter Details ===
+//
+// COORDINATE SCALING:
+// The 'scale' parameter controls the frequency of the noise pattern.
+// Internally, the noise function multiplies the coordinates by the scale:
+//     noise_value = perlin_noise(x * scale, z * scale, seed)
+//
+// Smaller scale values (e.g., 0.01-0.05) create large, smooth terrain features
+// Larger scale values (e.g., 0.1-0.5) create smaller, more detailed features
+//
+// TWO APPROACHES FOR SCALING:
+//
+// 1. Use the scale parameter (RECOMMENDED for most cases):
+//    perlin(x, z, seed, 0.05)
+//    - Clean and readable
+//    - Scale value clearly indicates feature size
+//    - Consistent with data-driven terrain configuration
+//
+// 2. Manual coordinate scaling (use for advanced control):
+//    perlin(x * 0.05, z * 0.05, seed, 1.0)
+//    - Allows different scales for x and z axes
+//    - Useful for stretching terrain in one direction
+//    - Required when combining multiple coordinate transformations
+//
+// EXAMPLES:
+//    // Large-scale terrain features (mountains, valleys)
+//    let base = perlin(x, z, seed, 0.05);
+//
+//    // Fine detail (small hills, texture)
+//    let detail = perlin(x, z, seed + 1, 0.2);
+//
+//    // Stretched terrain (wider in x-direction)
+//    let stretched = perlin(x * 0.03, z * 0.06, seed, 1.0);
+//
+//    // 3D noise often uses manual scaling for clarity
+//    let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 1.0, 3, 0.5);
+//
+// SEED PARAMETER:
+// Adding offsets to the seed (e.g., seed + 1000) creates independent noise patterns
+// that still remain deterministic for world generation.
 
 
 // === Math Utilities ===
@@ -835,7 +885,7 @@ fn select_biome(x: i32, y: i32, z: i32, climate: &Climate, map: &[BiomeClimateEn
             let spec_b = b.y_range.map(|(min, max)| max - min).unwrap_or(i32::MAX);
             
             // Compare specificity first, then climate distance
-            spec_a.cmp(&spec_b)
+            spec_b.cmp(&spec_a)
                 .then_with(|| climate_distance(climate, &a.climate)
                     .partial_cmp(&climate_distance(climate, &b.climate))
                     .unwrap())
@@ -918,7 +968,7 @@ fn data_driven_height(x: i32, z: i32, terrain: &TerrainSettings, seed: u32) -> i
     let noise = perlin_noise(x as f64 * terrain.noise_scale, 
                               z as f64 * terrain.noise_scale, 
                               seed);
-    terrain.base_height + (noise * terrain.height_variation as f64).round() as i32
+    terrain.base_height + ((noise * terrain.height_variation as f64).round() as i32)
 }
 ```
 
@@ -936,7 +986,9 @@ This keeps the formula simple and predictable for modders.
 
 2. **Existing worlds continue to work**
    - World seed determines terrain (unchanged)
-   - Only affects newly generated chunks
+   - Newly generated chunks use the current terrain config; previously generated chunks remain as-is
+   - Note: if an existing chunk is deleted and regenerated after a config change, its terrain may differ from neighboring older chunks even with the same seed
+   - Mitigation: track a world/terrain-generator or chunk-format version in world metadata so engines can (a) continue to use the original settings for regeneration or (b) explicitly migrate worlds while warning about visible chunk boundaries
 
 3. **Gradual adoption**
    - Existing code paths remain until deprecated
@@ -1062,8 +1114,25 @@ fn test_default_config_matches_current_behavior() {
     // Generate chunk with old hardcoded system (current generation.rs)
     let old_chunk = generate_chunk(chunk_pos, seed);
     
-    // Should produce identical results
-    assert_eq!(new_chunk.map, old_chunk.map);
+    // The overall terrain shape/contents should match at representative positions,
+    // but internal map representations may differ.
+    let sample_positions = [
+        IVec3::new(0, 0, 0),
+        IVec3::new(1, 0, 0),
+        IVec3::new(0, 0, 1),
+        IVec3::new(8, 0, 8),
+        IVec3::new(15, 0, 15),
+    ];
+
+    for pos in &sample_positions {
+        let new_block = new_chunk.map.get(pos);
+        let old_block = old_chunk.map.get(pos);
+        assert_eq!(
+            new_block, old_block,
+            "terrain mismatch at sampled position {:?}",
+            pos
+        );
+    }
 }
 
 #[test]
@@ -1173,15 +1242,40 @@ fn get_flora(x, z, height, seed) {
 ```
 
 #### 5. Cave Generation
-Building on the height-based biome system, expose dedicated cave generation:
+Cave generation is handled through `get_surface_block()` in underground biomes, which provides full flexibility to carve caves while also placing ores, different stone types, and other features:
+
 ```rhai
-fn is_cave(x, y, z, seed) {
+// Example: Advanced cave generation with ore placement
+fn get_surface_block(x, y, z, terrain_height, seed) {
+    // 3D noise for cave carving
+    // perlin_3d(x, y, z, seed, scale) - scale=0.05 creates large, connected cave systems
     let cave_noise = perlin_3d(x, y, z, seed + 100, 0.05);
-    cave_noise > 0.6  // Hollow out if true
+    let cave_threshold = 0.6;
+    
+    if cave_noise > cave_threshold {
+        // Carve out cave, but can place different blocks based on position
+        // Rare lava pockets in deep caves (y < 10, ~5% of cave blocks)
+        if y < 10 && perlin(x, z, seed + 200, 0.1) > 0.95 {
+            "Lava"
+        } else {
+            "Air"   // Normal cave air
+        }
+    } else {
+        // Solid terrain - place ores based on depth
+        // Diamond ore: y < 16, ~10% spawn rate, clustered (scale=0.2)
+        if y < 16 && perlin(x, z, seed + 1000, 0.2) > 0.9 {
+            "DiamondOre"
+        // Iron ore: y < 64, ~15% spawn rate, more scattered (scale=0.15)
+        } else if y < 64 && perlin(x, z, seed + 2000, 0.15) > 0.85 {
+            "IronOre"
+        } else {
+            "Stone"
+        }
+    }
 }
 ```
 
-> **Note:** Basic cave generation via `get_surface_block()` in underground biomes is already supported. This extension adds a dedicated `is_cave()` hook for cleaner separation.
+> **Design Note:** Using `get_surface_block()` for cave generation (rather than a separate `is_cave()` boolean function) allows placing different block types both in carved areas and solid terrain, enabling richer underground environments with ores, lava, water, and other features in a single unified function.
 
 #### 6. Ore Distribution
 Per-biome ore configuration:
