@@ -805,6 +805,11 @@ fn select_biome(x: i32, y: i32, z: i32, climate: &Climate, map: &[BiomeClimateEn
         })
         .collect();
     
+    // Fallback if no biomes match this y coordinate
+    if candidates.is_empty() {
+        return "plains";
+    }
+    
     // 2. Among candidates, prefer more specific y_range (narrower range wins)
     // 3. Among equal specificity, find closest climate match
     candidates.iter()
@@ -820,7 +825,7 @@ fn select_biome(x: i32, y: i32, z: i32, climate: &Climate, map: &[BiomeClimateEn
                     .unwrap())
         })
         .map(|e| e.biome.as_str())
-        .unwrap_or("plains")
+        .unwrap_or("plains")  // Should never reach here with non-empty candidates
 }
 ```
 
