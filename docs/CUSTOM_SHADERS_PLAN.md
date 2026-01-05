@@ -217,9 +217,9 @@ use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 pub struct CustomChunkMaterial {
     #[uniform(0)]
     pub time: f32,
-    #[uniform(0)]
+    #[uniform(1)]
     pub fog_color: Vec4,
-    #[uniform(0)]
+    #[uniform(2)]
     pub fog_density: f32,
     
     #[texture(1)]
