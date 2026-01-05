@@ -409,7 +409,9 @@ Functions exposed to Rhai scripts:
 ```rhai
 // === Noise Functions ===
 // All noise functions return values in range [-1.0, 1.0]
-// Note: Scripts are called once per (x, z) column, not per block
+// Note: Terrain height scripts (get_height) are typically called once per (x, z) column.
+//       For underground / 3D biomes, get_surface_block may be called per-block (x, y, z)
+//       to support operations like cave carving and other volumetric edits.
 
 perlin(x, z, seed, scale)           // Classic Perlin noise
 ridged(x, z, seed, scale)           // Ridged multifractal (sharp ridges)
