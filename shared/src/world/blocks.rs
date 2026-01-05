@@ -8,13 +8,13 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone)]
-pub struct RayHitboxArgs {
+struct RayHitboxArgs {
     center: [f32; 3],
     half_size: [f32; 3],
 }
 
 impl RayHitboxArgs {
-    pub fn short_flower() -> Self {
+    fn short_flower() -> Self {
         RayHitboxArgs {
             center: [0.5, 0.3, 0.5],
             half_size: [0.3, 0.3, 0.3],
@@ -23,14 +23,14 @@ impl RayHitboxArgs {
 }
 
 #[derive(Copy, Clone)]
-pub struct DropStatistics {
+struct DropStatistics {
     relative_chance: u32,
     corresponding_item: ItemId,
     base_number: u32,
 }
 
 impl DropStatistics {
-    pub fn with_base_chance(corresponding_item: ItemId) -> Self {
+    fn with_base_chance(corresponding_item: ItemId) -> Self {
         DropStatistics {
             relative_chance: 1,
             corresponding_item,
@@ -40,7 +40,7 @@ impl DropStatistics {
 }
 
 #[derive(Copy, Clone)]
-pub struct BlockProperties {
+struct BlockProperties {
     break_time: u8,
     hitbox: InternalBlockHitbox,
     ray_hitbox_args: Option<RayHitboxArgs>,
@@ -49,19 +49,19 @@ pub struct BlockProperties {
 }
 
 #[derive(Copy, Clone)]
-pub struct UnbreakableBlockProperties {
+struct UnbreakableBlockProperties {
     hitbox: InternalBlockHitbox,
     ray_hitbox_args: Option<RayHitboxArgs>,
     visibility: BlockTransparency,
 }
 
-pub enum Block {
+enum Block {
     Breakable(BlockProperties),
     Unbreakable(UnbreakableBlockProperties),
 }
 
 impl Block {
-    pub fn full_solid_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
+    fn full_solid_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
         Block::Breakable(BlockProperties {
             break_time,
             hitbox: InternalBlockHitbox::FullBlock,
@@ -71,14 +71,29 @@ impl Block {
         })
     }
 
-    pub fn full_solid_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
+    fn full_solid_block_with_multiple_drops(
+        break_time: u8,
+        corresponding_item: ItemId,
+        number_of_items: u32,
+    ) -> Self {
+        Block::full_solid_block(
+            break_time,
+            Some(DropStatistics {
+                relative_chance: 1,
+                corresponding_item,
+                base_number: number_of_items,
+            }),
+        )
+    }
+
+    fn full_solid_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
         Block::full_solid_block(
             break_time,
             Some(DropStatistics::with_base_chance(corresponding_item)),
         )
     }
 
-    pub fn decoration_base_block(
+    fn decoration_base_block(
         break_time: u8,
         ray_hitbox_args: RayHitboxArgs,
         corresponding_item: ItemId,
@@ -92,7 +107,7 @@ impl Block {
         })
     }
 
-    pub fn full_transparent_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
+    fn full_transparent_block(break_time: u8, drop_table: Option<DropStatistics>) -> Self {
         Block::Breakable(BlockProperties {
             break_time,
             hitbox: InternalBlockHitbox::FullBlock,
@@ -100,13 +115,6 @@ impl Block {
             visibility: BlockTransparency::Transparent,
             drop_table,
         })
-    }
-
-    pub fn full_transparent_base_block(break_time: u8, corresponding_item: ItemId) -> Self {
-        Block::full_transparent_block(
-            break_time,
-            Some(DropStatistics::with_base_chance(corresponding_item)),
-        )
     }
 }
 
@@ -202,15 +210,10 @@ static BLOCK_PROPERTIES: once_cell::sync::Lazy<HashMap<BlockId, Block>> =
                 Block::decoration_base_block(6, RayHitboxArgs::short_flower(), ItemId::TallGrass),
             ),
             (BlockId::Cobblestone, Block::full_solid_block(12, None)),
-            {
-                let mut block = Block::full_solid_base_block(54, ItemId::Snowball);
-                if let Block::Breakable(ref mut props) = block {
-                    if let Some(drop_table) = &mut props.drop_table {
-                        drop_table.base_number = 4;
-                    }
-                }
-                (BlockId::Snow, block)
-            },
+            (
+                BlockId::Snow,
+                Block::full_solid_block_with_multiple_drops(54, ItemId::Snowball, 4),
+            ),
             (
                 BlockId::SpruceLeaves,
                 Block::full_transparent_block(12, None),
@@ -229,12 +232,6 @@ static BLOCK_PROPERTIES: once_cell::sync::Lazy<HashMap<BlockId, Block>> =
             ),
         ])
     });
-
-pub enum GetPropertiesResult {
-    Breakable(BlockProperties),
-    Unbreakable(UnbreakableBlockProperties),
-    None,
-}
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BlockDirection {
@@ -287,7 +284,7 @@ enum InternalBlockHitbox {
 }
 
 impl InternalBlockHitbox {
-    pub fn to_public(&self) -> BlockHitbox {
+    fn to_public(&self) -> BlockHitbox {
         match *self {
             Self::FullBlock => BlockHitbox::FullBlock,
             Self::None => BlockHitbox::None,
@@ -300,9 +297,30 @@ pub enum BlockHitbox {
     Aabb(Aabb3d),
     None,
 }
+impl BlockHitbox {
+    fn from_args(center: [f32; 3], half_size: [f32; 3]) -> Self {
+        BlockHitbox::Aabb(Aabb3d::new(
+            Vec3A::from_slice(&center),
+            Vec3A::from_slice(&half_size),
+        ))
+    }
+
+    fn get_ray_hitbox_from_block(block: &Block) -> Self {
+        match block {
+            Block::Breakable(props) => match props.ray_hitbox_args {
+                Some(args) => BlockHitbox::from_args(args.center, args.half_size),
+                None => props.hitbox.to_public(),
+            },
+            Block::Unbreakable(props) => match props.ray_hitbox_args {
+                Some(args) => BlockHitbox::from_args(args.center, args.half_size),
+                None => props.hitbox.to_public(),
+            },
+        }
+    }
+}
 
 impl BlockId {
-    pub fn properties(&self) -> Option<&Block> {
+    fn properties(&self) -> Option<&Block> {
         BLOCK_PROPERTIES.get(self)
     }
 
@@ -321,20 +339,7 @@ impl BlockId {
         match *self {
             Self::Debug => BlockHitbox::FullBlock,
             _ => match self.properties() {
-                Some(Block::Breakable(props)) => match props.ray_hitbox_args {
-                    Some(args) => BlockHitbox::Aabb(Aabb3d::new(
-                        Vec3A::from_slice(&args.center),
-                        Vec3A::from_slice(&args.half_size),
-                    )),
-                    None => props.hitbox.to_public(),
-                },
-                Some(Block::Unbreakable(props)) => match props.ray_hitbox_args {
-                    Some(args) => BlockHitbox::Aabb(Aabb3d::new(
-                        Vec3A::from_slice(&args.center),
-                        Vec3A::from_slice(&args.half_size),
-                    )),
-                    None => props.hitbox.to_public(),
-                },
+                Some(block) => BlockHitbox::get_ray_hitbox_from_block(block),
                 None => BlockHitbox::FullBlock,
             },
         }
