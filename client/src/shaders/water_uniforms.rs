@@ -1,26 +1,30 @@
-//! Water shader uniform data
+//! Misty Lake water shader uniform data
 //!
 //! Separated into its own module to isolate the `#![allow(dead_code)]` directive,
 //! which is required due to the ShaderType derive macro generating internal
 //! `check` functions that trigger warnings.
+//!
+//! Original shader by Reinder Nijhoff: https://www.shadertoy.com/view/MsB3WR
 
 #![allow(dead_code)]
 
 use bevy::{prelude::*, render::render_resource::ShaderType};
 
-/// Uniform data for water shader (matches WGSL WaterUniforms struct)
+/// Uniform data for water shader (matches WGSL MistyWaterUniforms struct)
 #[derive(ShaderType, Debug, Clone)]
 pub struct WaterUniforms {
     /// Current time for animation (updated each frame)
     pub time: f32,
-    /// Wave amplitude - how high the waves rise
-    pub wave_amplitude: f32,
-    /// Wave frequency - how many waves per unit distance
-    pub wave_frequency: f32,
-    /// Wave speed - how fast the waves move
-    pub wave_speed: f32,
+    /// Wave scale - controls wave pattern size (default ~8.0)
+    pub wave_scale: f32,
+    /// Bump strength - controls normal perturbation intensity (default ~0.1)
+    pub bump_strength: f32,
     /// Base color of the water (with alpha for transparency)
-    pub base_color: Vec4,
-    /// Deep water color (blended based on depth)
+    pub water_color: Vec4,
+    /// Deep water color (blended based on view angle)
     pub deep_color: Vec4,
+    /// Fog density - distance fog factor for atmospheric effect
+    pub fog_density: f32,
+    /// Padding to align struct to 16 bytes (required by WGSL)
+    pub _padding: Vec3,
 }

@@ -1,7 +1,8 @@
-//! Water shader material with animated standing waves
+//! Water shader material with Misty Lake effect
 //!
-//! This module provides a custom material for rendering water blocks with
-//! vertex-based wave animation, creating a subtle standing wave effect.
+//! This module provides a custom material for rendering water blocks using
+//! the Misty Lake shader (ported from ShaderToy), featuring FBM-based wave
+//! animation, fresnel reflections, and atmospheric fog.
 
 use bevy::{
     prelude::*,
@@ -53,11 +54,12 @@ impl Default for WaterMaterial {
         Self {
             uniforms: WaterUniforms {
                 time: 0.0,
-                wave_amplitude: 0.12,                          // Visible waves
-                wave_frequency: 1.2,                           // Gentle frequency
-                wave_speed: 1.0,                               // Calm movement
-                base_color: Vec4::new(0.12, 0.40, 0.50, 0.65), // Atlantic ocean teal-blue
-                deep_color: Vec4::new(0.05, 0.18, 0.28, 0.8),  // Deeper ocean blue-green
+                wave_scale: 0.5, // Smaller scale = larger wave patterns visible at world scale
+                bump_strength: 1.0, // Strong normal perturbation for visible ripples
+                water_color: Vec4::new(0.15, 0.35, 0.45, 0.75), // Slightly more opaque teal
+                deep_color: Vec4::new(0.05, 0.15, 0.25, 0.9), // Deeper blue-green
+                fog_density: 0.00001, // Visible distance fog
+                _padding: Vec3::ZERO,
             },
             texture: None,
         }
@@ -66,11 +68,11 @@ impl Default for WaterMaterial {
 
 impl Material for WaterMaterial {
     fn vertex_shader() -> ShaderRef {
-        "shaders/water.wgsl".into()
+        "shaders/misty_lake.wgsl".into()
     }
 
     fn fragment_shader() -> ShaderRef {
-        "shaders/water.wgsl".into()
+        "shaders/misty_lake.wgsl".into()
     }
 
     fn alpha_mode(&self) -> AlphaMode {
