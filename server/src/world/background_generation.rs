@@ -99,11 +99,10 @@ pub fn background_chunk_generation_system(
         let pending_requests: Option<Vec<FloraRequest>> =
             world_map.chunks.generation_requests.remove(&chunk_pos);
 
-        generation_tasks.in_progress.insert(chunk_pos);
-
         let task =
             task_pool.spawn(async move { generate_chunk(chunk_pos, seed_value, pending_requests) });
 
         generation_tasks.tasks.push((chunk_pos, task));
+        generation_tasks.in_progress.insert(chunk_pos);
     }
 }
