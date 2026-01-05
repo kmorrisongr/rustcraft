@@ -345,8 +345,8 @@ fn get_height(x, z, seed) {
 
 // Custom block placement creates cave structure
 fn get_surface_block(x, y, z, terrain_height, seed) {
-    // 3D noise for cave carving
-    let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed + y * 100, 0.1, 3, 0.5);
+    // 2D FBM noise used as cave density field; vertical variation comes from y-dependent threshold
+    let cave_noise = perlin_fbm(x * 0.05, z * 0.05, seed, 0.1, 3, 0.5);
     let cave_threshold = 0.4 + (y.to_float() / 256.0) * 0.2;  // Fewer caves deeper
     
     if cave_noise > cave_threshold {
