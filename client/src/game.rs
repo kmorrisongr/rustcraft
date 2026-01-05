@@ -27,10 +27,10 @@ use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use crate::ui::hud::debug::targeted_block::block_text_update_system;
 use crate::world::celestial::setup_main_lighting;
 
+use crate::shaders::water::update_water_materials;
 use crate::ui::hud::debug::*;
 use crate::ui::hud::hotbar::*;
 use crate::ui::hud::set_ui_mode;
-use crate::shaders::water::update_water_materials;
 use crate::world::celestial::*;
 use crate::world::*;
 
