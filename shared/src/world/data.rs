@@ -4,7 +4,6 @@ use crate::world::{block_to_chunk_coord, global_to_chunk_local, BlockHitbox, Blo
 use bevy::math::{bounding::Aabb3d, IVec3, Vec3};
 use bevy_ecs::resource::Resource;
 use bevy_log::info;
-use bevy_log::warn;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -379,26 +378,14 @@ pub trait WorldMap {
 impl WorldMap for ServerChunkWorldMap {
     fn get_block_mut_by_coordinates(&mut self, position: &IVec3) -> Option<&mut BlockData> {
         let (chunk_pos, local_pos) = global_to_chunk_local(position);
-        let chunk = self.map.get_mut(&chunk_pos);
-        match chunk {
-            Some(chunk) => chunk.map.get_mut(&local_pos),
-            None => {
-                warn!("Chunk not found for block at {:?} (mut)", position);
-                None
-            }
-        }
+        let chunk = self.map.get_mut(&chunk_pos)?;
+        chunk.map.get_mut(&local_pos)
     }
 
     fn get_block_by_coordinates(&self, position: &IVec3) -> Option<&BlockData> {
         let (chunk_pos, local_pos) = global_to_chunk_local(position);
-        let chunk: Option<&ServerChunk> = self.map.get(&chunk_pos);
-        match chunk {
-            Some(chunk) => chunk.map.get(&local_pos),
-            None => {
-                warn!("Chunk not found for block at {:?}", position);
-                None
-            }
-        }
+        let chunk = self.map.get(&chunk_pos)?;
+        chunk.map.get(&local_pos)
     }
 
     fn remove_block_by_coordinates(&mut self, global_block_pos: &IVec3) -> Option<BlockData> {
