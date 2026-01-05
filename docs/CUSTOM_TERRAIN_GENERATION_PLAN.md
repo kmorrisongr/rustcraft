@@ -698,7 +698,7 @@ data/
    }
    
    // In chunk generation, cache heights in a 16x16 array
-   // Returns heights[z][x] for intuitive row-major access
+   // Returns heights[z][x], where z is the row index and x is the column index
    fn generate_chunk_heights(chunk_x: i32, chunk_z: i32, ...) -> [[i32; 16]; 16] {
        let mut heights = [[0i32; 16]; 16];
        for lz in 0..16 {
