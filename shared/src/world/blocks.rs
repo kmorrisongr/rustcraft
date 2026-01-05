@@ -373,7 +373,7 @@ impl BlockId {
     pub fn get_ray_hitbox(&self) -> BlockHitbox {
         // NOTE: for now, leave this as backwards-compatibility. I am having trouble imagining a
         // use-case for having two separate hitboxes.
-        return BlockId::get_hitbox(self);
+        BlockId::get_hitbox(self)
     }
 
     pub fn get_break_time(&self) -> u8 {
@@ -425,8 +425,7 @@ impl BlockId {
     }
 
     pub fn get_drop_table(&self) -> Vec<(u32, ItemId, u32)> {
-        return self
-            .properties()
+        self.properties()
             .and_then(|props| props.breakability.as_ref())
             .and_then(|breakability| breakability.drop_table.as_ref())
             .map(|drop_table| {
@@ -435,7 +434,7 @@ impl BlockId {
                     .flat_map(|drop_stats| drop_stats.as_vector())
                     .collect()
             })
-            .unwrap_or(vec![]);
+            .unwrap_or(vec![])
     }
 
     pub fn get_tags(&self) -> Vec<BlockTags> {
