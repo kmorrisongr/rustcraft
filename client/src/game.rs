@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::entities::stack::stack_update_system;
 use crate::mob::*;
 use crate::network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime};
+use crate::shaders::ShadersPlugin;
 use crate::ui::hud::chat::{render_chat, setup_chat};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use bevy::prelude::*;
@@ -70,6 +71,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(WireframePlugin::default())
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
+        .add_plugins(ShadersPlugin)
         .insert_resource(WorldSeed(0))
         .insert_resource(ClientTime(0))
         .insert_resource(FirstChunkReceived(false))
@@ -94,6 +96,7 @@ pub fn game_plugin(app: &mut App) {
             default_color: WHITE.into(),
         })
         .insert_resource(MaterialResource { ..default() })
+        .init_resource::<ChunkWaterMaterial>()
         .insert_resource(AtlasHandles::<BlockId>::default())
         .insert_resource(AtlasHandles::<ItemId>::default())
         .insert_resource(RenderDistance { ..default() })

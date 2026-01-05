@@ -1,3 +1,4 @@
+use crate::shaders::water::{WaterMaterial, WaterMesh};
 use crate::{player::CurrentPlayerMarker, world::FirstChunkReceived};
 use std::sync::Arc;
 use std::{collections::HashSet, time::Instant};
@@ -43,12 +44,11 @@ fn update_chunk(
     chunk: &mut ClientChunk,
     chunk_pos: &IVec3,
     material_resource: &MaterialResource,
+    water_material: &Handle<WaterMaterial>,
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     new_meshes: ChunkMeshResponse,
 ) {
-    // If the
-
     let solid_texture = material_resource
         .global_materials
         .get(&world::GlobalMaterial::Blocks)
@@ -70,11 +70,22 @@ fn update_chunk(
         let new_entity = commands
             .spawn((chunk_t, Visibility::Visible))
             .with_children(|root| {
+                // Spawn solid mesh
                 if let Some(new_solid_mesh) = new_meshes.solid_mesh {
                     root.spawn((
                         StateScoped(GameState::Game),
                         Mesh3d(meshes.add(new_solid_mesh)),
                         MeshMaterial3d(solid_texture.clone()),
+                    ));
+                }
+                // Spawn water mesh with custom water material
+                if let Some(new_water_mesh) = new_meshes.water_mesh {
+                    debug!("Spawning water mesh for chunk");
+                    root.spawn((
+                        StateScoped(GameState::Game),
+                        Mesh3d(meshes.add(new_water_mesh)),
+                        MeshMaterial3d(water_material.clone()),
+                        WaterMesh,
                     ));
                 }
             })
@@ -85,9 +96,17 @@ fn update_chunk(
     // debug!("ClientChunk updated : len={}", chunk.map.len());
 }
 
+/// Resource to store the water material handle for chunk rendering
+#[derive(Resource, Default)]
+pub struct ChunkWaterMaterial {
+    pub handle: Option<Handle<WaterMaterial>>,
+}
+
 pub fn world_render_system(
     mut world_map: ResMut<ClientWorldMap>,
     material_resource: Res<MaterialResource>,
+    mut water_material_res: ResMut<ChunkWaterMaterial>,
+    mut water_materials: ResMut<Assets<WaterMaterial>>,
     mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
     mut queued_events: Local<QueuedEvents>,
     mut queued_meshes: Local<QueuedMeshes>,
@@ -105,6 +124,20 @@ pub fn world_render_system(
         // Wait until the texture is ready
         return;
     }
+
+    // Initialize water material if not already created
+    let water_material_handle = if let Some(ref handle) = water_material_res.handle {
+        handle.clone()
+    } else {
+        let water_texture = material_resource.blocks.as_ref().map(|b| b.texture.clone());
+
+        let handle = water_materials.add(WaterMaterial {
+            texture: water_texture,
+            ..default()
+        });
+        water_material_res.handle = Some(handle.clone());
+        handle
+    };
 
     let pool = AsyncComputeTaskPool::get();
 
@@ -201,6 +234,7 @@ pub fn world_render_system(
                     chunk,
                     chunk_pos,
                     &material_resource,
+                    &water_material_handle,
                     &mut commands,
                     &mut meshes,
                     new_meshes,

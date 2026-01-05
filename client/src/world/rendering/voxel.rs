@@ -4,6 +4,7 @@ use shared::world::{BlockData, BlockId};
 /// Specifies which position in the voxel this face occupies
 ///
 /// These faces do not render under certain circumstances to preserve resources
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceDirection {
     /// The face is at the top of the voxel. Won't render if the block above this one is full
     Top,

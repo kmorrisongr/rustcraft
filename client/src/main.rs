@@ -6,6 +6,7 @@ mod input;
 mod mob;
 mod network;
 mod player;
+mod shaders;
 mod ui;
 mod world;
 
