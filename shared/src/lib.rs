@@ -20,6 +20,7 @@ use utils::format_bytes;
 pub struct GameFolderPaths {
     pub game_folder_path: PathBuf,
     pub assets_folder_path: PathBuf,
+    pub shaders_folder_path: PathBuf,
 }
 
 #[derive(Resource, Debug, Clone)]
@@ -142,6 +143,7 @@ pub fn default_game_folder_paths() -> GameFolderPaths {
     GameFolderPaths {
         game_folder_path: "%AppData/rustcraft".into(),
         assets_folder_path: "%AppData/rustcraft/data".into(),
+        shaders_folder_path: "%AppData/rustcraft/shaders".into(),
     }
 }
 
@@ -150,6 +152,7 @@ pub fn default_game_folder_paths() -> GameFolderPaths {
     GameFolderPaths {
         game_folder_path: "$HOME/.local/share/rustcraft".into(),
         assets_folder_path: "$HOME/.config/rustcraft".into(),
+        shaders_folder_path: "$HOME/.local/share/rustcraft/shaders".into(),
     }
 }
 
@@ -158,6 +161,7 @@ pub fn default_game_folder_paths() -> GameFolderPaths {
     GameFolderPaths {
         game_folder_path: "$HOME/Library/Application Support/rustcraft".into(),
         assets_folder_path: "$HOME/Library/Application Support/rustcraft/data".into(),
+        shaders_folder_path: "$HOME/Library/Application Support/rustcraft/shaders".into(),
     }
 }
 

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::entities::stack::stack_update_system;
 use crate::mob::*;
 use crate::network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime};
+use crate::shaders::ShadersPlugin;
 use crate::ui::hud::chat::{render_chat, setup_chat};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use bevy::prelude::*;
@@ -29,6 +30,7 @@ use crate::world::celestial::setup_main_lighting;
 use crate::ui::hud::debug::*;
 use crate::ui::hud::hotbar::*;
 use crate::ui::hud::set_ui_mode;
+use crate::shaders::water::update_water_materials;
 use crate::world::celestial::*;
 use crate::world::*;
 
@@ -70,6 +72,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(WireframePlugin::default())
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
+        .add_plugins(ShadersPlugin)
         .insert_resource(WorldSeed(0))
         .insert_resource(ClientTime(0))
         .insert_resource(FirstChunkReceived(false))
@@ -94,6 +97,7 @@ pub fn game_plugin(app: &mut App) {
             default_color: WHITE.into(),
         })
         .insert_resource(MaterialResource { ..default() })
+        .init_resource::<ChunkWaterMaterial>()
         .insert_resource(AtlasHandles::<BlockId>::default())
         .insert_resource(AtlasHandles::<ItemId>::default())
         .insert_resource(RenderDistance { ..default() })
@@ -193,6 +197,7 @@ pub fn game_plugin(app: &mut App) {
                 toggle_wireframe_system,
                 handle_mouse_system,
                 update_celestial_bodies,
+                update_water_materials,
             )
                 .run_if(in_state(GameState::Game)),
         )
