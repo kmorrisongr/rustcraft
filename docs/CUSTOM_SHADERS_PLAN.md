@@ -379,7 +379,7 @@ client/src/ui/menus/
 
 ### 5.3 Settings Persistence
 
-Store shader settings in `<game_folder_path>/shader_settings.ron`:
+Store shader settings in `<game_folder_path>/shaders/shader_settings.ron`:
 
 ```ron
 ShaderSettings(
