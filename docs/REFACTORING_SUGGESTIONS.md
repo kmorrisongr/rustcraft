@@ -13,46 +13,7 @@ This document outlines opportunities for refactoring and simplification across t
 
 ## Medium Priority
 
-### 1. System Parameter Tuples in Controllers
-
-**File:** [client/src/player/interactions.rs](../client/src/player/interactions.rs)
-
-**Issue:** Large tuples for queries and resources make the code harder to read:
-
-```rust
-pub fn handle_block_interactions(
-    queries: (
-        Query<&mut Player, With<CurrentPlayerMarker>>,
-        Query<&mut Transform, With<CurrentPlayerMarker>>,
-        Query<&Transform, (With<Camera>, Without<CurrentPlayerMarker>)>,
-        Query<&MobMarker>,
-    ),
-    resources: (
-        ResMut<ClientWorldMap>,
-        Res<ButtonInput<MouseButton>>,
-        Res<UIMode>,
-        Res<ViewMode>,
-        ResMut<TargetedMob>,
-        ResMut<CurrentFrameInputs>,
-    ),
-    // ...
-)
-```
-
-**Recommendation:** Use `SystemParam` derive macro to create reusable parameter bundles:
-
-```rust
-#[derive(SystemParam)]
-pub struct PlayerQueries<'w, 's> {
-    player: Query<'w, 's, &'static mut Player, With<CurrentPlayerMarker>>,
-    transform: Query<'w, 's, &'static mut Transform, With<CurrentPlayerMarker>>,
-    camera: Query<'w, 's, &'static Transform, (With<Camera>, Without<CurrentPlayerMarker>)>,
-}
-```
-
----
-
-### 2. Magic Numbers Throughout Codebase
+### 1. Magic Numbers Throughout Codebase
 
 **Files:** Multiple files contain hardcoded values
 
@@ -82,7 +43,7 @@ pub mod world {
 
 ---
 
-### 3. `game.rs` Plugin Registration is Monolithic
+### 2. `game.rs` Plugin Registration is Monolithic
 
 **File:** [client/src/game.rs](../client/src/game.rs)
 
@@ -121,53 +82,7 @@ impl Plugin for GameInputPlugin {
 
 ## Low Priority
 
-### 4. Unused/Dead Code
-
-**Files:** Various
-
-**Examples:**
-- `bounce_ray` function in [interactions.rs](../client/src/player/interactions.rs#L100) - appears to be debug code that draws nothing
-- Commented-out code blocks in multiple files (e.g., debug prints in movement.rs)
-- `BlockId::is_biome_colored()` always returns `false` in [blocks.rs](../shared/src/world/blocks.rs#L104)
-
-**Recommendation:** 
-- Remove unused debug code or gate behind a feature flag
-- Run `cargo clippy` with `warn(dead_code)` to identify unused items
-- Delete commented-out code (use version control to recover if needed)
-
----
-
-### 5. Error Handling with `.unwrap()`
-
-**Files:** Multiple files use `.unwrap()` on Results and Options
-
-**Examples:**
-- [setup.rs](../client/src/network/setup.rs#L191): `socket.local_addr().unwrap()`
-- [init.rs](../server/src/init.rs#L75): `socket.local_addr().unwrap()`
-- Query unwraps throughout controller code
-
-**Recommendation:** Add proper error handling or use `expect()` with descriptive messages:
-
-```rust
-// Instead of
-let addr = socket.local_addr().unwrap();
-
-// Use
-let addr = socket.local_addr().expect("Failed to get socket address");
-
-// Or handle gracefully
-let addr = match socket.local_addr() {
-    Ok(addr) => addr,
-    Err(e) => {
-        error!("Failed to get socket address: {}", e);
-        return;
-    }
-};
-```
-
----
-
-### 6. Inconsistent Query Error Handling [PARTIAL-COMPLETE]
+### 3. Inconsistent Query Error Handling [PARTIAL-COMPLETE]
 
 **Files:** [client/src/player/controller.rs](../client/src/player/controller.rs), [camera/controller.rs](../client/src/camera/controller.rs)
 
@@ -199,7 +114,7 @@ let Ok((mut player, mut player_transform)) = player_query.single_mut() else {
 
 ## Code Organization
 
-### 7. Module Re-exports Could Be Cleaner
+### 4. Module Re-exports Could Be Cleaner
 
 **Files:** Various `mod.rs` files
 
@@ -215,7 +130,7 @@ pub use render_distance::*;
 
 ---
 
-### 8. Consider Feature Flags for Debug Systems
+### 5. Consider Feature Flags for Debug Systems
 
 **Files:** Debug-related code throughout client
 
@@ -239,11 +154,9 @@ app.add_systems(Update, (
 
 ---
 
----
-
 ## Additional Suggestions (December 2025)
 
-### 9. Asset Loading Functions Are Repetitive
+### 6. Asset Loading Functions Are Repetitive
 
 **File:** [client/src/ui/assets.rs](../client/src/ui/assets.rs)
 
@@ -278,7 +191,7 @@ Or consolidate into a single `AssetPaths` struct with lazy loading.
 
 ---
 
-### 10. TODO/FIXME Comments Need Resolution
+### 7. TODO/FIXME Comments Need Resolution
 
 **Files:** Multiple
 
@@ -298,7 +211,7 @@ Or consolidate into a single `AssetPaths` struct with lazy loading.
 
 ---
 
-### 11. `#[allow(dead_code)]` Annotations Mask Unused Code
+### 8. `#[allow(dead_code)]` Annotations Mask Unused Code
 
 **Files:** 
 - [client/src/mob/mod.rs](../client/src/mob/mod.rs)
@@ -323,7 +236,7 @@ pub struct MobRoot {
 
 ---
 
-### 12. Broadcast World Clones Entire Mobs Collection
+### 9. Broadcast World Clones Entire Mobs Collection
 
 **File:** [server/src/world/broadcast_world.rs](../server/src/world/broadcast_world.rs#L92)
 
@@ -342,7 +255,7 @@ mobs: mobs.clone(),
 
 ---
 
-### 13. Constants Scattered Across Multiple Files
+### 10. Constants Scattered Across Multiple Files
 
 **Files:** 
 - [shared/src/constants.rs](../shared/src/constants.rs)
@@ -370,44 +283,7 @@ const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
 
 ---
 
-### 14. Mob Behavior Has Duplicated Movement Logic
-
-**File:** [server/src/mob/behavior.rs](../server/src/mob/behavior.rs)
-
-**Issue:** The `MobAction::Walk` branch contains repeated movement attempts with similar patterns:
-
-```rust
-if !try_move(&mut body, &world_map.chunks, displacement, true) {
-    // ...
-} else if body.on_ground && (body.velocity.x != 0.0 && body.velocity.z != 0.0) {
-    // jump logic
-} else if body.on_ground {
-    // Try to move in the other direction
-    if !try_move(&mut body, &world_map.chunks, Vec3::new(displacement.x, 0.0, 0.0), true) {
-        // ...
-    } else if !try_move(&mut body, &world_map.chunks, Vec3::new(0.0, 0.0, displacement.z), true) {
-        // ...
-    } else {
-        // jump again
-    }
-}
-```
-
-**Recommendation:** Extract pathfinding/obstacle avoidance into a dedicated helper:
-
-```rust
-fn attempt_movement_with_avoidance(
-    body: &mut PhysicsBody,
-    chunks: &ServerChunkWorldMap,
-    displacement: Vec3,
-) -> MovementResult {
-    // Centralized movement + obstacle avoidance logic
-}
-```
-
----
-
-### 16. Menu System Has Deep Nesting in `menu_plugin`
+### 12. Menu System Has Deep Nesting in `menu_plugin`
 
 **File:** [client/src/ui/menus/mod.rs](../client/src/ui/menus/mod.rs)
 
@@ -435,7 +311,7 @@ fn register_menu<M: MenuPlugin>(app: &mut App) {
 
 ---
 
-### 17. Network Message Handling Could Use Command Pattern
+### 13. Network Message Handling Could Use Command Pattern
 
 **File:** [server/src/network/dispatcher.rs](../server/src/network/dispatcher.rs)
 
@@ -471,7 +347,7 @@ if let Some(handler) = handlers.get(&message.type_id()) {
 
 ---
 
-### 18. Consider Extracting Common UI Patterns
+### 14. Consider Extracting Common UI Patterns
 
 **Files:** Various UI files in `client/src/ui/`
 

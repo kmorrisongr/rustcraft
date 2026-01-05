@@ -23,7 +23,6 @@
 
 | Phase | Description | Effort | Prerequisite |
 |-------|-------------|--------|--------------|
-| **0** | Pre-existing fixes | Low | — |
 | **1** | LOD data structures | Low | — |
 | **2** | LOD mesh generation | Medium | Phase 1 |
 | **3** | Render integration | Medium | Phase 2 |
@@ -31,44 +30,6 @@
 | **5** | Server broadcast | Low | Phase 3 |
 
 **MVP**: Phases 1–3 + 5. Phase 4 adds polish. Phase 0 can be done anytime before Phase 3.
-
----
-
-## Phase 0: Pre-Existing Fixes (Optional, Recommended)
-
-These issues exist independent of LOD but will be exacerbated by the 3.4× increase in active chunks. Fix before or during LOD implementation.
-
-### 0.1 Arc Clone in Render Loop
-
-**Location**: [render.rs](../client/src/world/rendering/render.rs) — `world_render_system`
-
-**Problem**: Clones entire `ClientWorldMap` every frame. With 3.4× more chunks, this becomes expensive.
-
-```rust
-// Current: clones entire map every frame
-let map_ptr = Arc::new(world_map.clone());
-```
-
-**Fix options** (pick one):
-- Store `Arc<ClientWorldMap>` as the resource type
-- Clone only when map is dirty (add dirty flag)
-- Batch remesh requests to reduce clone frequency
-
-**Verify**: Clone time < 1ms with LOD enabled
-
-### 0.2 Distance Type Consistency
-
-**Problem**: `IVec3::distance_squared()` returns `i32`, but render distance uses `u32`. May cause issues at extreme coordinates.
-
-**Fix**: Use `i32` consistently for positions/distances. Add explicit casts with debug overflow checks.
-
-### 0.3 Memory Debug Readout
-
-**Problem**: LOD increases memory ~3.4×. Need visibility.
-
-**Fix**: Add chunk count and estimated memory to F3 debug overlay.
-
----
 
 ## Phase 1: LOD Data Structures
 

@@ -4,11 +4,11 @@
 
 ## Recommended Approach
 
-| Stage | Approach | Bandwidth Reduction | Effort |
-|-------|----------|--------------------|---------|
-| 1 | Cone Culling (dot threshold) | ~30-40% | 2-3 hours |
-| 2 | Full frustum (fixed params) | ~50-60% | 1-2 days |
-| 3 | Full frustum (synced params) | ~55-65% | 3-4 days |
+| Stage | Approach | Bandwidth Reduction | Effort | Status
+|-------|----------|--------------------|---------|-------|
+| 1 | Cone Culling (dot threshold) | ~30-40% | 2-3 hours | Done
+| 2 | Full frustum (fixed params) | ~50-60% | 1-2 days | Not Done
+| 3 | Full frustum (synced params) | ~55-65% | 3-4 days | Not Done
 
 **Start with Stage 1.** The existing dot-product prioritization can be extended to perform hard culling with ~10 lines of code.
 
@@ -35,40 +35,6 @@ A view frustum is defined by 6 planes (near, far, left, right, top, bottom). A c
 **Not available** (would require sync): FOV, aspect ratio. Stage 2 uses conservative fixed values instead.
 
 ## Implementation
-
-### Stage 1: Cone Culling
-
-**File**: `server/src/world/broadcast_world.rs`
-
-```rust
-/// -0.7 ≈ 135° from forward. Chunks beyond this are culled entirely.
-const CULL_DOT_THRESHOLD: f32 = -0.7;
-
-fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize) -> Vec<IVec3> {
-    let player_chunk_pos = world_position_to_chunk_position(player.position);
-    let forward = player.camera_transform.forward();
-
-    let mut chunks: Vec<IVec3> = get_player_nearby_chunks_coords(player_chunk_pos, radius)
-        .into_iter()
-        .filter(|chunk_pos| {
-            let direction = (*chunk_pos - player_chunk_pos).as_vec3().normalize_or_zero();
-            forward.dot(direction) > CULL_DOT_THRESHOLD
-        })
-        .collect();
-
-    let sort_count = chunks.len().min(max_chunks);
-    if chunks.len() > 1 {
-        chunks.select_nth_unstable_by(sort_count - 1, |a, b| {
-            order_chunks_by_render_score(a, b, player_chunk_pos, *forward)
-        });
-    }
-    chunks
-}
-```
-
-**To disable**: Set `CULL_DOT_THRESHOLD = -1.0`.
-
----
 
 ### Stage 2: Full Frustum Culling
 
@@ -179,12 +145,6 @@ Only implement if players with >90° FOV report pop-in. Requires adding `Frustum
 
 ## Checklist
 
-### Stage 1: Cone Culling
-- [ ] Add `CULL_DOT_THRESHOLD = -0.7` to `broadcast_world.rs`
-- [ ] Add `.filter()` to `get_player_chunks_prioritized()`
-- [ ] Test: verify no pop-in when turning
-- [ ] Measure chunk send rate reduction
-
 ### Stage 2: Full Frustum (if Stage 1 insufficient)
 - [ ] Create `shared/src/frustum.rs`
 - [ ] Add unit tests for AABB intersection
@@ -231,8 +191,6 @@ Set `CULL_DOT_THRESHOLD = -1.0` (Stage 1) or `ENABLE_FRUSTUM_CULLING = false` (S
 ---
 
 ## Summary
-
-**Start with Stage 1** (cone culling). It's ~10 lines of code for ~30-40% bandwidth reduction.
 
 Only proceed to Stage 2 (full frustum) if more savings are needed. Skip client sync—use fixed 90° FOV.
 
