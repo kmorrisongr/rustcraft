@@ -64,6 +64,9 @@ struct BlockBreakability {
 }
 
 #[derive(Copy, Clone)]
+/// Properties associated with a given block type.
+///
+/// These are static and common to all instances of a block type.
 struct BlockProperties {
     hitbox: Hitbox,
     visibility: BlockTransparency,
