@@ -46,8 +46,11 @@ pub fn background_chunk_generation_system(
         }
     }
 
-    // Process completed results (in reverse order to preserve indices during removal)
-    for (index, chunk_pos, result) in completed.into_iter().rev() {
+    // Sort completed indices in descending order to safely remove without invalidating indices
+    completed.sort_by(|a, b| b.0.cmp(&a.0));
+
+    // Process completed results
+    for (index, chunk_pos, result) in completed {
         info!("Generated chunk: {:?}", chunk_pos);
 
         world_map.chunks.map.insert(chunk_pos, result.chunk);
