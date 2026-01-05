@@ -70,11 +70,11 @@ impl Default for WaterMaterial {
     fn default() -> Self {
         Self {
             time: 0.0,
-            wave_amplitude: 0.05,                             // Subtle waves
-            wave_frequency: 2.0,                              // Moderate frequency
-            wave_speed: 1.5,                                  // Gentle movement
-            base_color: LinearRgba::new(0.2, 0.5, 0.8, 0.7),  // Semi-transparent blue
-            deep_color: LinearRgba::new(0.1, 0.2, 0.4, 0.85), // Darker blue
+            wave_amplitude: 0.12,                                // Visible waves
+            wave_frequency: 1.2,                                 // Gentle frequency
+            wave_speed: 1.0,                                     // Calm movement
+            base_color: LinearRgba::new(0.12, 0.40, 0.50, 0.65), // Atlantic ocean teal-blue
+            deep_color: LinearRgba::new(0.05, 0.18, 0.28, 0.8),  // Deeper ocean blue-green
             texture: None,
         }
     }
