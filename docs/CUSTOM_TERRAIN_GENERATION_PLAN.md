@@ -219,7 +219,7 @@ Global parameters that affect all terrain generation:
         (biome: "plains",          climate: (temp: 0.5, humid: 0.4),  y_range: None),
         (biome: "flower_plains",   climate: (temp: 0.5, humid: 0.55), y_range: None),
         (biome: "medium_mountain", climate: (temp: 0.4, humid: 0.3),  y_range: None),
-        (biome: "high_mountains",  climate: (temp: 0.2, humid: 0.2),  y_range: None),
+        (biome: "high_mountain_grass",  climate: (temp: 0.2, humid: 0.2),  y_range: None),
         (biome: "ice_plains",      climate: (temp: 0.1, humid: 0.4),  y_range: None),
         
         // Sky biomes (high altitude only)
