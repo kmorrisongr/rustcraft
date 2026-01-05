@@ -3,7 +3,9 @@ use crate::mob::behavior::mob_behavior_system;
 use crate::network::broadcast_chat::*;
 use crate::network::cleanup::cleanup_player_from_world;
 use crate::world;
-use crate::world::background_generation::background_world_generation_system;
+use crate::world::background_generation::{
+    background_chunk_generation_system, ChunkGenerationTasks,
+};
 use crate::world::broadcast_world::broadcast_world_state;
 use crate::world::load_from_file::load_player_data;
 use crate::world::save::SaveRequestEvent;
@@ -24,7 +26,8 @@ use super::extensions::SendGameMessageExtension;
 pub fn setup_resources_and_events(app: &mut App) {
     app.add_event::<SaveRequestEvent>()
         .add_event::<BlockInteractionEvent>()
-        .add_event::<PlayerInputsEvent>();
+        .add_event::<PlayerInputsEvent>()
+        .init_resource::<ChunkGenerationTasks>();
 
     setup_chat_resources(app);
 }
@@ -44,7 +47,7 @@ pub fn register_systems(app: &mut App) {
 
     app.add_systems(Update, handle_player_inputs_system);
 
-    app.add_systems(Update, background_world_generation_system);
+    app.add_systems(Update, background_chunk_generation_system);
 
     app.add_systems(PostUpdate, update_server_time);
 
