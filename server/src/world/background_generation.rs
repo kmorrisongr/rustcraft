@@ -66,7 +66,7 @@ pub fn background_chunk_generation_system(
         }
 
         // Remove from tasks first, then from in_progress to keep structures in sync
-        generation_tasks.tasks.swap_remove(index);
+        let _ = generation_tasks.tasks.swap_remove(index);
         generation_tasks.in_progress.remove(&chunk_pos);
     }
 
