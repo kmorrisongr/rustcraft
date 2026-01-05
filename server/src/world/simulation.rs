@@ -3,16 +3,13 @@ use bevy::{
     prelude::*,
 };
 use bevy_renet::renet::{ClientId, RenetServer};
-use log::info;
 use shared::{
     messages::{NetworkAction, PlayerFrameInput, PlayerUpdateEvent},
     players::{blocks::CallerType, simulation::simulate_player_actions},
-    world::{ServerWorldMap, WorldSeed},
+    world::ServerWorldMap,
 };
 
-use crate::{network::extensions::SendGameMessageExtension, world::generation::generate_chunk};
-
-use super::broadcast_world::get_all_active_chunks;
+use crate::network::extensions::SendGameMessageExtension;
 
 #[derive(Event, Debug)]
 pub struct PlayerInputsEvent {
@@ -24,41 +21,10 @@ pub fn handle_player_inputs_system(
     mut events: EventReader<PlayerInputsEvent>,
     mut world_map: ResMut<ServerWorldMap>,
     mut server: ResMut<RenetServer>,
-    seed: Res<WorldSeed>,
 ) {
     let world_map = world_map.as_mut();
     let players = &mut world_map.players;
     let chunks = &mut world_map.chunks;
-
-    // Get first player for chunk prioritization
-    let Some(first_player) = players.values().next() else {
-        return;
-    };
-
-    let active_chunks = get_all_active_chunks(players, 1, first_player);
-    for c in active_chunks {
-        let chunk = chunks.map.get(&c);
-
-        if chunk.is_none() {
-            // Check for any pending generation requests for this chunk
-            let pending_requests = chunks.generation_requests.remove(&c);
-
-            // Generate the chunk with any pending requests
-            let result = generate_chunk(c, seed.0, pending_requests);
-            info!("Generated chunk: {:?}", c);
-            chunks.map.insert(c, result.chunk);
-
-            // Store any generation requests for the chunk above
-            if !result.requests_for_chunk_above.is_empty() {
-                let chunk_above = IVec3::new(c.x, c.y + 1, c.z);
-                chunks
-                    .generation_requests
-                    .entry(chunk_above)
-                    .or_default()
-                    .extend(result.requests_for_chunk_above);
-            }
-        }
-    }
 
     let mut player_actions = HashMap::<u64, HashSet<NetworkAction>>::new();
     for client_id in players.keys() {
