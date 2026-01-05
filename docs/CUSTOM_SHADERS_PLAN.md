@@ -233,19 +233,27 @@ pub struct CustomChunkMaterial {
 
 impl Material for CustomChunkMaterial {
     fn vertex_shader() -> ShaderRef {
-        // Shader path set dynamically via ActiveShaderPack resource
-        // Default: "shaders/packs/default/chunk.vert.wgsl"
-        ShaderRef::Default  // Overridden at runtime
+        // Return a specific shader path
+        // Note: This is a static method and cannot change at runtime
+        ShaderRef::Path("shaders/chunk.vert.wgsl".into())
     }
     
     fn fragment_shader() -> ShaderRef {
-        ShaderRef::Default  // Overridden at runtime
+        ShaderRef::Path("shaders/chunk.frag.wgsl".into())
     }
 }
 
-// Note: Bevy's Material trait uses static methods, so dynamic shader
-// selection requires creating separate material types per pack, or
-// using Bevy's lower-level RenderPipelineDescriptor API.
+// Important: Bevy's Material trait methods are static and cannot be
+// overridden at runtime. To support dynamic shader pack switching,
+// we'll need one of these approaches:
+//
+// Option 1: Create separate Material types per shader pack
+//   - CustomChunkMaterialDefault, CustomChunkMaterialShiny, etc.
+//   - Switch materials when changing shader packs
+//
+// Option 2: Use Bevy's lower-level RenderPipelineDescriptor API
+//   - More control but bypasses Material trait convenience
+//   - Allows true runtime shader switching
 ```
 
 ---
