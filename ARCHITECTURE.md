@@ -254,7 +254,7 @@ Player physics (AABB collision), inventory management, and mob AI. See [PLAYER_E
 - **bevy_renet 2.0**: Networking library built on renet
 
 ### World Generation
-- **noise 0.9**: Perlin noise for terrain generation
+- **noiz 0.2**: Perlin noise for terrain generation
 - **rand 0.8**: Random number generation
 
 ### Serialization

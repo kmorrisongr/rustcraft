@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use noise::{NoiseFn, Perlin};
+use noiz::prelude::*;
 use shared::{world::*, CHUNK_SIZE, SEA_LEVEL};
 use std::collections::{HashMap, HashSet};
 
@@ -192,7 +192,13 @@ fn generate_cactus(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, cactus: Bloc
     }
 }
 
-fn interpolated_height(x: i32, z: i32, perlin: &Perlin, scale: f64, seed: u32) -> i32 {
+fn interpolated_height(
+    x: i32,
+    z: i32,
+    perlin: &Noise<common_noise::Perlin>,
+    scale: f32,
+    seed: u32,
+) -> i32 {
     // get the properties of the main biome at (x, z)
     let climate = calculate_temperature_humidity(x, z, seed);
     let biome_type = BiomeType::from_climate(climate);
@@ -236,7 +242,8 @@ fn interpolated_height(x: i32, z: i32, perlin: &Perlin, scale: f64, seed: u32) -
     weighted_variation /= total_weight;
 
     // final calculation of height with perlin noise
-    let terrain_noise = perlin.get([x as f64 * scale, z as f64 * scale]);
+    let sample_pos = Vec2::new(x as f32 * scale, z as f32 * scale);
+    let terrain_noise = perlin.sample_for::<f32>(sample_pos) as f64;
     let interpolated_height = weighted_base_height + (weighted_variation * terrain_noise);
 
     interpolated_height.round() as i32
@@ -360,9 +367,10 @@ pub fn generate_chunk(
     seed: u32,
     pending_requests: Option<Vec<FloraRequest>>,
 ) -> ChunkGenerationResult {
-    let perlin = Perlin::new(seed);
+    let mut perlin = Noise::<common_noise::Perlin>::default();
+    perlin.set_seed(seed);
 
-    let scale = 0.1;
+    let scale: f32 = 0.1;
     let cx = chunk_pos.x;
     let cy = chunk_pos.y;
     let cz = chunk_pos.z;
