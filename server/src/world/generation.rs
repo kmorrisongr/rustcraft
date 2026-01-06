@@ -19,7 +19,7 @@ fn try_place_block(
 }
 
 // Import shared biome functions
-use shared::world::calculate_temperature_humidity;
+use shared::world::{calculate_temperature_humidity_with_noises, ClimateNoises};
 
 fn generate_tree(chunk: &mut ServerChunk, x: i32, y: i32, z: i32, trunk: BlockId, leaves: BlockId) {
     // create trunk
@@ -369,6 +369,7 @@ pub fn generate_chunk(
 ) -> ChunkGenerationResult {
     let mut perlin = Noise::<common_noise::Perlin>::default();
     perlin.set_seed(seed);
+    let mut climate_noises = ClimateNoises::new(seed);
 
     let scale: f32 = 0.1;
     let cx = chunk_pos.x;
@@ -400,7 +401,7 @@ pub fn generate_chunk(
             let z = CHUNK_SIZE * cz + dz;
 
             // calculate temperature and humidity using shared function
-            let climate = calculate_temperature_humidity(x, z, seed);
+            let climate = calculate_temperature_humidity_with_noises(x, z, &mut climate_noises);
 
             // get biome regarding the two values
             let biome_type = BiomeType::from_climate(climate);

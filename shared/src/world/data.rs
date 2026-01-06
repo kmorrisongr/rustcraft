@@ -279,21 +279,43 @@ pub struct BiomeClimate {
 ///
 /// # Returns
 /// A BiomeClimate struct with temperature and humidity values, both between 0.0 and 1.0
-pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate {
-    let mut temp_noise = Noise::<common_noise::Perlin>::default();
-    temp_noise.set_seed(seed + TEMP_SEED_OFFSET);
-    let mut humidity_noise = Noise::<common_noise::Perlin>::default();
-    humidity_noise.set_seed(seed + HUMIDITY_SEED_OFFSET);
+#[derive(Clone)]
+pub struct ClimateNoises {
+    temp: Noise<common_noise::Perlin>,
+    humidity: Noise<common_noise::Perlin>,
+}
 
+impl ClimateNoises {
+    pub fn new(seed: u32) -> Self {
+        let mut temp = Noise::<common_noise::Perlin>::default();
+        temp.set_seed(seed + TEMP_SEED_OFFSET);
+
+        let mut humidity = Noise::<common_noise::Perlin>::default();
+        humidity.set_seed(seed + HUMIDITY_SEED_OFFSET);
+
+        Self { temp, humidity }
+    }
+}
+
+pub fn calculate_temperature_humidity_with_noises(
+    x: i32,
+    z: i32,
+    noises: &mut ClimateNoises,
+) -> BiomeClimate {
     let sample_position = Vec2::new(x as f32 * BIOME_SCALE, z as f32 * BIOME_SCALE);
 
-    let temperature = (temp_noise.sample_for::<f32>(sample_position) as f64 + 1.0) / 2.0;
-    let humidity = (humidity_noise.sample_for::<f32>(sample_position) as f64 + 1.0) / 2.0;
+    let temperature = (noises.temp.sample_for::<f64>(sample_position) + 1.0) / 2.0;
+    let humidity = (noises.humidity.sample_for::<f64>(sample_position) + 1.0) / 2.0;
 
     BiomeClimate {
         temperature,
         humidity,
     }
+}
+
+pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate {
+    let mut noises = ClimateNoises::new(seed);
+    calculate_temperature_humidity_with_noises(x, z, &mut noises)
 }
 
 /// Calculates the biome at a given world position.
@@ -455,7 +477,7 @@ mod tests {
         assert!((0.0..=1.0).contains(&first.temperature));
         assert!((0.0..=1.0).contains(&first.humidity));
 
-        assert!((first.temperature - second.temperature).abs() < f64::EPSILON);
-        assert!((first.humidity - second.humidity).abs() < f64::EPSILON);
+        assert!((first.temperature - second.temperature).abs() < f32::EPSILON as f64);
+        assert!((first.humidity - second.humidity).abs() < f32::EPSILON as f64);
     }
 }
