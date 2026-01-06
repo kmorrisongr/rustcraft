@@ -2,11 +2,29 @@ use crate::{
     messages::{NetworkAction, PlayerFrameInput},
     physics::{apply_gravity, resolve_vertical_movement, try_move, PhysicsBody},
     players::constants::{FLY_SPEED_MULTIPLIER, GRAVITY, JUMP_VELOCITY, SPEED},
-    world::WorldMap,
+    world::{world_position_to_chunk_position, WorldMap},
 };
 use bevy::prelude::*;
 
 use super::Player;
+
+/// Update the cached gravity_enabled state.
+/// Only caches when gravity is enabled - if disabled, we recheck each frame
+/// until chunks load to avoid the player being stuck floating.
+fn update_gravity_state(player: &mut Player, world_map: &impl WorldMap) {
+    let current_chunk = world_position_to_chunk_position(player.position);
+
+    // If gravity is already enabled and we're in the same chunk, no need to recheck
+    if player.gravity_enabled && player.last_gravity_check_chunk == Some(current_chunk) {
+        return;
+    }
+
+    // Recompute: either chunk changed, or gravity was disabled (chunks may have loaded)
+    let chunk_below = current_chunk - IVec3::Y;
+    player.gravity_enabled =
+        world_map.has_chunk(&current_chunk) && world_map.has_chunk(&chunk_below);
+    player.last_gravity_check_chunk = Some(current_chunk);
+}
 
 pub fn simulate_player_movement(
     player: &mut Player,
@@ -80,13 +98,16 @@ pub fn simulate_player_movement(
         Vec3::new(player.width, player.height, player.width),
     );
 
+    // Update cached gravity state (only recomputes when chunk changes)
+    update_gravity_state(player, world_map);
+
     // Handle jumping (if on the ground) and gravity, only if not flying
     if !player.is_flying {
         if body.on_ground && is_jumping {
             // Player can jump only when grounded
             body.velocity.y = JUMP_VELOCITY * delta;
             body.on_ground = false;
-        } else {
+        } else if player.gravity_enabled {
             apply_gravity(&mut body, GRAVITY, delta);
         }
     } else {
@@ -126,13 +147,6 @@ pub fn simulate_player_movement(
             Vec3::new(0.0, 0.0, displacement.z),
             true,
         );
-    }
-
-    // If the player is below the world, reset their position
-    const FALL_LIMIT: f32 = -50.0;
-    if body.position.y < FALL_LIMIT {
-        body.position = Vec3::new(0.0, 100.0, 0.0);
-        body.velocity.y = 0.0;
     }
 
     player.position = body.position;

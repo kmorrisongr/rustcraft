@@ -122,13 +122,6 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
             _ => {}
         }
 
-        // Reset mobs that fall below the world, similar to players
-        const FALL_LIMIT: f32 = -50.0;
-        if body.position.y < FALL_LIMIT {
-            body.position = Vec3::new(body.position.x, 100.0, body.position.z);
-            body.velocity.y = 0.0;
-        }
-
         mob.position = body.position;
         mob.velocity = body.velocity;
         mob.on_ground = body.on_ground;

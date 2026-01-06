@@ -1,5 +1,5 @@
 use bevy::{
-    math::Vec3,
+    math::{IVec3, Vec3},
     prelude::{Component, Resource, Transform},
 };
 use bevy_platform::collections::HashMap;
@@ -134,6 +134,12 @@ pub struct Player {
     pub height: f32,
     pub width: f32,
     pub last_input_processed: u64,
+    /// Cached gravity enabled state to avoid repeated chunk lookups
+    #[serde(skip)]
+    pub gravity_enabled: bool,
+    /// Chunk position when gravity_enabled was last computed
+    #[serde(skip)]
+    pub last_gravity_check_chunk: Option<IVec3>,
 }
 
 impl Player {
@@ -150,6 +156,8 @@ impl Player {
             height: 1.8,
             width: 0.8,
             last_input_processed: 0,
+            gravity_enabled: false,
+            last_gravity_check_chunk: None,
         }
     }
 
@@ -173,6 +181,8 @@ impl Default for Player {
             height: 1.8,
             width: 0.8,
             last_input_processed: 0,
+            gravity_enabled: false,
+            last_gravity_check_chunk: None,
         }
     }
 }

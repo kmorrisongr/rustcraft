@@ -316,6 +316,9 @@ pub trait WorldMap {
     fn remove_block_by_coordinates(&mut self, global_block_pos: &IVec3) -> Option<BlockData>;
     fn set_block(&mut self, position: &IVec3, block: BlockData);
 
+    /// Check if a chunk at the given chunk position is loaded
+    fn has_chunk(&self, chunk_pos: &IVec3) -> bool;
+
     fn get_height_ground(&self, position: Vec3) -> i32 {
         for y in (0..256).rev() {
             if self
@@ -376,6 +379,10 @@ pub trait WorldMap {
 }
 
 impl WorldMap for ServerChunkWorldMap {
+    fn has_chunk(&self, chunk_pos: &IVec3) -> bool {
+        self.map.contains_key(chunk_pos)
+    }
+
     fn get_block_mut_by_coordinates(&mut self, position: &IVec3) -> Option<&mut BlockData> {
         let (chunk_pos, local_pos) = global_to_chunk_local(position);
         let chunk = self.map.get_mut(&chunk_pos)?;
