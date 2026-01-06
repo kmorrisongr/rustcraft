@@ -12,7 +12,10 @@ use super::Player;
 fn compute_gravity_enabled(player: &Player, world_map: &impl WorldMap) -> bool {
     let current_chunk = world_position_to_chunk_position(player.position);
     let chunk_below = current_chunk - IVec3::Y;
-    world_map.has_chunk(&current_chunk) && world_map.has_chunk(&chunk_below)
+    let chunk_above = current_chunk + IVec3::Y;
+    world_map.has_chunk(&current_chunk)
+        && world_map.has_chunk(&chunk_below)
+        && world_map.has_chunk(&chunk_above)
 }
 
 /// Check if gravity state needs to be updated and update it if so.
