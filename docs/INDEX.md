@@ -18,6 +18,7 @@ rustcraft/
 ├── ARCHITECTURE.md              # System architecture and design
 ├── DEVELOPER_GUIDE.md           # Developer onboarding and workflows
 └── docs/
+    ├── BIG_SPACE_CHUNK_SYSTEM_PLAN.md  # Big Space chunk system migration
     ├── FRUSTUM_CULLING_PLAN.md  # View frustum culling optimization
     ├── LOD_SYSTEM_PLAN.md       # Level of Detail rendering system
     └── modules/                 # Detailed module documentation
@@ -52,6 +53,7 @@ rustcraft/
 **Optimize chunk rendering**
 - [FRUSTUM_CULLING_PLAN.md](./FRUSTUM_CULLING_PLAN.md) - View culling
 - [LOD_SYSTEM_PLAN.md](./LOD_SYSTEM_PLAN.md) - Level of Detail
+- [BIG_SPACE_CHUNK_SYSTEM_PLAN.md](./BIG_SPACE_CHUNK_SYSTEM_PLAN.md) - Floating origin precision system
 
 **Work with networking**
 - [NETWORK_SYSTEM.md](./modules/NETWORK_SYSTEM.md)
