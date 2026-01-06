@@ -25,6 +25,74 @@ The `big_space` crate provides a floating origin system that uses integer grids 
 
 ---
 
+## Value Proposition Assessment
+
+### When is Big Space Worth It?
+
+**Big Space is recommended when**:
+- Players will regularly explore beyond ~10,000 blocks from spawn
+- Visual fidelity at extreme distances matters (e.g., large structures, distant terrain)
+- You need absolute coordinates for multiplayer synchronization at scale
+- Future features require massive world support (space exploration, procedural universes)
+
+**Big Space may be overkill when**:
+- Gameplay is confined to a smaller area (< 50,000 blocks from origin)
+- The game already uses workarounds (periodic recentering) that work well enough
+- Team is unfamiliar with floating-origin concepts and needs to ship quickly
+
+### Cost-Benefit Analysis
+
+| Factor | Without Big Space | With Big Space |
+|--------|-------------------|----------------|
+| **Development Time** | 0 hours | 15-20 hours (implementation + integration testing) |
+| **Maintenance Burden** | Low (known patterns) | Low-Medium (new abstraction layer) |
+| **Code Complexity** | Simple coordinates | Additional coordinate conversions |
+| **Runtime Overhead** | None | ~10% slower transform propagation (CPU time in spatial systems) |
+| **Max Playable Area** | ~100K blocks (with jitter) | Effectively unlimited |
+
+### Complexity Impact
+
+**Files touched**: ~15-20 files across client, server, and shared
+**New concepts introduced**:
+- `CellCoord` vs `IVec3` (grid cell coordinates)
+- `FloatingOrigin` component on camera
+- `Grid` configuration and hierarchy
+- Coordinate conversion functions
+
+**Team onboarding**: ~2-4 hours to understand the new coordinate system
+
+### Maintenance Considerations
+
+| Area | Impact |
+|------|--------|
+| **New features** | Must consider grid-local vs global coordinates |
+| **Debugging** | Coordinate space awareness required |
+| **Network protocol** | Grid cell + local position vs absolute position |
+| **Save/load** | Backward compatibility with existing saves |
+| **Third-party plugins** | Most work unchanged (use `Transform`) |
+
+### Break-Even Analysis
+
+The migration investment pays off when:
+- **Short-term**: If precision issues are already visible at current play distances
+- **Medium-term**: If planned features require exploration beyond 50K blocks
+- **Long-term**: If world generation or multiplayer scales require absolute positioning
+
+**Recommendation**: For Rustcraft's current scope (typical voxel gameplay), this migration is **forward-looking infrastructure**. It provides headroom for future expansion but isn't immediately necessary if players stay within ~50K blocks of spawn.
+
+### Alternative Approaches
+
+| Alternative | Effort | Tradeoffs |
+|-------------|--------|-----------|
+| **Do nothing** | 0 hours | Jitter at large distances |
+| **Periodic recentering** | 5-10 hours | Simple but causes discontinuities |
+| **Camera-relative rendering** | 10-15 hours | Complex, affects all systems |
+| **Big Space (this plan)** | 15-20 hours | Clean solution, ecosystem compatible |
+
+**Verdict**: Big Space is the cleanest long-term solution if massive world support is a goal. For a quick fix, periodic recentering is simpler but less robust.
+
+---
+
 ## Version Compatibility
 
 | Bevy | big_space |
