@@ -1,0 +1,65 @@
+(
+    map: {
+        MoveForward: [
+            KeyW,// [0]
+            ArrowUp,
+        ],
+        MoveBackward: [
+            KeyS,// [0]
+            ArrowDown,
+        ],
+        MoveLeft: [
+            KeyA,// [0]
+            ArrowLeft,
+        ],
+        MoveRight: [
+            KeyD,// [0]
+            ArrowRight,
+        ],
+        Jump: [
+            Space,
+        ],
+        Escape: [
+            Escape,
+        ],
+        ToggleFps: [
+            F3,
+        ],
+        ToggleViewMode: [
+            F5,
+        ],
+        ToggleChunkDebugMode: [
+            F4,
+        ],
+        ToggleFlyMode: [
+            KeyF,
+        ],
+        FlyUp: [
+            Space,
+        ],
+        FlyDown: [
+            ShiftLeft,
+        ],
+        ToggleBlockWireframeDebugMode: [
+            F6,
+        ],
+        ToggleRaycastDebugMode: [
+            F7,
+        ],
+        ToggleInventory: [
+            KeyE,
+        ],
+        OpenChat: [
+            KeyT,
+        ],
+        RenderDistanceMinus: [
+            KeyO,
+        ],
+        RenderDistancePlus: [
+            KeyP,
+        ],
+        ReloadChunks: [
+            KeyR,
+        ],
+    },
+)
