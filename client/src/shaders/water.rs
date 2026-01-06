@@ -10,6 +10,7 @@ use bevy::{
 };
 
 use super::water_uniforms::WaterUniforms;
+use crate::world::celestial::{MoonLight, SunLight};
 
 /// Plugin for the water shader system
 pub struct WaterShaderPlugin;
@@ -51,15 +52,20 @@ pub struct WaterMaterial {
 
 impl Default for WaterMaterial {
     fn default() -> Self {
+        // Default sun direction (pointing up and forward, like midday)
+        let default_sun_dir = Vec3::new(0.0, 1.0, 0.5).normalize();
         Self {
             uniforms: WaterUniforms {
                 time: 0.0,
                 wave_scale: 0.5, // Smaller scale = larger wave patterns visible at world scale
                 bump_strength: 1.0, // Strong normal perturbation for visible ripples
+                _padding1: 0.0,
                 water_color: Vec4::new(0.15, 0.35, 0.45, 0.75), // Slightly more opaque teal
-                deep_color: Vec4::new(0.05, 0.15, 0.25, 0.9), // Deeper blue-green
-                fog_density: 0.00001, // Visible distance fog
-                _padding: Vec3::ZERO,
+                deep_color: Vec4::new(0.05, 0.15, 0.25, 0.9),   // Deeper blue-green
+                sun_direction: default_sun_dir,
+                fog_density: 0.00001,             // Visible distance fog
+                moon_direction: -default_sun_dir, // Moon opposite to sun
+                _padding2: 0.0,
             },
             texture: None,
         }
@@ -84,12 +90,29 @@ impl Material for WaterMaterial {
 #[derive(Component)]
 pub struct WaterMesh;
 
-/// System to update water material time uniforms
+/// System to update water material time uniforms and celestial light directions
 fn update_water_materials(
     water_time: Res<WaterShaderTime>,
     mut materials: ResMut<Assets<WaterMaterial>>,
+    sun_query: Query<&GlobalTransform, With<SunLight>>,
+    moon_query: Query<&GlobalTransform, With<MoonLight>>,
 ) {
+    // Get sun direction from its global transform (forward direction in world space)
+    // GlobalTransform accounts for parent rotations (CelestialRoot rotation)
+    let sun_direction = sun_query
+        .single()
+        .map(|t| t.forward().as_vec3())
+        .unwrap_or(Vec3::new(0.0, 1.0, 0.5).normalize());
+
+    // Get moon direction from its global transform (forward direction in world space)
+    let moon_direction = moon_query
+        .single()
+        .map(|t| t.forward().as_vec3())
+        .unwrap_or(-sun_direction);
+
     for (_, material) in materials.iter_mut() {
         material.uniforms.time = water_time.elapsed;
+        material.uniforms.sun_direction = sun_direction;
+        material.uniforms.moon_direction = moon_direction;
     }
 }
