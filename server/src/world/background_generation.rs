@@ -3,6 +3,7 @@ use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 use log::info;
 use shared::world::{FloraRequest, ServerWorldMap, WorldSeed};
+use shared::LOD1_MULTIPLIER;
 use std::collections::HashSet;
 
 use crate::world::generation::{generate_chunk, ChunkGenerationResult};
@@ -76,11 +77,12 @@ pub fn background_chunk_generation_system(
         None => return, // No players, no need to generate chunks
     };
 
-    let all_chunks = get_all_active_chunks(
-        &world_map.players,
-        config.broadcast_render_distance,
-        first_player,
-    );
+    // Use extended render distance to generate chunks for LOD 1 rendering
+    let effective_render_distance =
+        (config.broadcast_render_distance as f32 * LOD1_MULTIPLIER) as i32;
+
+    let all_chunks =
+        get_all_active_chunks(&world_map.players, effective_render_distance, first_player);
 
     let task_pool = AsyncComputeTaskPool::get();
     let seed_value = seed.0;
