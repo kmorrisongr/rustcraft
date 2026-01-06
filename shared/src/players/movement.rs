@@ -190,6 +190,7 @@ impl IsPressed for PlayerFrameInput {
 mod tests {
     use super::*;
     use crate::world::BlockData;
+    use crate::CHUNK_SIZE;
     use std::collections::HashSet;
 
     /// Mock WorldMap implementation for testing
@@ -471,7 +472,7 @@ mod tests {
     #[test]
     fn compute_gravity_enabled_chunk_boundary_edge_cases() {
         // Test at exact chunk boundary on multiple axes
-        let chunk_size = crate::CHUNK_SIZE as f32;
+        let chunk_size = CHUNK_SIZE as f32;
         let test_cases = vec![
             (Vec3::new(0.0, 0.0, 0.0), IVec3::new(0, 0, 0)),
             (Vec3::new(chunk_size, 0.0, 0.0), IVec3::new(1, 0, 0)),
