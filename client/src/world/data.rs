@@ -64,6 +64,10 @@ impl ClientWorldMap {
 }
 
 impl WorldMap for ClientWorldMap {
+    fn has_chunk(&self, chunk_pos: &IVec3) -> bool {
+        self.map.contains_key(chunk_pos)
+    }
+
     fn get_block_by_coordinates(&self, position: &IVec3) -> Option<&BlockData> {
         let (chunk_pos, local_pos) = global_to_chunk_local(position);
         let chunk = self.map.get(&chunk_pos)?;
