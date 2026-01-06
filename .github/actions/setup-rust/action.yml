@@ -15,6 +15,7 @@ runs:
         path: |
           ~/.cargo/registry/index
           ~/.cargo/registry/cache
+          ~/.cargo/registry/src
           ~/.cargo/git/db
         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain*') }}
         restore-keys: |
