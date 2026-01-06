@@ -249,14 +249,15 @@ pub fn world_render_system(
             lod_level,
         } = task;
 
-        if let Some(chunk) = world_map.map.get_mut(chunk_pos) {
+        if let Some(chunk_arc) = world_map.map.get_mut(chunk_pos) {
             // If a later mesh has been completed before, we can drop this task
-            if *mesh_request_ts < chunk.last_mesh_ts {
+            if *mesh_request_ts < chunk_arc.last_mesh_ts {
                 false
             }
             // If completed, use the mesh to update the chunk and delete it from the meshing queue
             else if let Some(new_meshes) = block_on(future::poll_once(thread)) {
-                // Update the corresponding chunk
+                // Update the corresponding chunk (use Arc::make_mut for copy-on-write)
+                let chunk = std::sync::Arc::make_mut(chunk_arc);
                 update_chunk(
                     chunk,
                     chunk_pos,

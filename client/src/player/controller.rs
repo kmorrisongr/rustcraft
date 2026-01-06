@@ -181,8 +181,9 @@ pub fn chunk_force_reload_system(
     mut commands: Commands,
 ) {
     if is_action_just_pressed(GameAction::ReloadChunks, &keyboard_input, &key_map) {
-        for (pos, chunk) in world_map.map.iter_mut() {
-            // Despawn the chunk's entity
+        for (pos, chunk_arc) in world_map.map.iter_mut() {
+            // Despawn the chunk's entity (use Arc::make_mut for copy-on-write)
+            let chunk = std::sync::Arc::make_mut(chunk_arc);
             if let Some(e) = chunk.entity {
                 commands.entity(e).despawn();
                 chunk.entity = None;
