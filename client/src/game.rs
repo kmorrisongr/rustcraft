@@ -18,6 +18,7 @@ use crate::world::time::ClientTime;
 use crate::world::ClientWorldMap;
 
 use crate::ui::hud::debug::BlockDebugWireframeSettings;
+use crate::ui::hud::loading_overlay::{setup_loading_overlay, update_loading_overlay};
 use crate::ui::hud::reticle::spawn_reticle;
 use crate::ui::menus::pause::{render_pause_menu, setup_pause_menu};
 use bevy::color::palettes::basic::WHITE;
@@ -149,6 +150,7 @@ pub fn game_plugin(app: &mut App) {
                 spawn_camera,
                 setup_main_lighting,
                 spawn_reticle,
+                setup_loading_overlay,
                 setup_hud,
                 setup_chat,
                 setup_pause_menu,
@@ -167,6 +169,7 @@ pub fn game_plugin(app: &mut App) {
                 render_chat,
                 render_inventory_hotbar,
                 set_ui_mode,
+                update_loading_overlay,
             )
                 .run_if(in_state(GameState::Game)),
         )
