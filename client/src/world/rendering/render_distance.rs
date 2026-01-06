@@ -1,9 +1,14 @@
 use crate::{
     input::{data::GameAction, keyboard::is_action_just_pressed},
+    player::CurrentPlayerMarker,
+    world::{ClientWorldMap, WorldRenderRequestUpdateEvent},
     KeyMap,
 };
 use bevy::prelude::*;
-use shared::{DEFAULT_RENDER_DISTANCE, LOD1_MULTIPLIER};
+use shared::{
+    world::{global_block_to_chunk_pos, LodLevel},
+    DEFAULT_RENDER_DISTANCE, LOD1_MULTIPLIER,
+};
 
 #[derive(Resource, Default, Reflect)]
 pub struct RenderDistance {
@@ -48,5 +53,56 @@ pub fn render_distance_update_system(
 
     if is_action_just_pressed(GameAction::RenderDistancePlus, &keyboard_input, &key_map) {
         render_distance.distance = render_distance.distance.saturating_add(1);
+    }
+}
+
+/// Timer for periodic LOD transition checks
+#[derive(Resource)]
+pub struct LodTransitionTimer(pub Timer);
+
+impl Default for LodTransitionTimer {
+    fn default() -> Self {
+        // Check every 0.5 seconds to balance responsiveness vs performance
+        Self(Timer::from_seconds(0.5, TimerMode::Repeating))
+    }
+}
+
+/// System that checks all loaded chunks and triggers re-render when LOD level should change.
+/// This handles the case where player moves closer to LOD1 chunks that should become LOD0.
+pub fn lod_transition_system(
+    time: Res<Time>,
+    mut timer: ResMut<LodTransitionTimer>,
+    render_distance: Res<RenderDistance>,
+    world_map: Res<ClientWorldMap>,
+    player_query: Query<&Transform, With<CurrentPlayerMarker>>,
+    mut ev_render: EventWriter<WorldRenderRequestUpdateEvent>,
+) {
+    // Only check periodically to avoid performance impact
+    if !timer.0.tick(time.delta()).just_finished() {
+        return;
+    }
+
+    let Ok(player_transform) = player_query.single() else {
+        return;
+    };
+
+    let player_pos = player_transform.translation;
+    let player_chunk_pos = global_block_to_chunk_pos(&bevy::math::IVec3::new(
+        player_pos.x as i32,
+        player_pos.y as i32,
+        player_pos.z as i32,
+    ));
+
+    let lod0_distance_sq = render_distance.lod0_distance_sq();
+
+    // Check each loaded chunk to see if its LOD level should change
+    for (chunk_pos, chunk) in world_map.map.iter() {
+        let chunk_distance_sq = chunk_pos.distance_squared(player_chunk_pos);
+        let expected_lod = LodLevel::from_distance_squared(chunk_distance_sq, lod0_distance_sq);
+
+        // If the chunk's current LOD doesn't match what it should be, trigger a re-render
+        if expected_lod != chunk.current_lod {
+            ev_render.write(WorldRenderRequestUpdateEvent::ChunkToReload(*chunk_pos));
+        }
     }
 }
