@@ -471,12 +471,13 @@ mod tests {
     #[test]
     fn compute_gravity_enabled_chunk_boundary_edge_cases() {
         // Test at exact chunk boundary on multiple axes
+        let chunk_size = crate::CHUNK_SIZE as f32;
         let test_cases = vec![
             (Vec3::new(0.0, 0.0, 0.0), IVec3::new(0, 0, 0)),
-            (Vec3::new(16.0, 0.0, 0.0), IVec3::new(1, 0, 0)),
-            (Vec3::new(-16.0, 0.0, 0.0), IVec3::new(-1, 0, 0)),
-            (Vec3::new(0.0, 16.0, 0.0), IVec3::new(0, 1, 0)),
-            (Vec3::new(0.0, -16.0, 0.0), IVec3::new(0, -1, 0)),
+            (Vec3::new(chunk_size, 0.0, 0.0), IVec3::new(1, 0, 0)),
+            (Vec3::new(-chunk_size, 0.0, 0.0), IVec3::new(-1, 0, 0)),
+            (Vec3::new(0.0, chunk_size, 0.0), IVec3::new(0, 1, 0)),
+            (Vec3::new(0.0, -chunk_size, 0.0), IVec3::new(0, -1, 0)),
         ];
         
         for (pos, expected_chunk) in test_cases {
