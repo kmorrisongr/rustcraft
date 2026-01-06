@@ -88,8 +88,67 @@ The migration investment pays off when:
 | **Periodic recentering** | 5-10 hours | Simple but causes discontinuities |
 | **Camera-relative rendering** | 10-15 hours | Complex, affects all systems |
 | **Big Space (this plan)** | 15-20 hours | Clean solution, ecosystem compatible |
+| **chunky-bevy** | 8-12 hours | Simpler chunk management, no precision fix |
 
 **Verdict**: Big Space is the cleanest long-term solution if massive world support is a goal. For a quick fix, periodic recentering is simpler but less robust.
+
+### Big Space vs chunky-bevy Comparison
+
+Both crates solve different problems in voxel game development:
+
+| Aspect | big_space | chunky-bevy |
+|--------|-----------|-------------|
+| **Primary Purpose** | Floating-point precision at large distances | Chunk lifecycle management (load/unload/save) |
+| **Problem Solved** | Eliminates jitter far from origin | Simplifies chunk spawning and streaming |
+| **Bevy Compatibility** | Bevy 0.16 (crate v0.10) | Bevy 0.17 only (crate v0.2) |
+| **Approach** | Grid cells + floating origin | ChunkLoader/ChunkPos components |
+| **Precision Handling** | ✅ Up to 128-bit integer grids | ❌ Uses standard `IVec3` |
+| **Chunk Loading** | Manual (bring your own logic) | ✅ Built-in `ChunkLoader` component |
+| **Chunk Unloading** | Manual | ✅ Built-in strategies (distance, limit, hybrid) |
+| **Persistence** | Manual | ✅ Built-in save/load with auto-save option |
+| **Spatial Hashing** | ✅ Built-in `CellLookup` | ✅ HashMap-based O(1) lookup |
+| **Nested Grids** | ✅ For moving reference frames | ❌ Single flat grid |
+| **Debug Visualization** | ❌ Not included | ✅ Chunk boundary visualizer |
+| **Dependencies** | No added deps | serde, postcard (for persistence) |
+| **Maturity** | Established (326 stars) | Newer (10 stars, created Nov 2025) |
+
+#### When to Choose Each
+
+**Choose big_space when:**
+- Players explore massive distances (>50K blocks from spawn)
+- Floating-point precision is causing visible artifacts
+- You need nested grids (e.g., moving vehicles, planets)
+- Bevy 0.16 compatibility is required
+
+**Choose chunky-bevy when:**
+- You need turnkey chunk loading/unloading logic
+- World persistence with auto-save is a priority
+- Gameplay stays within moderate distances (<50K blocks)
+- You can upgrade to Bevy 0.17
+
+**Choose both when:**
+- You want big_space's precision handling AND chunky-bevy's lifecycle management
+- Note: This would require adapting chunky-bevy to use big_space's `CellCoord` instead of `IVec3`
+
+#### For Rustcraft
+
+| Factor | big_space | chunky-bevy |
+|--------|-----------|-------------|
+| **Solves current pain point?** | ✅ Precision at large distances | ❌ Doesn't address precision |
+| **Bevy 0.16 compatible?** | ✅ Yes (v0.10) | ❌ No (requires 0.17) |
+| **Replaces existing chunk system?** | Partially | Yes |
+| **Effort to integrate** | 15-20 hours | 8-12 hours (after Bevy upgrade) |
+
+**Recommendation for Rustcraft**: 
+- **big_space** is the better choice because:
+  1. It directly solves the floating-point precision problem
+  2. It's compatible with current Bevy 0.16
+  3. Rustcraft already has working chunk loading/unloading logic
+  
+- **chunky-bevy** would be useful if:
+  1. Rustcraft upgrades to Bevy 0.17
+  2. The goal is to simplify chunk management code (not fix precision)
+  3. Built-in persistence is desired over the current RON-based save system
 
 ---
 
