@@ -632,9 +632,7 @@ pub fn raycast(
 - [ ] Vertical chunk loading (for tall worlds)
 
 ### Performance Improvements
-- [ ] Level of detail (LOD) for distant chunks
 - [ ] Chunk compression in memory
-- [ ] Parallel mesh generation
 - [ ] GPU-based terrain generation
 - [ ] Chunk streaming from disk
 

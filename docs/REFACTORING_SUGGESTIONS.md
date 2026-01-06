@@ -249,9 +249,8 @@ mobs: mobs.clone(),
 ```
 
 **Recommendation:** 
-- Use `Arc<HashMap>` or `Rc` for shared read access
-- Only send mob updates for mobs near each player (already partially done)
-- Consider delta updates instead of full state
+    - Use `Arc<HashMap>` or `Rc` for shared read access
+    - Consider delta updates instead of full state
 
 ---
 

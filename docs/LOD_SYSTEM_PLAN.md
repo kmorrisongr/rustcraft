@@ -38,9 +38,7 @@
 Add the types and helpers needed by later phases. No user-visible changes.
 
 **Deliverables**:
-- [ ] `LodLevel` enum in shared
-- [ ] `lod0_distance_sq()` / `lod1_distance_sq()` helpers on `RenderDistance`
-- [ ] `current_lod` field on `ClientChunk`
+Phase 1 (LOD data structures) has been implemented in the codebase (types and helpers added).
 
 ### 1.1 LodLevel Enum
 

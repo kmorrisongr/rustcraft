@@ -6,11 +6,10 @@
 
 | Stage | Approach | Bandwidth Reduction | Effort | Status
 |-------|----------|--------------------|---------|-------|
-| 1 | Cone Culling (dot threshold) | ~30-40% | 2-3 hours | Done
 | 2 | Full frustum (fixed params) | ~50-60% | 1-2 days | Not Done
 | 3 | Full frustum (synced params) | ~55-65% | 3-4 days | Not Done
 
-**Start with Stage 1.** The existing dot-product prioritization can be extended to perform hard culling with ~10 lines of code.
+**Stage 1 has been implemented.** Consider proceeding to Stage 2 for full frustum culling.
 
 ---
 
