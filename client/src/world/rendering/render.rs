@@ -10,7 +10,7 @@ use bevy::{
     tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
 };
 use shared::{
-    world::{global_block_to_chunk_pos, SIX_OFFSETS},
+    world::{global_block_to_chunk_pos, LodLevel, SIX_OFFSETS},
     CHUNK_SIZE,
 };
 
@@ -22,12 +22,14 @@ use crate::{
 use crate::world::{ClientChunk, ClientWorldMap};
 
 use super::meshing::ChunkMeshResponse;
+use super::render_distance::RenderDistance;
 
 #[derive(Debug)]
 pub struct MeshingTask {
     pub chunk_pos: IVec3,
     pub mesh_request_ts: Instant,
     pub thread: Task<ChunkMeshResponse>,
+    pub lod_level: LodLevel, // Track the LOD level for this mesh task
 }
 
 #[derive(Debug, Default, Resource)]
@@ -48,6 +50,7 @@ fn update_chunk(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     new_meshes: ChunkMeshResponse,
+    lod_level: LodLevel, // Track the LOD level used for this mesh
 ) {
     let solid_texture = material_resource
         .global_materials
@@ -78,7 +81,7 @@ fn update_chunk(
                         MeshMaterial3d(solid_texture.clone()),
                     ));
                 }
-                // Spawn water mesh with custom water material
+                // Spawn water mesh with custom water material (only for LOD 0)
                 if let Some(new_water_mesh) = new_meshes.water_mesh {
                     debug!("Spawning water mesh for chunk");
                     root.spawn((
@@ -93,6 +96,9 @@ fn update_chunk(
 
         chunk.entity = Some(new_entity);
     }
+
+    // Update the chunk's current LOD level
+    chunk.current_lod = lod_level;
     // debug!("ClientChunk updated : len={}", chunk.map.len());
 }
 
@@ -105,6 +111,7 @@ pub struct ChunkWaterMaterial {
 pub fn world_render_system(
     mut world_map: ResMut<ClientWorldMap>,
     material_resource: Res<MaterialResource>,
+    render_distance: Res<RenderDistance>,
     mut water_material_res: ResMut<ChunkWaterMaterial>,
     mut water_materials: ResMut<Assets<WaterMaterial>>,
     mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
@@ -143,6 +150,9 @@ pub fn world_render_system(
 
     let events = queued_events.events.clone();
 
+    // Get LOD thresholds
+    let lod0_distance_sq = render_distance.lod0_distance_sq();
+
     if !events.is_empty() {
         // Clone map only when it changed, then share it as read-only across all meshing threads
         let map_ptr =
@@ -162,6 +172,16 @@ pub fn world_render_system(
 
         let uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
 
+        let player_pos = player_pos
+            .single()
+            .expect("Player should exist")
+            .translation;
+        let player_chunk_pos = global_block_to_chunk_pos(&IVec3::new(
+            player_pos.x as i32,
+            player_pos.y as i32,
+            player_pos.z as i32,
+        ));
+
         let mut chunks_to_reload: HashSet<IVec3> = HashSet::new();
 
         // Using a set so same chunks are not reloaded multiple times
@@ -170,24 +190,22 @@ pub fn world_render_system(
             let WorldRenderRequestUpdateEvent::ChunkToReload(target_chunk_pos) = event;
 
             chunks_to_reload.insert(*target_chunk_pos);
-            for offset in &SIX_OFFSETS {
-                chunks_to_reload.insert(*target_chunk_pos + *offset);
+
+            // Only add neighbor chunks for LOD0 chunks.
+            // LOD1 chunks use simplified meshes that don't need neighbor precision,
+            // so we skip the neighbor cascade to reduce mesh generation overhead.
+            let chunk_distance_sq = target_chunk_pos.distance_squared(player_chunk_pos);
+            let chunk_lod = LodLevel::from_distance_squared(chunk_distance_sq, lod0_distance_sq);
+            if chunk_lod == LodLevel::Lod0 {
+                for offset in &SIX_OFFSETS {
+                    chunks_to_reload.insert(*target_chunk_pos + *offset);
+                }
             }
         }
 
-        let player_pos = player_pos
-            .single()
-            .expect("Player should exist")
-            .translation;
-        let player_pos = global_block_to_chunk_pos(&IVec3::new(
-            player_pos.x as i32,
-            player_pos.y as i32,
-            player_pos.z as i32,
-        ));
-
         let mut chunks_to_reload = Vec::from_iter(chunks_to_reload);
 
-        chunks_to_reload.sort_by_key(|pos| pos.distance_squared(player_pos));
+        chunks_to_reload.sort_by_key(|pos| pos.distance_squared(player_chunk_pos));
 
         for pos in chunks_to_reload {
             if let Some(chunk) = world_map.map.get(&pos) {
@@ -196,18 +214,26 @@ pub fn world_render_system(
                     continue;
                 }
 
+                // Calculate LOD level based on distance from player
+                let chunk_distance_sq = pos.distance_squared(player_chunk_pos);
+                let lod_level =
+                    LodLevel::from_distance_squared(chunk_distance_sq, lod0_distance_sq);
+
                 // Define variables to move to the thread
                 let map_clone = Arc::clone(&map_ptr);
                 let uvs_clone = Arc::clone(&uvs);
                 let ch = chunk.clone();
                 let t = pool.spawn(async move {
-                    world::meshing::generate_chunk_mesh(&map_clone, &ch, &pos, &uvs_clone)
+                    world::meshing::generate_chunk_mesh_lod(
+                        &map_clone, &ch, &pos, &uvs_clone, lod_level,
+                    )
                 });
 
                 queued_meshes.meshes.push(MeshingTask {
                     chunk_pos: pos,
                     mesh_request_ts: Instant::now(),
                     thread: t,
+                    lod_level,
                 });
             }
         }
@@ -220,16 +246,18 @@ pub fn world_render_system(
             chunk_pos,
             mesh_request_ts,
             thread,
+            lod_level,
         } = task;
 
-        if let Some(chunk) = world_map.map.get_mut(chunk_pos) {
+        if let Some(chunk_arc) = world_map.map.get_mut(chunk_pos) {
             // If a later mesh has been completed before, we can drop this task
-            if *mesh_request_ts < chunk.last_mesh_ts {
+            if *mesh_request_ts < chunk_arc.last_mesh_ts {
                 false
             }
             // If completed, use the mesh to update the chunk and delete it from the meshing queue
             else if let Some(new_meshes) = block_on(future::poll_once(thread)) {
-                // Update the corresponding chunk
+                // Update the corresponding chunk (use Arc::make_mut for copy-on-write)
+                let chunk = std::sync::Arc::make_mut(chunk_arc);
                 update_chunk(
                     chunk,
                     chunk_pos,
@@ -238,6 +266,7 @@ pub fn world_render_system(
                     &mut commands,
                     &mut meshes,
                     new_meshes,
+                    *lod_level,
                 );
                 false
             } else {

@@ -101,6 +101,7 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(AtlasHandles::<BlockId>::default())
         .insert_resource(AtlasHandles::<ItemId>::default())
         .insert_resource(RenderDistance { ..default() })
+        .init_resource::<LodTransitionTimer>()
         .insert_resource(UIMode::Closed)
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(DebugOptions::default())
@@ -177,6 +178,7 @@ pub fn game_plugin(app: &mut App) {
             Update,
             (
                 render_distance_update_system,
+                lod_transition_system,
                 first_and_third_person_view_system,
                 toggle_debug_system,
                 chunk_force_reload_system,
