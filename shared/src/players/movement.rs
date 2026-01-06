@@ -8,22 +8,29 @@ use bevy::prelude::*;
 
 use super::Player;
 
-/// Update the cached gravity_enabled state.
-/// Only caches when gravity is enabled - if disabled, we recheck each frame
-/// until chunks load to avoid the player being stuck floating.
-fn update_gravity_state(player: &mut Player, world_map: &impl WorldMap) {
+/// Recompute gravity_enabled based on whether required chunks are loaded.
+fn compute_gravity_enabled(player: &Player, world_map: &impl WorldMap) -> bool {
     let current_chunk = world_position_to_chunk_position(player.position);
-
-    // If gravity is already enabled and we're in the same chunk, no need to recheck
-    if player.gravity_enabled && player.last_gravity_check_chunk == Some(current_chunk) {
-        return;
-    }
-
-    // Recompute: either chunk changed, or gravity was disabled (chunks may have loaded)
     let chunk_below = current_chunk - IVec3::Y;
-    player.gravity_enabled =
-        world_map.has_chunk(&current_chunk) && world_map.has_chunk(&chunk_below);
-    player.last_gravity_check_chunk = Some(current_chunk);
+    world_map.has_chunk(&current_chunk) && world_map.has_chunk(&chunk_below)
+}
+
+/// Check if gravity state needs to be updated and update it if so.
+/// Only runs the chunk lookup when:
+/// - Player entered a new chunk, OR
+/// - Gravity is currently disabled (waiting for chunks to load)
+fn maybe_update_gravity_state(player: &mut Player, world_map: &impl WorldMap) {
+    let current_chunk = world_position_to_chunk_position(player.position);
+    let chunk_changed = player.last_gravity_check_chunk != Some(current_chunk);
+
+    if chunk_changed {
+        player.last_gravity_check_chunk = Some(current_chunk);
+        player.gravity_enabled = compute_gravity_enabled(player, world_map);
+    } else if !player.gravity_enabled {
+        // Keep checking while gravity is disabled (chunks may have loaded)
+        player.gravity_enabled = compute_gravity_enabled(player, world_map);
+    }
+    // If gravity is enabled and chunk hasn't changed, do nothing
 }
 
 pub fn simulate_player_movement(
@@ -98,8 +105,8 @@ pub fn simulate_player_movement(
         Vec3::new(player.width, player.height, player.width),
     );
 
-    // Update cached gravity state (only recomputes when chunk changes)
-    update_gravity_state(player, world_map);
+    // Update gravity state on chunk enter, or keep checking while disabled
+    maybe_update_gravity_state(player, world_map);
 
     // Handle jumping (if on the ground) and gravity, only if not flying
     if !player.is_flying {
