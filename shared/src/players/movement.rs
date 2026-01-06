@@ -159,6 +159,17 @@ pub fn simulate_player_movement(
         );
     }
 
+    // Safety net: prevent players from falling indefinitely if they slip through the world.
+    const FALL_RESET_Y: f32 = -100.0;
+    if body.position.y < FALL_RESET_Y {
+        warn!(
+            "Player {:?} fell below safety threshold (y = {}). Resetting position.",
+            player.id,
+            body.position.y
+        );
+        body.position.y = 0.0;
+        body.velocity = Vec3::ZERO;
+    }
     player.position = body.position;
     player.velocity = body.velocity;
     player.on_ground = body.on_ground;
