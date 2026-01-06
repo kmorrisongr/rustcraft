@@ -190,7 +190,7 @@ pub fn world_render_system(
             let WorldRenderRequestUpdateEvent::ChunkToReload(target_chunk_pos) = event;
 
             chunks_to_reload.insert(*target_chunk_pos);
-            
+
             // Only add neighbor chunks for LOD0 chunks.
             // LOD1 chunks use simplified meshes that don't need neighbor precision,
             // so we skip the neighbor cascade to reduce mesh generation overhead.
