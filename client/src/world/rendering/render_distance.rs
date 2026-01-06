@@ -94,10 +94,23 @@ pub fn lod_transition_system(
     ));
 
     let lod0_distance_sq = render_distance.lod0_distance_sq();
+    let lod0_distance = (lod0_distance_sq as f32).sqrt() as i32;
 
-    // Check each loaded chunk to see if its LOD level should change
+    // Only check chunks near the LOD boundary (within 2 chunks of transition distance).
+    // This avoids iterating over all loaded chunks when only boundary chunks can transition.
+    let boundary_margin = 2;
+    let min_check_distance_sq = (lod0_distance - boundary_margin).max(0).pow(2);
+    let max_check_distance_sq = (lod0_distance + boundary_margin).pow(2);
+
+    // Check only chunks near the LOD boundary to see if their LOD level should change
     for (chunk_pos, chunk) in world_map.map.iter() {
         let chunk_distance_sq = chunk_pos.distance_squared(player_chunk_pos);
+
+        // Skip chunks that are clearly not near the LOD boundary
+        if chunk_distance_sq < min_check_distance_sq || chunk_distance_sq > max_check_distance_sq {
+            continue;
+        }
+
         let expected_lod = LodLevel::from_distance_squared(chunk_distance_sq, lod0_distance_sq);
 
         // If the chunk's current LOD doesn't match what it should be, trigger a re-render

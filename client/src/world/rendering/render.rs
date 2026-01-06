@@ -172,19 +172,6 @@ pub fn world_render_system(
 
         let uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
 
-        let mut chunks_to_reload: HashSet<IVec3> = HashSet::new();
-
-        // Using a set so same chunks are not reloaded multiple times
-        // Accumulate chunks to render
-        for event in &events {
-            let WorldRenderRequestUpdateEvent::ChunkToReload(target_chunk_pos) = event;
-
-            chunks_to_reload.insert(*target_chunk_pos);
-            for offset in &SIX_OFFSETS {
-                chunks_to_reload.insert(*target_chunk_pos + *offset);
-            }
-        }
-
         let player_pos = player_pos
             .single()
             .expect("Player should exist")
@@ -194,6 +181,27 @@ pub fn world_render_system(
             player_pos.y as i32,
             player_pos.z as i32,
         ));
+
+        let mut chunks_to_reload: HashSet<IVec3> = HashSet::new();
+
+        // Using a set so same chunks are not reloaded multiple times
+        // Accumulate chunks to render
+        for event in &events {
+            let WorldRenderRequestUpdateEvent::ChunkToReload(target_chunk_pos) = event;
+
+            chunks_to_reload.insert(*target_chunk_pos);
+            
+            // Only add neighbor chunks for LOD0 chunks.
+            // LOD1 chunks use simplified meshes that don't need neighbor precision,
+            // so we skip the neighbor cascade to reduce mesh generation overhead.
+            let chunk_distance_sq = target_chunk_pos.distance_squared(player_chunk_pos);
+            let chunk_lod = LodLevel::from_distance_squared(chunk_distance_sq, lod0_distance_sq);
+            if chunk_lod == LodLevel::Lod0 {
+                for offset in &SIX_OFFSETS {
+                    chunks_to_reload.insert(*target_chunk_pos + *offset);
+                }
+            }
+        }
 
         let mut chunks_to_reload = Vec::from_iter(chunks_to_reload);
 

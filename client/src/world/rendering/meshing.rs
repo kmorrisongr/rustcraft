@@ -577,46 +577,17 @@ fn should_render_lod_face(
             true // Conservative: render faces at chunk boundaries if neighbor unknown
         }
     } else {
-        // Interior: check local chunk for solid blocks that would actually occlude this face.
-        // We only need to check blocks in the neighbor LOD cell that are directly adjacent
-        // to our face - a slice of the neighbor region, not the entire volume.
+        // Interior: check local chunk for the LOD sample point of the neighbor region.
+        // For performance, we only check the single block at the LOD grid position
+        // (the block that represents the entire LOD cell). This is an approximation
+        // that trades some accuracy for much better performance.
         let neighbor_lod_origin = *local_block_pos + offset;
 
-        // Determine which slice of the neighbor region to check based on face direction.
-        // For each face, we check a 1-block-thick slice adjacent to our face.
-        let (check_ranges_x, check_ranges_y, check_ranges_z) = match *direction {
-            // Right face (+X): check the x=0 slice of the neighbor (left edge of neighbor)
-            FaceDirection::Right => (0..1, 0..scale, 0..scale),
-            // Left face (-X): check the x=scale-1 slice of the neighbor (right edge of neighbor)
-            FaceDirection::Left => ((scale - 1)..scale, 0..scale, 0..scale),
-            // Top face (+Y): check the y=0 slice of the neighbor (bottom edge of neighbor)
-            FaceDirection::Top => (0..scale, 0..1, 0..scale),
-            // Bottom face (-Y): check the y=scale-1 slice of the neighbor (top edge of neighbor)
-            FaceDirection::Bottom => (0..scale, (scale - 1)..scale, 0..scale),
-            // Back face (+Z): check the z=0 slice of the neighbor (front edge of neighbor)
-            FaceDirection::Back => (0..scale, 0..scale, 0..1),
-            // Front face (-Z): check the z=scale-1 slice of the neighbor (back edge of neighbor)
-            FaceDirection::Front => (0..scale, 0..scale, (scale - 1)..scale),
-            FaceDirection::Inset => return true,
-        };
-
-        // Check if the adjacent slice has enough solid blocks to occlude the face.
-        // For safety, require ALL checked positions to be solid to cull the face.
-        let mut all_solid = true;
-        for dx in check_ranges_x {
-            for dy in check_ranges_y.clone() {
-                for dz in check_ranges_z.clone() {
-                    let check_pos = neighbor_lod_origin + IVec3::new(dx, dy, dz);
-                    match chunk.map.get(&check_pos) {
-                        Some(block) if block.id.get_visibility() == BlockTransparency::Solid => {}
-                        _ => {
-                            all_solid = false;
-                        }
-                    }
-                }
-            }
+        // Check the LOD sample point (origin of the neighbor LOD cell)
+        match chunk.map.get(&neighbor_lod_origin) {
+            Some(block) if block.id.get_visibility() == BlockTransparency::Solid => false,
+            _ => true, // Render face if sample point is not solid
         }
-        !all_solid // Render face if not all adjacent blocks are solid
     }
 }
 
