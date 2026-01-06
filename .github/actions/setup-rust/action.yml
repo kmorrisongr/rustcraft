@@ -20,14 +20,13 @@ runs:
         restore-keys: |
           ${{ runner.os }}-cargo-registry-
     
-    # Cache build artifacts with Cargo.toml in the key for better granularity
+    # Cache build artifacts
     - name: Cache build artifacts
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/target
-        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}
           ${{ runner.os }}-cargo-build-
     - shell: bash
       run: |
