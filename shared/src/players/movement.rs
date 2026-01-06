@@ -165,8 +165,7 @@ pub fn simulate_player_movement(
     if body.position.y < FALL_RESET_Y {
         warn!(
             "Player {:?} fell below safety threshold (y = {}). Resetting position.",
-            player.id,
-            body.position.y
+            player.id, body.position.y
         );
         body.position.y = 0.0;
         body.velocity = Vec3::ZERO;
@@ -259,9 +258,9 @@ mod tests {
         let current_chunk = IVec3::new(0, 0, 0);
         let chunk_below = IVec3::new(0, -1, 0);
         let chunk_above = IVec3::new(0, 1, 0);
-        
+
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_below, chunk_above]);
-        
+
         assert!(compute_gravity_enabled(&player, &world_map));
     }
 
@@ -270,9 +269,9 @@ mod tests {
         let player = create_test_player(Vec3::new(8.0, 8.0, 8.0));
         let chunk_below = IVec3::new(0, -1, 0);
         let chunk_above = IVec3::new(0, 1, 0);
-        
+
         let world_map = MockWorldMap::with_chunks(vec![chunk_below, chunk_above]);
-        
+
         assert!(!compute_gravity_enabled(&player, &world_map));
     }
 
@@ -281,9 +280,9 @@ mod tests {
         let player = create_test_player(Vec3::new(8.0, 8.0, 8.0));
         let current_chunk = IVec3::new(0, 0, 0);
         let chunk_above = IVec3::new(0, 1, 0);
-        
+
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_above]);
-        
+
         assert!(!compute_gravity_enabled(&player, &world_map));
     }
 
@@ -292,9 +291,9 @@ mod tests {
         let player = create_test_player(Vec3::new(8.0, 8.0, 8.0));
         let current_chunk = IVec3::new(0, 0, 0);
         let chunk_below = IVec3::new(0, -1, 0);
-        
+
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_below]);
-        
+
         assert!(!compute_gravity_enabled(&player, &world_map));
     }
 
@@ -305,9 +304,9 @@ mod tests {
         let current_chunk = IVec3::new(1, 0, 0);
         let chunk_below = IVec3::new(1, -1, 0);
         let chunk_above = IVec3::new(1, 1, 0);
-        
+
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_below, chunk_above]);
-        
+
         assert!(compute_gravity_enabled(&player, &world_map));
     }
 
@@ -318,9 +317,9 @@ mod tests {
         let current_chunk = IVec3::new(-1, 0, 0);
         let chunk_below = IVec3::new(-1, -1, 0);
         let chunk_above = IVec3::new(-1, 1, 0);
-        
+
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_below, chunk_above]);
-        
+
         assert!(compute_gravity_enabled(&player, &world_map));
     }
 
@@ -331,9 +330,9 @@ mod tests {
         let current_chunk = IVec3::new(0, -2, 0);
         let chunk_below = IVec3::new(0, -3, 0);
         let chunk_above = IVec3::new(0, -1, 0);
-        
+
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_below, chunk_above]);
-        
+
         assert!(compute_gravity_enabled(&player, &world_map));
     }
 
@@ -343,9 +342,9 @@ mod tests {
         let player = create_test_player(Vec3::new(-8.0, -24.0, -8.0));
         let current_chunk = IVec3::new(-1, -2, -1);
         let chunk_above = IVec3::new(-1, -1, -1);
-        
+
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_above]);
-        
+
         assert!(!compute_gravity_enabled(&player, &world_map));
     }
 
@@ -354,14 +353,14 @@ mod tests {
         let mut player = create_test_player(Vec3::new(8.0, 8.0, 8.0));
         player.last_gravity_check_chunk = Some(IVec3::new(-1, 0, 0)); // Different chunk
         player.gravity_enabled = false;
-        
+
         let current_chunk = IVec3::new(0, 0, 0);
         let chunk_below = IVec3::new(0, -1, 0);
         let chunk_above = IVec3::new(0, 1, 0);
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_below, chunk_above]);
-        
+
         maybe_update_gravity_state(&mut player, &world_map);
-        
+
         assert!(player.gravity_enabled);
         assert_eq!(player.last_gravity_check_chunk, Some(current_chunk));
     }
@@ -371,11 +370,11 @@ mod tests {
         let mut player = create_test_player(Vec3::new(8.0, 8.0, 8.0));
         player.last_gravity_check_chunk = Some(IVec3::new(-1, 0, 0)); // Different chunk
         player.gravity_enabled = true; // Was enabled before
-        
+
         let world_map = MockWorldMap::new(); // No chunks loaded
-        
+
         maybe_update_gravity_state(&mut player, &world_map);
-        
+
         assert!(!player.gravity_enabled);
         assert_eq!(player.last_gravity_check_chunk, Some(IVec3::new(0, 0, 0)));
     }
@@ -386,11 +385,11 @@ mod tests {
         let current_chunk = IVec3::new(0, 0, 0);
         player.last_gravity_check_chunk = Some(current_chunk);
         player.gravity_enabled = true;
-        
+
         let world_map = MockWorldMap::new(); // Even with no chunks, shouldn't check
-        
+
         maybe_update_gravity_state(&mut player, &world_map);
-        
+
         // Should remain enabled, no check performed
         assert!(player.gravity_enabled);
         assert_eq!(player.last_gravity_check_chunk, Some(current_chunk));
@@ -402,12 +401,12 @@ mod tests {
         let current_chunk = IVec3::new(0, 0, 0);
         player.last_gravity_check_chunk = Some(current_chunk);
         player.gravity_enabled = false;
-        
+
         // First check: chunks still not loaded
         let world_map = MockWorldMap::new();
         maybe_update_gravity_state(&mut player, &world_map);
         assert!(!player.gravity_enabled);
-        
+
         // Second check: chunks now loaded
         let chunk_below = IVec3::new(0, -1, 0);
         let chunk_above = IVec3::new(0, 1, 0);
@@ -421,14 +420,14 @@ mod tests {
         let mut player = create_test_player(Vec3::new(8.0, 8.0, 8.0));
         player.last_gravity_check_chunk = None; // First check
         player.gravity_enabled = false;
-        
+
         let current_chunk = IVec3::new(0, 0, 0);
         let chunk_below = IVec3::new(0, -1, 0);
         let chunk_above = IVec3::new(0, 1, 0);
         let world_map = MockWorldMap::with_chunks(vec![current_chunk, chunk_below, chunk_above]);
-        
+
         maybe_update_gravity_state(&mut player, &world_map);
-        
+
         assert!(player.gravity_enabled);
         assert_eq!(player.last_gravity_check_chunk, Some(current_chunk));
     }
@@ -438,16 +437,16 @@ mod tests {
         let mut player = create_test_player(Vec3::new(8.0, 8.0, 8.0));
         player.last_gravity_check_chunk = Some(IVec3::new(0, 0, 0));
         player.gravity_enabled = true;
-        
+
         // Move player to adjacent chunk
         player.position = Vec3::new(24.0, 8.0, 8.0); // Chunk (1, 0, 0)
         let new_chunk = IVec3::new(1, 0, 0);
         let chunk_below = IVec3::new(1, -1, 0);
         let chunk_above = IVec3::new(1, 1, 0);
         let world_map = MockWorldMap::with_chunks(vec![new_chunk, chunk_below, chunk_above]);
-        
+
         maybe_update_gravity_state(&mut player, &world_map);
-        
+
         assert!(player.gravity_enabled);
         assert_eq!(player.last_gravity_check_chunk, Some(new_chunk));
     }
@@ -458,10 +457,10 @@ mod tests {
         let current_chunk = IVec3::new(0, 0, 0);
         player.last_gravity_check_chunk = Some(current_chunk);
         player.gravity_enabled = false;
-        
+
         // Chunks remain unloaded, gravity should stay disabled
         let world_map = MockWorldMap::new();
-        
+
         for _ in 0..5 {
             maybe_update_gravity_state(&mut player, &world_map);
             assert!(!player.gravity_enabled);
@@ -480,13 +479,14 @@ mod tests {
             (Vec3::new(0.0, chunk_size, 0.0), IVec3::new(0, 1, 0)),
             (Vec3::new(0.0, -chunk_size, 0.0), IVec3::new(0, -1, 0)),
         ];
-        
+
         for (pos, expected_chunk) in test_cases {
             let player = create_test_player(pos);
             let chunk_below = expected_chunk - IVec3::Y;
             let chunk_above = expected_chunk + IVec3::Y;
-            let world_map = MockWorldMap::with_chunks(vec![expected_chunk, chunk_below, chunk_above]);
-            
+            let world_map =
+                MockWorldMap::with_chunks(vec![expected_chunk, chunk_below, chunk_above]);
+
             assert!(
                 compute_gravity_enabled(&player, &world_map),
                 "Failed for position {:?} in chunk {:?}",
