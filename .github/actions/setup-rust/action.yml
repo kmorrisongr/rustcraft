@@ -8,27 +8,15 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # Cache cargo registry and git dependencies
-    - name: Cache cargo registry
-      uses: actions/cache@v4
+    - uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry/index
-          ~/.cargo/registry/cache
-          ~/.cargo/git/db
-        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          ~/.cargo/registry
+          ~/.cargo/git
+          ${{ github.workspace }}/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain*') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-registry-
-    
-    # Cache build artifacts with Cargo.toml in the key for better granularity
-    - name: Cache build artifacts
-      uses: actions/cache@v4
-      with:
-        path: ${{ github.workspace }}/target
-        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.toml') }}
-          ${{ runner.os }}-cargo-build-
+          ${{ runner.os }}-cargo-
     - shell: bash
       run: |
         set -euo pipefail
