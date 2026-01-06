@@ -7,7 +7,10 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
-use shared::world::{to_global_pos, BlockDirection, BlockId, BlockTransparency, WorldMap};
+use shared::world::{
+    to_global_pos, BlockDirection, BlockId, BlockTransparency, LodLevel, WorldMap,
+};
+use shared::CHUNK_SIZE;
 
 use super::voxel::{Face, FaceDirection, VoxelShape};
 
@@ -347,4 +350,312 @@ fn should_render_water_face(
     world_map
         .get_block_by_coordinates(&(*global_block_pos + offset))
         .is_none()
+}
+
+// ============================================================================
+// LOD Mesh Generation
+// ============================================================================
+
+/// Generate mesh at specified LOD level.
+/// Delegates to generate_chunk_mesh() for LOD 0 (full detail).
+///
+/// For LOD 1, samples every 2nd block in each dimension and renders at 2× scale.
+pub(crate) fn generate_chunk_mesh_lod(
+    world_map: &ClientWorldMap,
+    chunk: &ClientChunk,
+    chunk_pos: &IVec3,
+    uv_map: &HashMap<String, UvCoords>,
+    lod_level: LodLevel,
+) -> ChunkMeshResponse {
+    if lod_level == LodLevel::Lod0 {
+        return generate_chunk_mesh(world_map, chunk, chunk_pos, uv_map);
+    }
+
+    let start = Instant::now();
+    let scale = lod_level.block_scale();
+    let scale_f32 = scale as f32;
+
+    let mut solid_mesh_creator = MeshCreator::default();
+    // Note: Water is simplified at LOD 1 - we skip water mesh generation for distant chunks
+
+    // Sample at LOD intervals: for scale=2, positions 0,2,4,6,8,10,12,14
+    let samples_per_axis = CHUNK_SIZE / scale;
+
+    for lod_x in 0..samples_per_axis {
+        for lod_y in 0..samples_per_axis {
+            for lod_z in 0..samples_per_axis {
+                // Convert LOD coordinates to local block coordinates
+                let local_pos = IVec3::new(lod_x * scale, lod_y * scale, lod_z * scale);
+
+                // Get the block at this position
+                let Some(block) = chunk.map.get(&local_pos) else {
+                    continue;
+                };
+
+                // Skip non-solid blocks for LOD meshes (simplified rendering)
+                let visibility = block.id.get_visibility();
+                if matches!(
+                    visibility,
+                    BlockTransparency::Decoration | BlockTransparency::Liquid
+                ) {
+                    continue;
+                }
+
+                let global_block_pos = to_global_pos(chunk_pos, &local_pos);
+
+                // Check if block is fully surrounded (skip rendering)
+                if is_lod_block_surrounded(world_map, &global_block_pos, &visibility, scale) {
+                    continue;
+                }
+
+                let x = local_pos.x as f32;
+                let y = local_pos.y as f32;
+                let z = local_pos.z as f32;
+
+                let mut local_vertices: Vec<[f32; 3]> = vec![];
+                let mut local_indices: Vec<u32> = vec![];
+                let mut local_normals: Vec<[f32; 3]> = vec![];
+                let mut local_uvs: Vec<[f32; 2]> = vec![];
+                let mut local_colors: Vec<[f32; 4]> = vec![];
+
+                // Create voxel shape (reuse existing logic)
+                let voxel = VoxelShape::create_from_block(block);
+
+                for face in voxel.faces.iter() {
+                    let uv_coords = uv_map
+                        .get(&face.texture)
+                        .unwrap_or_else(|| uv_map.get("_Default").unwrap());
+
+                    // Check if face should be rendered at LOD scale
+                    if should_render_lod_face(
+                        world_map,
+                        chunk,
+                        &global_block_pos,
+                        &local_pos,
+                        &face.direction,
+                        &visibility,
+                        scale,
+                    ) {
+                        render_face_scaled(
+                            &mut local_vertices,
+                            &mut local_indices,
+                            &mut local_normals,
+                            &mut local_uvs,
+                            &mut local_colors,
+                            &mut solid_mesh_creator.indices_offset,
+                            face,
+                            uv_coords,
+                            1.0,
+                            1.0,
+                            scale_f32,
+                        );
+                    }
+                }
+
+                // Apply block position offset (at LOD scale, blocks are larger)
+                let local_vertices: Vec<[f32; 3]> = local_vertices
+                    .iter()
+                    .map(|v| {
+                        let v = rotate_vertices(v, &block.direction);
+                        [v[0] + x, v[1] + y, v[2] + z]
+                    })
+                    .collect();
+
+                solid_mesh_creator.vertices.extend(local_vertices);
+                solid_mesh_creator.indices.extend(local_indices);
+                solid_mesh_creator.normals.extend(local_normals);
+                solid_mesh_creator.uvs.extend(local_uvs);
+                solid_mesh_creator.colors.extend(local_colors);
+            }
+        }
+    }
+
+    let solid_mesh = build_mesh(&solid_mesh_creator);
+    let should_return_solid = !solid_mesh_creator.vertices.is_empty();
+
+    // Skip tangent generation for LOD meshes (no visual benefit at distance)
+    trace!("LOD render time : {:?}", Instant::now() - start);
+
+    ChunkMeshResponse {
+        solid_mesh: if should_return_solid {
+            Some(solid_mesh)
+        } else {
+            None
+        },
+        water_mesh: None, // No water at LOD 1
+    }
+}
+
+/// Check if a block is surrounded at LOD scale.
+/// Uses scaled offsets to check neighbors at LOD resolution.
+fn is_lod_block_surrounded(
+    world_map: &ClientWorldMap,
+    global_block_pos: &IVec3,
+    block_visibility: &BlockTransparency,
+    scale: i32,
+) -> bool {
+    // Check neighbors at LOD scale distance
+    let offsets = [
+        IVec3::new(scale, 0, 0),
+        IVec3::new(-scale, 0, 0),
+        IVec3::new(0, scale, 0),
+        IVec3::new(0, -scale, 0),
+        IVec3::new(0, 0, scale),
+        IVec3::new(0, 0, -scale),
+    ];
+
+    for offset in &offsets {
+        let neighbor_pos = *global_block_pos + *offset;
+
+        if let Some(block) = world_map.get_block_by_coordinates(&neighbor_pos) {
+            let vis = block.id.get_visibility();
+            match vis {
+                BlockTransparency::Solid => {}
+                BlockTransparency::Decoration => return false,
+                BlockTransparency::Liquid => {
+                    if vis != *block_visibility {
+                        return false;
+                    }
+                }
+                BlockTransparency::Transparent => return false,
+            }
+        } else {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Determine if a face should be rendered at LOD scale.
+/// Conservative at chunk boundaries: always render faces at edges.
+fn should_render_lod_face(
+    world_map: &ClientWorldMap,
+    chunk: &ClientChunk,
+    global_block_pos: &IVec3,
+    local_block_pos: &IVec3,
+    direction: &FaceDirection,
+    block_visibility: &BlockTransparency,
+    scale: i32,
+) -> bool {
+    let (offset, is_chunk_edge) = match *direction {
+        FaceDirection::Front => (
+            IVec3::new(0, 0, -scale),
+            local_block_pos.z < scale, // Near Z=0 edge
+        ),
+        FaceDirection::Back => (
+            IVec3::new(0, 0, scale),
+            local_block_pos.z >= CHUNK_SIZE - scale, // Near Z=max edge
+        ),
+        FaceDirection::Top => (
+            IVec3::new(0, scale, 0),
+            local_block_pos.y >= CHUNK_SIZE - scale, // Near Y=max edge
+        ),
+        FaceDirection::Bottom => (
+            IVec3::new(0, -scale, 0),
+            local_block_pos.y < scale, // Near Y=0 edge
+        ),
+        FaceDirection::Left => (
+            IVec3::new(-scale, 0, 0),
+            local_block_pos.x < scale, // Near X=0 edge
+        ),
+        FaceDirection::Right => (
+            IVec3::new(scale, 0, 0),
+            local_block_pos.x >= CHUNK_SIZE - scale, // Near X=max edge
+        ),
+        FaceDirection::Inset => return true,
+    };
+
+    // For faces at chunk boundaries, check the world map (cross-chunk lookup)
+    // For interior faces, we can check the local chunk for better performance
+    let neighbor_pos = *global_block_pos + offset;
+
+    if is_chunk_edge {
+        // Cross-chunk boundary: use world map lookup, render face if neighbor is unknown
+        if let Some(block) = world_map.get_block_by_coordinates(&neighbor_pos) {
+            let vis = block.id.get_visibility();
+            match vis {
+                BlockTransparency::Solid => false,
+                BlockTransparency::Decoration => true,
+                BlockTransparency::Transparent | BlockTransparency::Liquid => {
+                    *block_visibility != vis
+                }
+            }
+        } else {
+            true // Conservative: render faces at chunk boundaries if neighbor unknown
+        }
+    } else {
+        // Interior: check local chunk for any solid block in the neighbor LOD cell region.
+        // Since LOD samples every `scale` blocks, we need to check if ANY block in the
+        // neighbor's scale×scale×scale region is solid, not just the LOD sample point.
+        let neighbor_lod_origin = *local_block_pos + offset;
+
+        // Check all blocks in the neighbor LOD cell
+        for dx in 0..scale {
+            for dy in 0..scale {
+                for dz in 0..scale {
+                    let check_pos = neighbor_lod_origin + IVec3::new(dx, dy, dz);
+                    if let Some(block) = chunk.map.get(&check_pos) {
+                        let vis = block.id.get_visibility();
+                        match vis {
+                            BlockTransparency::Solid => return false, // Found solid block, don't render face
+                            _ => {}                                   // Continue checking
+                        }
+                    }
+                }
+            }
+        }
+        true // No solid block found in neighbor region: render face
+    }
+}
+
+/// Render a face at scaled size for LOD meshes.
+/// Vertices are multiplied by scale to create larger blocks.
+fn render_face_scaled(
+    local_vertices: &mut Vec<[f32; 3]>,
+    local_indices: &mut Vec<u32>,
+    local_normals: &mut Vec<[f32; 3]>,
+    local_uvs: &mut Vec<[f32; 2]>,
+    local_colors: &mut Vec<[f32; 4]>,
+    indices_offset: &mut u32,
+    face: &Face,
+    uv_coords: &UvCoords,
+    color_multiplier: f32,
+    alpha: f32,
+    scale: f32,
+) {
+    // Scale vertices by LOD factor
+    local_vertices.extend(
+        face.vertices
+            .iter()
+            .map(|v| [v[0] * scale, v[1] * scale, v[2] * scale]),
+    );
+
+    local_indices.extend(face.indices.iter().map(|x| x + *indices_offset));
+    *indices_offset += face.vertices.len() as u32;
+
+    local_normals.extend(face.normals.iter());
+
+    let new_colors: Vec<[f32; 4]> = face
+        .colors
+        .iter()
+        .map(|color| {
+            [
+                color[0] * color_multiplier,
+                color[1] * color_multiplier,
+                color[2] * color_multiplier,
+                alpha,
+            ]
+        })
+        .collect();
+
+    local_colors.extend(new_colors);
+
+    // UVs remain the same (texture repeats at LOD scale)
+    local_uvs.extend(face.uvs.iter().map(|uv| {
+        [
+            (uv[0] + uv_coords.u0 + 0.001).min(uv_coords.u1 - 0.001),
+            (uv[1] + uv_coords.v0 + 0.001).min(uv_coords.v1 - 0.001),
+        ]
+    }));
 }

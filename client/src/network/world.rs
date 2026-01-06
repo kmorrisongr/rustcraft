@@ -46,6 +46,7 @@ pub fn update_world_from_network(
                             }
                         },
                         last_mesh_ts: Instant::now(),
+                        current_lod: shared::world::LodLevel::default(),
                     };
 
                     world.map.insert(pos, chunk.clone());

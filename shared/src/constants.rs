@@ -20,3 +20,6 @@ pub const HALF_BLOCK: Vec3 = Vec3 {
     y: 0.5,
     z: 0.5,
 };
+
+/// Multiplier for LOD 1 rendering on clients and server broadcast distance.
+pub const LOD1_MULTIPLIER: f32 = 1.5;

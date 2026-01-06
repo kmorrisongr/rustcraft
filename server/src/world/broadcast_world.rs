@@ -10,7 +10,7 @@ use shared::players::Player;
 use shared::world::{
     world_position_to_chunk_position, ServerChunk, ServerChunkWorldMap, ServerWorldMap,
 };
-use shared::{GameServerConfig, CHUNK_SIZE};
+use shared::{GameServerConfig, CHUNK_SIZE, LOD1_MULTIPLIER};
 use std::collections::HashMap;
 
 /// Maximum number of chunks to send to a client per update
@@ -125,14 +125,14 @@ pub fn broadcast_world_state(
             }
         }
 
+        // Use extended render distance to support LOD 1 chunks on the client
+        let effective_render_distance =
+            (config.broadcast_render_distance as f32 * LOD1_MULTIPLIER) as i32;
+
         let msg = WorldUpdate {
             tick: time.0,
             time: ts,
-            new_map: get_world_map_chunks_to_send(
-                chunks,
-                &player,
-                config.broadcast_render_distance,
-            ),
+            new_map: get_world_map_chunks_to_send(chunks, &player, effective_render_distance),
             mobs: mobs.clone(),
             item_stacks: get_items_stacks(),
         };

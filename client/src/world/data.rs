@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use shared::world::BlockData;
+use shared::world::LodLevel;
 use shared::world::WorldMap;
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -23,6 +24,7 @@ pub struct ClientChunk {
     pub map: HashMap<IVec3, BlockData>, // Maps block positions within a chunk to block IDs
     pub entity: Option<Entity>,
     pub last_mesh_ts: Instant, // When was the last time a mesh was created for this chunk ?
+    pub current_lod: LodLevel, // Current LOD level of this chunk's mesh
 }
 
 impl Default for ClientChunk {
@@ -31,6 +33,7 @@ impl Default for ClientChunk {
             map: HashMap::new(),
             entity: None,
             last_mesh_ts: Instant::now(),
+            current_lod: LodLevel::default(),
         }
     }
 }
