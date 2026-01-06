@@ -16,7 +16,7 @@ runs:
           ~/.cargo/registry/index
           ~/.cargo/registry/cache
           ~/.cargo/git/db
-        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain*') }}
         restore-keys: |
           ${{ runner.os }}-cargo-registry-
     
@@ -25,7 +25,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/target
-        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain*') }}
         restore-keys: |
           ${{ runner.os }}-cargo-build-
     - shell: bash
