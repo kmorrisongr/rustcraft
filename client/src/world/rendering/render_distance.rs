@@ -7,7 +7,7 @@ use crate::{
 use bevy::prelude::*;
 use shared::{
     world::{global_block_to_chunk_pos, LodLevel},
-    DEFAULT_RENDER_DISTANCE, LOD1_MULTIPLIER,
+    DEFAULT_RENDER_DISTANCE,
 };
 
 #[derive(Resource, Default, Reflect)]
@@ -25,16 +25,6 @@ impl RenderDistance {
     /// Get the squared LOD 0 distance (for efficient distance comparisons)
     pub fn lod0_distance_sq(&self) -> i32 {
         self.lod0_distance().pow(2)
-    }
-
-    /// Get the LOD 1 (reduced detail) render distance
-    pub fn lod1_distance(&self) -> i32 {
-        (self.distance as f32 * LOD1_MULTIPLIER) as i32
-    }
-
-    /// Get the squared LOD 1 distance (for efficient distance comparisons)
-    pub fn lod1_distance_sq(&self) -> i32 {
-        self.lod1_distance().pow(2)
     }
 }
 
