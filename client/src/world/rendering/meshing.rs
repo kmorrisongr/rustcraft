@@ -52,16 +52,20 @@ fn build_mesh(creator: &MeshCreator) -> Mesh {
 /// Generates a continuous water surface mesh where adjacent water blocks share vertices.
 /// This prevents gaps when vertex displacement (waves) is applied by the water shader.
 ///
+/// Returns the mesh, the total number of water surface blocks, and whether water touches chunk edges.
+/// The edge-touching flag is used for cross-chunk water body size estimation.
+///
 /// The algorithm:
 /// 1. Collect all water surface positions (water blocks with air above)
 /// 2. Group them by Y level
 /// 3. For each Y level, create a grid of vertices at block corners (shared between adjacent blocks)
 /// 4. Generate triangle indices connecting the vertices
+/// 5. Check if any water block is at a chunk boundary (x=0, x=15, z=0, or z=15)
 fn generate_water_surface_mesh(
     world_map: &ClientWorldMap,
     chunk: &ClientChunk,
     chunk_pos: &IVec3,
-) -> Option<Mesh> {
+) -> (Option<Mesh>, usize, bool) {
     // Collect water surface positions grouped by Y level
     // Key: Y level, Value: Set of (x, z) positions in local chunk coordinates
     let mut water_surfaces: HashMap<i32, HashSet<(i32, i32)>> = HashMap::new();
@@ -86,8 +90,20 @@ fn generate_water_surface_mesh(
     }
 
     if water_surfaces.is_empty() {
-        return None;
+        return (None, 0, false);
     }
+
+    // Count total water surface blocks across all Y levels
+    let total_water_blocks: usize = water_surfaces.values().map(|s| s.len()).sum();
+
+    // Check if any water block touches a chunk edge (suggesting cross-chunk water body)
+    // Chunk coordinates are 0 to CHUNK_SIZE-1 (typically 0-15)
+    let chunk_edge_max = (CHUNK_SIZE - 1) as i32;
+    let touches_edge = water_surfaces.values().any(|positions| {
+        positions
+            .iter()
+            .any(|(x, z)| *x == 0 || *x == chunk_edge_max || *z == 0 || *z == chunk_edge_max)
+    });
 
     let mut vertices: Vec<[f32; 3]> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
@@ -159,7 +175,7 @@ fn generate_water_surface_mesh(
     }
 
     if vertices.is_empty() {
-        return None;
+        return (None, 0, false);
     }
 
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, Default::default());
@@ -174,13 +190,70 @@ fn generate_water_surface_mesh(
         warn!("Error generating tangents for water surface mesh: {:?}", e);
     }
 
-    Some(mesh)
+    (Some(mesh), total_water_blocks, touches_edge)
+}
+
+/// Water body size category based on surface area.
+/// Used to determine appropriate wave amplitude.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WaterBodySize {
+    /// 1-4 blocks: tiny puddle, no waves
+    Puddle,
+    /// 5-16 blocks: small pond, minimal waves
+    Small,
+    /// 17-64 blocks: medium pond/pool, gentle waves
+    #[default]
+    Medium,
+    /// 65-256 blocks: large lake, moderate waves
+    Large,
+    /// 257+ blocks: ocean/sea, full waves
+    Ocean,
+}
+
+impl WaterBodySize {
+    /// Determine water body size from surface block count
+    pub fn from_block_count(count: usize) -> Self {
+        match count {
+            0..=4 => WaterBodySize::Puddle,
+            5..=16 => WaterBodySize::Small,
+            17..=64 => WaterBodySize::Medium,
+            65..=256 => WaterBodySize::Large,
+            _ => WaterBodySize::Ocean,
+        }
+    }
+
+    /// When water touches chunk edges, always use Ocean amplitude.
+    /// This ensures that adjacent chunks have matching wave animations at their
+    /// shared boundaries, preventing visible gaps/seams.
+    ///
+    /// The trade-off is that some medium-sized lakes spanning chunks will have
+    /// larger waves than if they were contained in a single chunk, but this is
+    /// visually preferable to gaps in the water surface.
+    pub fn with_edge_boost(self) -> Self {
+        // Always use Ocean for edge-touching water to guarantee amplitude matching
+        // at chunk boundaries. Any other approach risks mismatched amplitudes
+        // causing visible gaps where vertices animate differently.
+        WaterBodySize::Ocean
+    }
+
+    /// Get the wave amplitude for this water body size
+    pub fn amplitude(&self) -> f32 {
+        match self {
+            WaterBodySize::Puddle => 0.0,  // No waves
+            WaterBodySize::Small => 0.05,  // Barely visible ripples
+            WaterBodySize::Medium => 0.15, // Gentle waves
+            WaterBodySize::Large => 0.3,   // Moderate waves
+            WaterBodySize::Ocean => 0.5,   // Full waves
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct ChunkMeshResponse {
     pub solid_mesh: Option<Mesh>,
     pub water_mesh: Option<Mesh>,
+    /// Size category of the water body in this chunk (for amplitude selection)
+    pub water_body_size: WaterBodySize,
 }
 
 pub(crate) fn generate_chunk_mesh(
@@ -303,7 +376,19 @@ pub(crate) fn generate_chunk_mesh(
     };
 
     // Generate continuous water surface mesh (vertices shared between adjacent blocks)
-    let water_mesh = generate_water_surface_mesh(world_map, chunk, chunk_pos);
+    let (water_mesh, water_block_count, touches_edge) =
+        generate_water_surface_mesh(world_map, chunk, chunk_pos);
+
+    // Determine water body size, boosting if water touches chunk boundaries
+    // (suggesting it's part of a larger cross-chunk body)
+    let water_body_size = {
+        let base_size = WaterBodySize::from_block_count(water_block_count);
+        if touches_edge {
+            base_size.with_edge_boost()
+        } else {
+            base_size
+        }
+    };
 
     ChunkMeshResponse {
         solid_mesh: if should_return_solid {
@@ -312,6 +397,7 @@ pub(crate) fn generate_chunk_mesh(
             None
         },
         water_mesh,
+        water_body_size,
     }
 }
 
@@ -564,7 +650,8 @@ pub(crate) fn generate_chunk_mesh_lod(
         } else {
             None
         },
-        water_mesh: None, // No water at LOD 1
+        water_mesh: None,                          // No water at LOD 1
+        water_body_size: WaterBodySize::default(), // Not used since water_mesh is None
     }
 }
 

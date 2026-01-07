@@ -22,7 +22,7 @@ use crate::{
 
 use crate::world::{ClientChunk, ClientWorldMap};
 
-use super::meshing::ChunkMeshResponse;
+use super::meshing::{ChunkMeshResponse, WaterBodySize};
 use super::render_distance::RenderDistance;
 
 #[derive(Debug)]
@@ -47,7 +47,7 @@ fn update_chunk(
     chunk: &mut ClientChunk,
     chunk_pos: &IVec3,
     material_resource: &MaterialResource,
-    water_material: &Handle<StandardWaterMaterial>,
+    water_materials: &ChunkWaterMaterials,
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     new_meshes: ChunkMeshResponse,
@@ -71,6 +71,9 @@ fn update_chunk(
             (chunk_pos.z * CHUNK_SIZE) as f32,
         );
 
+        // Select appropriate water material based on water body size
+        let water_material = water_materials.get_for_size(new_meshes.water_body_size);
+
         let new_entity = commands
             .spawn((chunk_t, Visibility::Visible))
             .with_children(|root| {
@@ -84,11 +87,14 @@ fn update_chunk(
                 }
                 // Spawn water mesh with custom water material (only for LOD 0)
                 if let Some(new_water_mesh) = new_meshes.water_mesh {
-                    debug!("Spawning water mesh for chunk");
+                    debug!(
+                        "Spawning water mesh for chunk (size: {:?})",
+                        new_meshes.water_body_size
+                    );
                     root.spawn((
                         StateScoped(GameState::Game),
                         Mesh3d(meshes.add(new_water_mesh)),
-                        MeshMaterial3d(water_material.clone()),
+                        MeshMaterial3d(water_material),
                         WaterMesh,
                     ));
                 }
@@ -103,17 +109,72 @@ fn update_chunk(
     // debug!("ClientChunk updated : len={}", chunk.map.len());
 }
 
-/// Resource to store the water material handle for chunk rendering
+/// Resource to store water material handles for different water body sizes.
+/// Each size category has a different wave amplitude.
 #[derive(Resource, Default)]
-pub struct ChunkWaterMaterial {
-    pub handle: Option<Handle<StandardWaterMaterial>>,
+pub struct ChunkWaterMaterials {
+    pub puddle: Option<Handle<StandardWaterMaterial>>,
+    pub small: Option<Handle<StandardWaterMaterial>>,
+    pub medium: Option<Handle<StandardWaterMaterial>>,
+    pub large: Option<Handle<StandardWaterMaterial>>,
+    pub ocean: Option<Handle<StandardWaterMaterial>>,
+}
+
+impl ChunkWaterMaterials {
+    /// Get the material handle for a given water body size
+    pub fn get_for_size(&self, size: WaterBodySize) -> Handle<StandardWaterMaterial> {
+        match size {
+            WaterBodySize::Puddle => self.puddle.clone(),
+            WaterBodySize::Small => self.small.clone(),
+            WaterBodySize::Medium => self.medium.clone(),
+            WaterBodySize::Large => self.large.clone(),
+            WaterBodySize::Ocean => self.ocean.clone(),
+        }
+        .expect("Water materials should be initialized before use")
+    }
+
+    /// Check if all materials are initialized
+    pub fn is_initialized(&self) -> bool {
+        self.puddle.is_some()
+            && self.small.is_some()
+            && self.medium.is_some()
+            && self.large.is_some()
+            && self.ocean.is_some()
+    }
+}
+
+/// Create a water material with the specified amplitude
+fn create_water_material(
+    water_materials: &mut Assets<StandardWaterMaterial>,
+    amplitude: f32,
+) -> Handle<StandardWaterMaterial> {
+    water_materials.add(ExtendedMaterial {
+        base: StandardMaterial {
+            base_color: Color::srgba(0.1, 0.3, 0.5, 0.8),
+            alpha_mode: AlphaMode::Blend,
+            ..default()
+        },
+        extension: WaterMaterial {
+            amplitude,
+            clarity: 0.3,
+            deep_color: Color::srgba(0.05, 0.15, 0.25, 0.9),
+            shallow_color: Color::srgba(0.15, 0.35, 0.45, 0.75),
+            edge_color: Color::srgba(0.8, 0.9, 1.0, 0.5),
+            edge_scale: 0.1,
+            // UVs from the mesh are already world coordinates,
+            // so use scale=1 and offset=0 to pass them through directly
+            coord_scale: Vec2::new(1.0, 1.0),
+            coord_offset: Vec2::ZERO,
+            ..default()
+        },
+    })
 }
 
 pub fn world_render_system(
     mut world_map: ResMut<ClientWorldMap>,
     material_resource: Res<MaterialResource>,
     render_distance: Res<RenderDistance>,
-    mut water_material_res: ResMut<ChunkWaterMaterial>,
+    mut water_materials_res: ResMut<ChunkWaterMaterials>,
     mut water_materials: ResMut<Assets<StandardWaterMaterial>>,
     mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
     mut queued_events: Local<QueuedEvents>,
@@ -133,33 +194,29 @@ pub fn world_render_system(
         return;
     }
 
-    // Initialize water material if not already created
-    let water_material_handle = if let Some(ref handle) = water_material_res.handle {
-        handle.clone()
-    } else {
-        let handle = water_materials.add(ExtendedMaterial {
-            base: StandardMaterial {
-                base_color: Color::srgba(0.1, 0.3, 0.5, 0.8),
-                alpha_mode: AlphaMode::Blend,
-                ..default()
-            },
-            extension: WaterMaterial {
-                amplitude: 0.5,
-                clarity: 0.3,
-                deep_color: Color::srgba(0.05, 0.15, 0.25, 0.9),
-                shallow_color: Color::srgba(0.15, 0.35, 0.45, 0.75),
-                edge_color: Color::srgba(0.8, 0.9, 1.0, 0.5),
-                edge_scale: 0.1,
-                // UVs from the mesh are already world coordinates,
-                // so use scale=1 and offset=0 to pass them through directly
-                coord_scale: Vec2::new(1.0, 1.0),
-                coord_offset: Vec2::ZERO,
-                ..default()
-            },
-        });
-        water_material_res.handle = Some(handle.clone());
-        handle
-    };
+    // Initialize water materials for each size category if not already created
+    if !water_materials_res.is_initialized() {
+        water_materials_res.puddle = Some(create_water_material(
+            &mut water_materials,
+            WaterBodySize::Puddle.amplitude(),
+        ));
+        water_materials_res.small = Some(create_water_material(
+            &mut water_materials,
+            WaterBodySize::Small.amplitude(),
+        ));
+        water_materials_res.medium = Some(create_water_material(
+            &mut water_materials,
+            WaterBodySize::Medium.amplitude(),
+        ));
+        water_materials_res.large = Some(create_water_material(
+            &mut water_materials,
+            WaterBodySize::Large.amplitude(),
+        ));
+        water_materials_res.ocean = Some(create_water_material(
+            &mut water_materials,
+            WaterBodySize::Ocean.amplitude(),
+        ));
+    }
 
     let pool = AsyncComputeTaskPool::get();
 
@@ -277,7 +334,7 @@ pub fn world_render_system(
                     chunk,
                     chunk_pos,
                     &material_resource,
-                    &water_material_handle,
+                    &water_materials_res,
                     &mut commands,
                     &mut meshes,
                     new_meshes,
