@@ -1,5 +1,6 @@
+use std::collections::HashMap;
 use std::f32::consts::PI;
-use std::{collections::HashMap, time::Instant};
+use std::time::Instant;
 
 use crate::world::{ClientChunk, ClientWorldMap};
 use bevy::{
@@ -48,10 +49,11 @@ fn build_mesh(creator: &MeshCreator) -> Mesh {
     mesh
 }
 
+/// Chunk mesh response containing only solid block meshes.
+/// Water rendering is handled by the separate water system (see `rendering/water.rs`).
 #[derive(Debug, Default, Clone)]
 pub struct ChunkMeshResponse {
     pub solid_mesh: Option<Mesh>,
-    pub water_mesh: Option<Mesh>,
 }
 
 pub(crate) fn generate_chunk_mesh(
@@ -63,9 +65,14 @@ pub(crate) fn generate_chunk_mesh(
     let start = Instant::now();
 
     let mut solid_mesh_creator = MeshCreator::default();
-    let mut water_mesh_creator = MeshCreator::default();
 
+    // Generate solid block meshes (skip water - it's handled separately)
     for (local_block_pos, block) in chunk.map.iter() {
+        // Skip water blocks - they're rendered as a continuous surface mesh
+        if block.id == BlockId::Water {
+            continue;
+        }
+
         let x = local_block_pos.x as f32;
         let y = local_block_pos.y as f32;
         let z = local_block_pos.z as f32;
@@ -76,16 +83,6 @@ pub(crate) fn generate_chunk_mesh(
         if is_block_surrounded(world_map, global_block_pos, &visibility, &block.id) {
             continue;
         }
-
-        // Determine which mesh creator to use based on block type
-        let is_water = block.id == BlockId::Water;
-
-        // Select the target mesh creator once per block iteration
-        let target_mesh_creator = if is_water {
-            &mut water_mesh_creator
-        } else {
-            &mut solid_mesh_creator
-        };
 
         let mut local_vertices: Vec<[f32; 3]> = vec![];
         let mut local_indices: Vec<u32> = vec![];
@@ -105,16 +102,12 @@ pub(crate) fn generate_chunk_mesh(
             }
 
             let alpha = match visibility {
-                BlockTransparency::Liquid => 0.7, // Slightly more opaque for water shader
+                BlockTransparency::Liquid => 0.7,
                 _ => 1.0,
             };
 
-            // Use different face culling logic for water vs other blocks
-            let should_render = if is_water {
-                should_render_water_face(world_map, global_block_pos, &face.direction)
-            } else {
-                should_render_face(world_map, global_block_pos, &face.direction, &visibility)
-            };
+            let should_render =
+                should_render_face(world_map, global_block_pos, &face.direction, &visibility);
 
             if should_render {
                 render_face(
@@ -123,16 +116,15 @@ pub(crate) fn generate_chunk_mesh(
                     &mut local_normals,
                     &mut local_uvs,
                     &mut local_colors,
-                    &mut target_mesh_creator.indices_offset,
+                    &mut solid_mesh_creator.indices_offset,
                     face,
                     uv_coords,
                     1.0,
                     alpha,
                 );
 
-                // Only add break overlay for non-water blocks
-                if !is_water && block.breaking_progress > 0 {
-                    // Overlay the current breaking progress based on the state of the current block (10 different states)
+                // Add break overlay for blocks being broken
+                if block.breaking_progress > 0 {
                     let breaking_progress = block.get_breaking_level();
 
                     render_face(
@@ -141,7 +133,7 @@ pub(crate) fn generate_chunk_mesh(
                         &mut local_normals,
                         &mut local_uvs,
                         &mut local_colors,
-                        &mut target_mesh_creator.indices_offset,
+                        &mut solid_mesh_creator.indices_offset,
                         face,
                         uv_map
                             .get(&format!("DestroyStage{breaking_progress}"))
@@ -161,16 +153,15 @@ pub(crate) fn generate_chunk_mesh(
             })
             .collect();
 
-        // Add to the mesh creator (already selected at the beginning of this block iteration)
-        target_mesh_creator.vertices.extend(local_vertices);
-        target_mesh_creator.indices.extend(local_indices);
-        target_mesh_creator.normals.extend(local_normals);
-        target_mesh_creator.uvs.extend(local_uvs);
-        target_mesh_creator.colors.extend(local_colors);
+        solid_mesh_creator.vertices.extend(local_vertices);
+        solid_mesh_creator.indices.extend(local_indices);
+        solid_mesh_creator.normals.extend(local_normals);
+        solid_mesh_creator.uvs.extend(local_uvs);
+        solid_mesh_creator.colors.extend(local_colors);
     }
 
+    // Build solid mesh
     let mut solid_mesh = build_mesh(&solid_mesh_creator);
-    let mut water_mesh = build_mesh(&water_mesh_creator);
 
     trace!("Render time : {:?}", Instant::now() - start);
 
@@ -184,29 +175,12 @@ pub(crate) fn generate_chunk_mesh(
         }
     };
 
-    let should_return_water = !water_mesh_creator.vertices.is_empty();
-    if should_return_water {
-        debug!(
-            "Water mesh has {} vertices, {} indices",
-            water_mesh_creator.vertices.len(),
-            water_mesh_creator.indices.len()
-        );
-        if let Err(e) = water_mesh.generate_tangents() {
-            warn!(
-                "Error while generating tangents for the mesh WATER : {:?} | {:?}",
-                e, water_mesh
-            );
-        }
-    };
+    // Water rendering is handled by the separate water system (rendering/water.rs)
+    // which generates water meshes independently from chunk meshing.
 
     ChunkMeshResponse {
         solid_mesh: if should_return_solid {
             Some(solid_mesh)
-        } else {
-            None
-        },
-        water_mesh: if should_return_water {
-            Some(water_mesh)
         } else {
             None
         },
@@ -330,26 +304,6 @@ fn should_render_face(
     } else {
         true
     }
-}
-
-/// For water blocks, only render the top face when there's air above.
-/// This creates a clean water surface without underwater artifacts.
-fn should_render_water_face(
-    world_map: &ClientWorldMap,
-    global_block_pos: &IVec3,
-    direction: &FaceDirection,
-) -> bool {
-    // Only render the top face of water (the surface)
-    if *direction != FaceDirection::Top {
-        return false;
-    }
-
-    let offset = IVec3::new(0, 1, 0);
-
-    // Only render if there's air above (no block)
-    world_map
-        .get_block_by_coordinates(&(*global_block_pos + offset))
-        .is_none()
 }
 
 // ============================================================================
@@ -476,13 +430,14 @@ pub(crate) fn generate_chunk_mesh_lod(
     // Skip tangent generation for LOD meshes (no visual benefit at distance)
     trace!("LOD render time : {:?}", Instant::now() - start);
 
+    // Water rendering at LOD 1 is handled by the separate water system,
+    // which generates water independently from chunk meshing.
     ChunkMeshResponse {
         solid_mesh: if should_return_solid {
             Some(solid_mesh)
         } else {
             None
         },
-        water_mesh: None, // No water at LOD 1
     }
 }
 

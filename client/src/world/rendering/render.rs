@@ -1,5 +1,5 @@
-use crate::shaders::water::{WaterMaterial, WaterMesh};
 use crate::{player::CurrentPlayerMarker, world::FirstChunkReceived};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::{collections::HashSet, time::Instant};
 
@@ -42,15 +42,22 @@ pub(crate) struct WorldMapCache {
     cached: Option<Arc<ClientWorldMap>>,
 }
 
+/// Cache for UV coordinates to avoid cloning every frame
+#[derive(Default)]
+pub(crate) struct UvMapCache {
+    cached: Option<Arc<HashMap<String, super::meshing::UvCoords>>>,
+}
+
+/// Update a chunk entity with new solid mesh.
+/// Water rendering is handled separately by the water system (see `rendering/water.rs`).
 fn update_chunk(
     chunk: &mut ClientChunk,
     chunk_pos: &IVec3,
     material_resource: &MaterialResource,
-    water_material: &Handle<WaterMaterial>,
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     new_meshes: ChunkMeshResponse,
-    lod_level: LodLevel, // Track the LOD level used for this mesh
+    _lod_level: LodLevel, // Kept for potential future use; LOD is set when task is queued
 ) {
     let solid_texture = material_resource
         .global_materials
@@ -81,43 +88,28 @@ fn update_chunk(
                         MeshMaterial3d(solid_texture.clone()),
                     ));
                 }
-                // Spawn water mesh with custom water material (only for LOD 0)
-                if let Some(new_water_mesh) = new_meshes.water_mesh {
-                    debug!("Spawning water mesh for chunk");
-                    root.spawn((
-                        StateScoped(GameState::Game),
-                        Mesh3d(meshes.add(new_water_mesh)),
-                        MeshMaterial3d(water_material.clone()),
-                        WaterMesh,
-                    ));
-                }
+                // Note: Water meshes are spawned by the dedicated water system (rendering/water.rs)
+                // which handles water independently from chunk meshing.
             })
             .id();
 
         chunk.entity = Some(new_entity);
     }
-
-    // Update the chunk's current LOD level
-    chunk.current_lod = lod_level;
-    // debug!("ClientChunk updated : len={}", chunk.map.len());
+    // Note: current_lod is already updated when the mesh task was queued,
+    // so we don't need to set it again here.
 }
 
-/// Resource to store the water material handle for chunk rendering
-#[derive(Resource, Default)]
-pub struct ChunkWaterMaterial {
-    pub handle: Option<Handle<WaterMaterial>>,
-}
-
+/// System that handles chunk mesh generation and updates.
+/// Water rendering is handled separately by the water system (see `rendering/water.rs`).
 pub fn world_render_system(
     mut world_map: ResMut<ClientWorldMap>,
     material_resource: Res<MaterialResource>,
     render_distance: Res<RenderDistance>,
-    mut water_material_res: ResMut<ChunkWaterMaterial>,
-    mut water_materials: ResMut<Assets<WaterMaterial>>,
     mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
     mut queued_events: Local<QueuedEvents>,
     mut queued_meshes: Local<QueuedMeshes>,
     mut world_map_cache: Local<WorldMapCache>,
+    mut uv_map_cache: Local<UvMapCache>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     mut first_chunk_received: ResMut<FirstChunkReceived>,
@@ -131,20 +123,6 @@ pub fn world_render_system(
         // Wait until the texture is ready
         return;
     }
-
-    // Initialize water material if not already created
-    let water_material_handle = if let Some(ref handle) = water_material_res.handle {
-        handle.clone()
-    } else {
-        let water_texture = material_resource.blocks.as_ref().map(|b| b.texture.clone());
-
-        let handle = water_materials.add(WaterMaterial {
-            texture: water_texture,
-            ..default()
-        });
-        water_material_res.handle = Some(handle.clone());
-        handle
-    };
 
     let pool = AsyncComputeTaskPool::get();
 
@@ -170,7 +148,14 @@ pub fn world_render_system(
                 ))
             };
 
-        let uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
+        // Cache UV map to avoid cloning every frame
+        let uvs = if uv_map_cache.cached.is_none() {
+            let new_uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
+            uv_map_cache.cached = Some(Arc::clone(&new_uvs));
+            new_uvs
+        } else {
+            Arc::clone(uv_map_cache.cached.as_ref().unwrap())
+        };
 
         let player_pos = player_pos
             .single()
@@ -208,9 +193,9 @@ pub fn world_render_system(
         chunks_to_reload.sort_by_key(|pos| pos.distance_squared(player_chunk_pos));
 
         for pos in chunks_to_reload {
-            if let Some(chunk) = world_map.map.get(&pos) {
+            if let Some(chunk_arc) = world_map.map.get_mut(&pos) {
                 // If chunk is empty, ignore it
-                if chunk.map.is_empty() {
+                if chunk_arc.map.is_empty() {
                     continue;
                 }
 
@@ -219,10 +204,21 @@ pub fn world_render_system(
                 let lod_level =
                     LodLevel::from_distance_squared(chunk_distance_sq, lod0_distance_sq);
 
+                // Skip if this chunk is already at the correct LOD level
+                // This prevents redundant mesh regeneration when events fire multiple times
+                if chunk_arc.current_lod == lod_level && chunk_arc.entity.is_some() {
+                    continue;
+                }
+
+                // Update current_lod immediately to prevent lod_transition_system
+                // from queuing duplicate events while the mesh task is in progress
+                let chunk = Arc::make_mut(chunk_arc);
+                chunk.current_lod = lod_level;
+
                 // Define variables to move to the thread
                 let map_clone = Arc::clone(&map_ptr);
                 let uvs_clone = Arc::clone(&uvs);
-                let ch = chunk.clone();
+                let ch = chunk_arc.clone();
                 let t = pool.spawn(async move {
                     world::meshing::generate_chunk_mesh_lod(
                         &map_clone, &ch, &pos, &uvs_clone, lod_level,
@@ -262,7 +258,6 @@ pub fn world_render_system(
                     chunk,
                     chunk_pos,
                     &material_resource,
-                    &water_material_handle,
                     &mut commands,
                     &mut meshes,
                     new_meshes,
