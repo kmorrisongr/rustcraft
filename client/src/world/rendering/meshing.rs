@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::f32::consts::PI;
 use std::{collections::HashMap, time::Instant};
 
@@ -48,6 +49,134 @@ fn build_mesh(creator: &MeshCreator) -> Mesh {
     mesh
 }
 
+/// Generates a continuous water surface mesh where adjacent water blocks share vertices.
+/// This prevents gaps when vertex displacement (waves) is applied by the water shader.
+///
+/// The algorithm:
+/// 1. Collect all water surface positions (water blocks with air above)
+/// 2. Group them by Y level
+/// 3. For each Y level, create a grid of vertices at block corners (shared between adjacent blocks)
+/// 4. Generate triangle indices connecting the vertices
+fn generate_water_surface_mesh(
+    world_map: &ClientWorldMap,
+    chunk: &ClientChunk,
+    chunk_pos: &IVec3,
+) -> Option<Mesh> {
+    // Collect water surface positions grouped by Y level
+    // Key: Y level, Value: Set of (x, z) positions in local chunk coordinates
+    let mut water_surfaces: HashMap<i32, HashSet<(i32, i32)>> = HashMap::new();
+
+    for (local_block_pos, block) in chunk.map.iter() {
+        if block.id != BlockId::Water {
+            continue;
+        }
+
+        let global_block_pos = to_global_pos(chunk_pos, local_block_pos);
+
+        // Check if there's air above (this is a surface water block)
+        let above_pos = global_block_pos + IVec3::new(0, 1, 0);
+        if world_map.get_block_by_coordinates(&above_pos).is_some() {
+            continue; // Not a surface block
+        }
+
+        water_surfaces
+            .entry(local_block_pos.y)
+            .or_insert_with(HashSet::new)
+            .insert((local_block_pos.x, local_block_pos.z));
+    }
+
+    if water_surfaces.is_empty() {
+        return None;
+    }
+
+    let mut vertices: Vec<[f32; 3]> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    let mut normals: Vec<[f32; 3]> = Vec::new();
+    let mut uvs: Vec<[f32; 2]> = Vec::new();
+    let mut colors: Vec<[f32; 4]> = Vec::new();
+
+    // Water surface is slightly below the top of the block (like Minecraft)
+    let water_surface_offset = 0.875; // 14/16 of a block
+
+    // Process each Y level
+    for (y_level, xz_positions) in water_surfaces.iter() {
+        let y = *y_level as f32 + water_surface_offset;
+
+        // Create a vertex index map for this Y level
+        // Key: (corner_x, corner_z), Value: vertex index
+        // Corners are at integer positions (block boundaries)
+        let mut vertex_index_map: HashMap<(i32, i32), u32> = HashMap::new();
+
+        // For each water block, we need vertices at its 4 corners
+        // Corners are shared between adjacent blocks
+        for (block_x, block_z) in xz_positions.iter() {
+            // The 4 corners of this block
+            let corners = [
+                (*block_x, *block_z),         // bottom-left
+                (*block_x + 1, *block_z),     // bottom-right
+                (*block_x, *block_z + 1),     // top-left
+                (*block_x + 1, *block_z + 1), // top-right
+            ];
+
+            // Ensure all corners have vertices
+            for (cx, cz) in corners.iter() {
+                if !vertex_index_map.contains_key(&(*cx, *cz)) {
+                    let vertex_idx = vertices.len() as u32;
+                    vertex_index_map.insert((*cx, *cz), vertex_idx);
+
+                    // Vertex position in local chunk space
+                    vertices.push([*cx as f32, y, *cz as f32]);
+                    normals.push([0.0, 1.0, 0.0]); // Up-facing normal
+
+                    // UV coordinates based on world position for proper wave tiling
+                    // The bevy_water shader uses coord_offset + (uv * coord_scale) to get world coords
+                    let world_x = (chunk_pos.x * CHUNK_SIZE + *cx) as f32;
+                    let world_z = (chunk_pos.z * CHUNK_SIZE + *cz) as f32;
+                    uvs.push([world_x, world_z]);
+
+                    // Water color with alpha for transparency
+                    colors.push([1.0, 1.0, 1.0, 0.7]);
+                }
+            }
+
+            // Generate two triangles for this water block quad
+            // Using counter-clockwise winding for front-facing
+            let bl = vertex_index_map[&(*block_x, *block_z)];
+            let br = vertex_index_map[&(*block_x + 1, *block_z)];
+            let tl = vertex_index_map[&(*block_x, *block_z + 1)];
+            let tr = vertex_index_map[&(*block_x + 1, *block_z + 1)];
+
+            // Triangle 1: bottom-left, top-left, top-right
+            indices.push(bl);
+            indices.push(tl);
+            indices.push(tr);
+
+            // Triangle 2: bottom-left, top-right, bottom-right
+            indices.push(bl);
+            indices.push(tr);
+            indices.push(br);
+        }
+    }
+
+    if vertices.is_empty() {
+        return None;
+    }
+
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, Default::default());
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+    mesh.insert_indices(Indices::U32(indices));
+
+    // Generate tangents for proper normal mapping in the shader
+    if let Err(e) = mesh.generate_tangents() {
+        warn!("Error generating tangents for water surface mesh: {:?}", e);
+    }
+
+    Some(mesh)
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ChunkMeshResponse {
     pub solid_mesh: Option<Mesh>,
@@ -63,9 +192,14 @@ pub(crate) fn generate_chunk_mesh(
     let start = Instant::now();
 
     let mut solid_mesh_creator = MeshCreator::default();
-    let mut water_mesh_creator = MeshCreator::default();
 
+    // Generate solid block meshes (skip water - it's handled separately)
     for (local_block_pos, block) in chunk.map.iter() {
+        // Skip water blocks - they're rendered as a continuous surface mesh
+        if block.id == BlockId::Water {
+            continue;
+        }
+
         let x = local_block_pos.x as f32;
         let y = local_block_pos.y as f32;
         let z = local_block_pos.z as f32;
@@ -76,16 +210,6 @@ pub(crate) fn generate_chunk_mesh(
         if is_block_surrounded(world_map, global_block_pos, &visibility, &block.id) {
             continue;
         }
-
-        // Determine which mesh creator to use based on block type
-        let is_water = block.id == BlockId::Water;
-
-        // Select the target mesh creator once per block iteration
-        let target_mesh_creator = if is_water {
-            &mut water_mesh_creator
-        } else {
-            &mut solid_mesh_creator
-        };
 
         let mut local_vertices: Vec<[f32; 3]> = vec![];
         let mut local_indices: Vec<u32> = vec![];
@@ -105,16 +229,12 @@ pub(crate) fn generate_chunk_mesh(
             }
 
             let alpha = match visibility {
-                BlockTransparency::Liquid => 0.7, // Slightly more opaque for water shader
+                BlockTransparency::Liquid => 0.7,
                 _ => 1.0,
             };
 
-            // Use different face culling logic for water vs other blocks
-            let should_render = if is_water {
-                should_render_water_face(world_map, global_block_pos, &face.direction)
-            } else {
-                should_render_face(world_map, global_block_pos, &face.direction, &visibility)
-            };
+            let should_render =
+                should_render_face(world_map, global_block_pos, &face.direction, &visibility);
 
             if should_render {
                 render_face(
@@ -123,16 +243,15 @@ pub(crate) fn generate_chunk_mesh(
                     &mut local_normals,
                     &mut local_uvs,
                     &mut local_colors,
-                    &mut target_mesh_creator.indices_offset,
+                    &mut solid_mesh_creator.indices_offset,
                     face,
                     uv_coords,
                     1.0,
                     alpha,
                 );
 
-                // Only add break overlay for non-water blocks
-                if !is_water && block.breaking_progress > 0 {
-                    // Overlay the current breaking progress based on the state of the current block (10 different states)
+                // Add break overlay for blocks being broken
+                if block.breaking_progress > 0 {
                     let breaking_progress = block.get_breaking_level();
 
                     render_face(
@@ -141,7 +260,7 @@ pub(crate) fn generate_chunk_mesh(
                         &mut local_normals,
                         &mut local_uvs,
                         &mut local_colors,
-                        &mut target_mesh_creator.indices_offset,
+                        &mut solid_mesh_creator.indices_offset,
                         face,
                         uv_map
                             .get(&format!("DestroyStage{breaking_progress}"))
@@ -161,16 +280,15 @@ pub(crate) fn generate_chunk_mesh(
             })
             .collect();
 
-        // Add to the mesh creator (already selected at the beginning of this block iteration)
-        target_mesh_creator.vertices.extend(local_vertices);
-        target_mesh_creator.indices.extend(local_indices);
-        target_mesh_creator.normals.extend(local_normals);
-        target_mesh_creator.uvs.extend(local_uvs);
-        target_mesh_creator.colors.extend(local_colors);
+        solid_mesh_creator.vertices.extend(local_vertices);
+        solid_mesh_creator.indices.extend(local_indices);
+        solid_mesh_creator.normals.extend(local_normals);
+        solid_mesh_creator.uvs.extend(local_uvs);
+        solid_mesh_creator.colors.extend(local_colors);
     }
 
+    // Build solid mesh
     let mut solid_mesh = build_mesh(&solid_mesh_creator);
-    let mut water_mesh = build_mesh(&water_mesh_creator);
 
     trace!("Render time : {:?}", Instant::now() - start);
 
@@ -184,20 +302,8 @@ pub(crate) fn generate_chunk_mesh(
         }
     };
 
-    let should_return_water = !water_mesh_creator.vertices.is_empty();
-    if should_return_water {
-        debug!(
-            "Water mesh has {} vertices, {} indices",
-            water_mesh_creator.vertices.len(),
-            water_mesh_creator.indices.len()
-        );
-        if let Err(e) = water_mesh.generate_tangents() {
-            warn!(
-                "Error while generating tangents for the mesh WATER : {:?} | {:?}",
-                e, water_mesh
-            );
-        }
-    };
+    // Generate continuous water surface mesh (vertices shared between adjacent blocks)
+    let water_mesh = generate_water_surface_mesh(world_map, chunk, chunk_pos);
 
     ChunkMeshResponse {
         solid_mesh: if should_return_solid {
@@ -205,11 +311,7 @@ pub(crate) fn generate_chunk_mesh(
         } else {
             None
         },
-        water_mesh: if should_return_water {
-            Some(water_mesh)
-        } else {
-            None
-        },
+        water_mesh,
     }
 }
 
@@ -330,26 +432,6 @@ fn should_render_face(
     } else {
         true
     }
-}
-
-/// For water blocks, only render the top face when there's air above.
-/// This creates a clean water surface without underwater artifacts.
-fn should_render_water_face(
-    world_map: &ClientWorldMap,
-    global_block_pos: &IVec3,
-    direction: &FaceDirection,
-) -> bool {
-    // Only render the top face of water (the surface)
-    if *direction != FaceDirection::Top {
-        return false;
-    }
-
-    let offset = IVec3::new(0, 1, 0);
-
-    // Only render if there's air above (no block)
-    world_map
-        .get_block_by_coordinates(&(*global_block_pos + offset))
-        .is_none()
 }
 
 // ============================================================================

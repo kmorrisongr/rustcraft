@@ -150,6 +150,10 @@ pub fn world_render_system(
                 shallow_color: Color::srgba(0.15, 0.35, 0.45, 0.75),
                 edge_color: Color::srgba(0.8, 0.9, 1.0, 0.5),
                 edge_scale: 0.1,
+                // UVs from the mesh are already world coordinates,
+                // so use scale=1 and offset=0 to pass them through directly
+                coord_scale: Vec2::new(1.0, 1.0),
+                coord_offset: Vec2::ZERO,
                 ..default()
             },
         });
