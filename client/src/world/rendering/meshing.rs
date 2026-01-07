@@ -1,6 +1,6 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::f32::consts::PI;
-use std::{collections::HashMap, time::Instant};
+use std::time::Instant;
 
 use crate::world::{ClientChunk, ClientWorldMap};
 use bevy::{
@@ -49,204 +49,11 @@ fn build_mesh(creator: &MeshCreator) -> Mesh {
     mesh
 }
 
-/// Generates a continuous water surface mesh where adjacent water blocks share vertices.
-/// This prevents gaps when vertex displacement (waves) is applied by the water shader.
-///
-/// Returns the mesh, the total number of water surface blocks, and whether water touches chunk edges.
-/// The edge-touching flag is used for cross-chunk water body size estimation.
-///
-/// The algorithm:
-/// 1. Collect all water surface positions (water blocks with air above)
-/// 2. Group them by Y level
-/// 3. For each Y level, create a grid of vertices at block corners (shared between adjacent blocks)
-/// 4. Generate triangle indices connecting the vertices
-/// 5. Check if any water block is at a chunk boundary (x=0, x=15, z=0, or z=15)
-fn generate_water_surface_mesh(
-    world_map: &ClientWorldMap,
-    chunk: &ClientChunk,
-    chunk_pos: &IVec3,
-) -> (Option<Mesh>, usize, bool) {
-    // Collect water surface positions grouped by Y level
-    // Key: Y level, Value: Set of (x, z) positions in local chunk coordinates
-    let mut water_surfaces: HashMap<i32, HashSet<(i32, i32)>> = HashMap::new();
-
-    for (local_block_pos, block) in chunk.map.iter() {
-        if block.id != BlockId::Water {
-            continue;
-        }
-
-        let global_block_pos = to_global_pos(chunk_pos, local_block_pos);
-
-        // Check if there's air above (this is a surface water block)
-        let above_pos = global_block_pos + IVec3::new(0, 1, 0);
-        if world_map.get_block_by_coordinates(&above_pos).is_some() {
-            continue; // Not a surface block
-        }
-
-        water_surfaces
-            .entry(local_block_pos.y)
-            .or_insert_with(HashSet::new)
-            .insert((local_block_pos.x, local_block_pos.z));
-    }
-
-    if water_surfaces.is_empty() {
-        return (None, 0, false);
-    }
-
-    // Count total water surface blocks across all Y levels
-    let total_water_blocks: usize = water_surfaces.values().map(|s| s.len()).sum();
-
-    // Check if any water block touches a chunk edge (suggesting cross-chunk water body)
-    // Chunk coordinates are 0 to CHUNK_SIZE-1 (typically 0-15)
-    let chunk_edge_max = (CHUNK_SIZE - 1) as i32;
-    let touches_edge = water_surfaces.values().any(|positions| {
-        positions
-            .iter()
-            .any(|(x, z)| *x == 0 || *x == chunk_edge_max || *z == 0 || *z == chunk_edge_max)
-    });
-
-    // Pre-allocate with estimated sizes to reduce allocations
-    // Each water block needs ~4 vertices (corners, shared with neighbors) and 6 indices (2 triangles)
-    // Sharing reduces actual vertex count, so we estimate conservatively
-    let estimated_vertices = total_water_blocks * 2;
-    let estimated_indices = total_water_blocks * 6;
-
-    let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(estimated_vertices);
-    let mut indices: Vec<u32> = Vec::with_capacity(estimated_indices);
-    let mut normals: Vec<[f32; 3]> = Vec::with_capacity(estimated_vertices);
-    let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(estimated_vertices);
-    let mut colors: Vec<[f32; 4]> = Vec::with_capacity(estimated_vertices);
-
-    // Water surface is slightly below the top of the block (like Minecraft)
-    let water_surface_offset = 0.875; // 14/16 of a block
-
-    // Process each Y level
-    for (y_level, xz_positions) in water_surfaces.iter() {
-        let y = *y_level as f32 + water_surface_offset;
-
-        // Create a vertex index map for this Y level
-        // Key: (corner_x, corner_z), Value: vertex index
-        // Corners are at integer positions (block boundaries)
-        let mut vertex_index_map: HashMap<(i32, i32), u32> = HashMap::new();
-
-        // For each water block, we need vertices at its 4 corners
-        // Corners are shared between adjacent blocks
-        for (block_x, block_z) in xz_positions.iter() {
-            // The 4 corners of this block
-            let corners = [
-                (*block_x, *block_z),         // bottom-left
-                (*block_x + 1, *block_z),     // bottom-right
-                (*block_x, *block_z + 1),     // top-left
-                (*block_x + 1, *block_z + 1), // top-right
-            ];
-
-            // Ensure all corners have vertices
-            for (cx, cz) in corners.iter() {
-                if !vertex_index_map.contains_key(&(*cx, *cz)) {
-                    let vertex_idx = vertices.len() as u32;
-                    vertex_index_map.insert((*cx, *cz), vertex_idx);
-
-                    // Vertex position in local chunk space
-                    vertices.push([*cx as f32, y, *cz as f32]);
-                    normals.push([0.0, 1.0, 0.0]); // Up-facing normal
-
-                    // UV coordinates based on world position for proper wave tiling
-                    // The bevy_water shader uses coord_offset + (uv * coord_scale) to get world coords
-                    let world_x = (chunk_pos.x * CHUNK_SIZE + *cx) as f32;
-                    let world_z = (chunk_pos.z * CHUNK_SIZE + *cz) as f32;
-                    uvs.push([world_x, world_z]);
-
-                    // Water color with alpha for transparency
-                    colors.push([1.0, 1.0, 1.0, 0.7]);
-                }
-            }
-
-            // Generate two triangles for this water block quad
-            // Using counter-clockwise winding for front-facing
-            let bl = vertex_index_map[&(*block_x, *block_z)];
-            let br = vertex_index_map[&(*block_x + 1, *block_z)];
-            let tl = vertex_index_map[&(*block_x, *block_z + 1)];
-            let tr = vertex_index_map[&(*block_x + 1, *block_z + 1)];
-
-            // Triangle 1: bottom-left, top-left, top-right
-            indices.push(bl);
-            indices.push(tl);
-            indices.push(tr);
-
-            // Triangle 2: bottom-left, top-right, bottom-right
-            indices.push(bl);
-            indices.push(tr);
-            indices.push(br);
-        }
-    }
-
-    if vertices.is_empty() {
-        return (None, 0, false);
-    }
-
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, Default::default());
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
-    mesh.insert_indices(Indices::U32(indices));
-
-    // Generate tangents for proper normal mapping in the shader
-    if let Err(e) = mesh.generate_tangents() {
-        warn!("Error generating tangents for water surface mesh: {:?}", e);
-    }
-
-    (Some(mesh), total_water_blocks, touches_edge)
-}
-
-/// Water body size category for wave amplitude selection.
-/// Simplified to two categories since edge-touching water must use consistent amplitude.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum WaterBodySize {
-    /// Isolated water body fully contained within a chunk.
-    /// Uses gentle waves based on actual size.
-    #[default]
-    Isolated,
-    /// Water that touches chunk edges, likely part of a larger body.
-    /// Uses full ocean waves to ensure seamless animation at chunk boundaries.
-    Connected,
-}
-
-impl WaterBodySize {
-    /// Determine water body size based on edge contact.
-    /// If water touches chunk edges, it's considered Connected (ocean waves).
-    /// Otherwise, it's Isolated with gentler waves.
-    ///
-    /// Note: block_count is accepted for potential future use (e.g., very small
-    /// isolated pools could have no waves) but currently unused.
-    pub fn from_analysis(_block_count: usize, touches_edge: bool) -> Self {
-        if touches_edge {
-            // Edge-touching water must use consistent amplitude across chunks
-            WaterBodySize::Connected
-        } else {
-            // Isolated water can use gentler waves
-            WaterBodySize::Isolated
-        }
-    }
-
-    /// Get the wave amplitude for this water body size
-    pub fn amplitude(&self) -> f32 {
-        match self {
-            // Isolated pools get gentle waves - enough to look alive but not overwhelming
-            WaterBodySize::Isolated => 0.15,
-            // Connected water (touching chunk edges) uses full ocean amplitude
-            // to ensure seamless animation at chunk boundaries
-            WaterBodySize::Connected => 0.5,
-        }
-    }
-}
-
+/// Chunk mesh response containing only solid block meshes.
+/// Water rendering is handled by the separate water system (see `rendering/water.rs`).
 #[derive(Debug, Default, Clone)]
 pub struct ChunkMeshResponse {
     pub solid_mesh: Option<Mesh>,
-    pub water_mesh: Option<Mesh>,
-    /// Size category of the water body in this chunk (for amplitude selection)
-    pub water_body_size: WaterBodySize,
 }
 
 pub(crate) fn generate_chunk_mesh(
@@ -368,12 +175,8 @@ pub(crate) fn generate_chunk_mesh(
         }
     };
 
-    // Generate continuous water surface mesh (vertices shared between adjacent blocks)
-    let (water_mesh, water_block_count, touches_edge) =
-        generate_water_surface_mesh(world_map, chunk, chunk_pos);
-
-    // Determine water body size based on whether it touches chunk edges
-    let water_body_size = WaterBodySize::from_analysis(water_block_count, touches_edge);
+    // Water rendering is handled by the separate water system (rendering/water.rs)
+    // which generates water meshes independently from chunk meshing.
 
     ChunkMeshResponse {
         solid_mesh: if should_return_solid {
@@ -381,8 +184,6 @@ pub(crate) fn generate_chunk_mesh(
         } else {
             None
         },
-        water_mesh,
-        water_body_size,
     }
 }
 
@@ -629,14 +430,14 @@ pub(crate) fn generate_chunk_mesh_lod(
     // Skip tangent generation for LOD meshes (no visual benefit at distance)
     trace!("LOD render time : {:?}", Instant::now() - start);
 
+    // Water rendering at LOD 1 is handled by the separate water system,
+    // which generates water independently from chunk meshing.
     ChunkMeshResponse {
         solid_mesh: if should_return_solid {
             Some(solid_mesh)
         } else {
             None
         },
-        water_mesh: None,                          // No water at LOD 1
-        water_body_size: WaterBodySize::default(), // Not used since water_mesh is None
     }
 }
 

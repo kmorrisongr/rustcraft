@@ -1,4 +1,3 @@
-use crate::shaders::water::{StandardWaterMaterial, WaterMaterial, WaterMesh};
 use crate::{player::CurrentPlayerMarker, world::FirstChunkReceived};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -7,7 +6,6 @@ use std::{collections::HashSet, time::Instant};
 use bevy::{
     asset::Assets,
     math::IVec3,
-    pbr::{ExtendedMaterial, NotShadowCaster, NotShadowReceiver},
     prelude::*,
     tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
 };
@@ -23,7 +21,7 @@ use crate::{
 
 use crate::world::{ClientChunk, ClientWorldMap};
 
-use super::meshing::{ChunkMeshResponse, WaterBodySize};
+use super::meshing::ChunkMeshResponse;
 use super::render_distance::RenderDistance;
 
 #[derive(Debug)]
@@ -50,11 +48,12 @@ pub(crate) struct UvMapCache {
     cached: Option<Arc<HashMap<String, super::meshing::UvCoords>>>,
 }
 
+/// Update a chunk entity with new solid mesh.
+/// Water rendering is handled separately by the water system (see `rendering/water.rs`).
 fn update_chunk(
     chunk: &mut ClientChunk,
     chunk_pos: &IVec3,
     material_resource: &MaterialResource,
-    water_materials: &ChunkWaterMaterials,
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     new_meshes: ChunkMeshResponse,
@@ -78,9 +77,6 @@ fn update_chunk(
             (chunk_pos.z * CHUNK_SIZE) as f32,
         );
 
-        // Select appropriate water material based on water body size
-        let water_material = water_materials.get_for_size(new_meshes.water_body_size);
-
         let new_entity = commands
             .spawn((chunk_t, Visibility::Visible))
             .with_children(|root| {
@@ -92,20 +88,8 @@ fn update_chunk(
                         MeshMaterial3d(solid_texture.clone()),
                     ));
                 }
-                // Spawn water mesh with custom water material (only for LOD 0)
-                if let Some(new_water_mesh) = new_meshes.water_mesh {
-                    root.spawn((
-                        StateScoped(GameState::Game),
-                        Mesh3d(meshes.add(new_water_mesh)),
-                        MeshMaterial3d(water_material),
-                        WaterMesh,
-                        // Disable shadow casting/receiving for water - critical for performance
-                        // Water shader is already expensive (wave calculations, fbm noise),
-                        // and shadow maps are rendered for all casters regardless of visibility
-                        NotShadowCaster,
-                        NotShadowReceiver,
-                    ));
-                }
+                // Note: Water meshes are spawned by the dedicated water system (rendering/water.rs)
+                // which handles water independently from chunk meshing.
             })
             .id();
 
@@ -115,65 +99,12 @@ fn update_chunk(
     // so we don't need to set it again here.
 }
 
-/// Resource to store water material handles.
-/// Two materials with different wave amplitudes:
-/// - Isolated: for water fully contained within a chunk (gentler waves)
-/// - Connected: for water touching chunk edges (full ocean waves for seamless boundaries)
-#[derive(Resource, Default)]
-pub struct ChunkWaterMaterials {
-    pub isolated: Option<Handle<StandardWaterMaterial>>,
-    pub connected: Option<Handle<StandardWaterMaterial>>,
-}
-
-impl ChunkWaterMaterials {
-    /// Get the material handle for a given water body size
-    pub fn get_for_size(&self, size: WaterBodySize) -> Handle<StandardWaterMaterial> {
-        match size {
-            WaterBodySize::Isolated => self.isolated.clone(),
-            WaterBodySize::Connected => self.connected.clone(),
-        }
-        .expect("Water materials should be initialized before use")
-    }
-
-    /// Check if all materials are initialized
-    pub fn is_initialized(&self) -> bool {
-        self.isolated.is_some() && self.connected.is_some()
-    }
-}
-
-/// Create a water material with the specified amplitude
-fn create_water_material(
-    water_materials: &mut Assets<StandardWaterMaterial>,
-    amplitude: f32,
-) -> Handle<StandardWaterMaterial> {
-    water_materials.add(ExtendedMaterial {
-        base: StandardMaterial {
-            base_color: Color::srgba(0.1, 0.3, 0.5, 0.8),
-            alpha_mode: AlphaMode::Blend,
-            ..default()
-        },
-        extension: WaterMaterial {
-            amplitude,
-            clarity: 0.3,
-            deep_color: Color::srgba(0.05, 0.15, 0.25, 0.9),
-            shallow_color: Color::srgba(0.15, 0.35, 0.45, 0.75),
-            edge_color: Color::srgba(0.8, 0.9, 1.0, 0.5),
-            edge_scale: 0.1,
-            // UVs from the mesh are already world coordinates,
-            // so use scale=1 and offset=0 to pass them through directly
-            coord_scale: Vec2::new(1.0, 1.0),
-            coord_offset: Vec2::ZERO,
-            ..default()
-        },
-    })
-}
-
+/// System that handles chunk mesh generation and updates.
+/// Water rendering is handled separately by the water system (see `rendering/water.rs`).
 pub fn world_render_system(
     mut world_map: ResMut<ClientWorldMap>,
     material_resource: Res<MaterialResource>,
     render_distance: Res<RenderDistance>,
-    mut water_materials_res: ResMut<ChunkWaterMaterials>,
-    mut water_materials: ResMut<Assets<StandardWaterMaterial>>,
     mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
     mut queued_events: Local<QueuedEvents>,
     mut queued_meshes: Local<QueuedMeshes>,
@@ -191,18 +122,6 @@ pub fn world_render_system(
     if material_resource.blocks.is_none() {
         // Wait until the texture is ready
         return;
-    }
-
-    // Initialize water materials if not already created
-    if !water_materials_res.is_initialized() {
-        water_materials_res.isolated = Some(create_water_material(
-            &mut water_materials,
-            WaterBodySize::Isolated.amplitude(),
-        ));
-        water_materials_res.connected = Some(create_water_material(
-            &mut water_materials,
-            WaterBodySize::Connected.amplitude(),
-        ));
     }
 
     let pool = AsyncComputeTaskPool::get();
@@ -339,7 +258,6 @@ pub fn world_render_system(
                     chunk,
                     chunk_pos,
                     &material_resource,
-                    &water_materials_res,
                     &mut commands,
                     &mut meshes,
                     new_meshes,
