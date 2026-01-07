@@ -105,11 +105,17 @@ fn generate_water_surface_mesh(
             .any(|(x, z)| *x == 0 || *x == chunk_edge_max || *z == 0 || *z == chunk_edge_max)
     });
 
-    let mut vertices: Vec<[f32; 3]> = Vec::new();
-    let mut indices: Vec<u32> = Vec::new();
-    let mut normals: Vec<[f32; 3]> = Vec::new();
-    let mut uvs: Vec<[f32; 2]> = Vec::new();
-    let mut colors: Vec<[f32; 4]> = Vec::new();
+    // Pre-allocate with estimated sizes to reduce allocations
+    // Each water block needs ~4 vertices (corners, shared with neighbors) and 6 indices (2 triangles)
+    // Sharing reduces actual vertex count, so we estimate conservatively
+    let estimated_vertices = total_water_blocks * 2;
+    let estimated_indices = total_water_blocks * 6;
+
+    let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(estimated_vertices);
+    let mut indices: Vec<u32> = Vec::with_capacity(estimated_indices);
+    let mut normals: Vec<[f32; 3]> = Vec::with_capacity(estimated_vertices);
+    let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(estimated_vertices);
+    let mut colors: Vec<[f32; 4]> = Vec::with_capacity(estimated_vertices);
 
     // Water surface is slightly below the top of the block (like Minecraft)
     let water_surface_offset = 0.875; // 14/16 of a block
@@ -193,57 +199,44 @@ fn generate_water_surface_mesh(
     (Some(mesh), total_water_blocks, touches_edge)
 }
 
-/// Water body size category based on surface area.
-/// Used to determine appropriate wave amplitude.
+/// Water body size category for wave amplitude selection.
+/// Simplified to two categories since edge-touching water must use consistent amplitude.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum WaterBodySize {
-    /// 1-4 blocks: tiny puddle, no waves
-    Puddle,
-    /// 5-16 blocks: small pond, minimal waves
-    Small,
-    /// 17-64 blocks: medium pond/pool, gentle waves
+    /// Isolated water body fully contained within a chunk.
+    /// Uses gentle waves based on actual size.
     #[default]
-    Medium,
-    /// 65-256 blocks: large lake, moderate waves
-    Large,
-    /// 257+ blocks: ocean/sea, full waves
-    Ocean,
+    Isolated,
+    /// Water that touches chunk edges, likely part of a larger body.
+    /// Uses full ocean waves to ensure seamless animation at chunk boundaries.
+    Connected,
 }
 
 impl WaterBodySize {
-    /// Determine water body size from surface block count
-    pub fn from_block_count(count: usize) -> Self {
-        match count {
-            0..=4 => WaterBodySize::Puddle,
-            5..=16 => WaterBodySize::Small,
-            17..=64 => WaterBodySize::Medium,
-            65..=256 => WaterBodySize::Large,
-            _ => WaterBodySize::Ocean,
-        }
-    }
-
-    /// When water touches chunk edges, always use Ocean amplitude.
-    /// This ensures that adjacent chunks have matching wave animations at their
-    /// shared boundaries, preventing visible gaps/seams.
+    /// Determine water body size based on edge contact.
+    /// If water touches chunk edges, it's considered Connected (ocean waves).
+    /// Otherwise, it's Isolated with gentler waves.
     ///
-    /// The trade-off is that some medium-sized lakes spanning chunks will have
-    /// larger waves than if they were contained in a single chunk, but this is
-    /// visually preferable to gaps in the water surface.
-    pub fn with_edge_boost(self) -> Self {
-        // Always use Ocean for edge-touching water to guarantee amplitude matching
-        // at chunk boundaries. Any other approach risks mismatched amplitudes
-        // causing visible gaps where vertices animate differently.
-        WaterBodySize::Ocean
+    /// Note: block_count is accepted for potential future use (e.g., very small
+    /// isolated pools could have no waves) but currently unused.
+    pub fn from_analysis(_block_count: usize, touches_edge: bool) -> Self {
+        if touches_edge {
+            // Edge-touching water must use consistent amplitude across chunks
+            WaterBodySize::Connected
+        } else {
+            // Isolated water can use gentler waves
+            WaterBodySize::Isolated
+        }
     }
 
     /// Get the wave amplitude for this water body size
     pub fn amplitude(&self) -> f32 {
         match self {
-            WaterBodySize::Puddle => 0.0,  // No waves
-            WaterBodySize::Small => 0.05,  // Barely visible ripples
-            WaterBodySize::Medium => 0.15, // Gentle waves
-            WaterBodySize::Large => 0.3,   // Moderate waves
-            WaterBodySize::Ocean => 0.5,   // Full waves
+            // Isolated pools get gentle waves - enough to look alive but not overwhelming
+            WaterBodySize::Isolated => 0.15,
+            // Connected water (touching chunk edges) uses full ocean amplitude
+            // to ensure seamless animation at chunk boundaries
+            WaterBodySize::Connected => 0.5,
         }
     }
 }
@@ -379,16 +372,8 @@ pub(crate) fn generate_chunk_mesh(
     let (water_mesh, water_block_count, touches_edge) =
         generate_water_surface_mesh(world_map, chunk, chunk_pos);
 
-    // Determine water body size, boosting if water touches chunk boundaries
-    // (suggesting it's part of a larger cross-chunk body)
-    let water_body_size = {
-        let base_size = WaterBodySize::from_block_count(water_block_count);
-        if touches_edge {
-            base_size.with_edge_boost()
-        } else {
-            base_size
-        }
-    };
+    // Determine water body size based on whether it touches chunk edges
+    let water_body_size = WaterBodySize::from_analysis(water_block_count, touches_edge);
 
     ChunkMeshResponse {
         solid_mesh: if should_return_solid {

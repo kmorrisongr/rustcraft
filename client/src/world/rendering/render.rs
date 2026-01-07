@@ -1,5 +1,6 @@
 use crate::shaders::water::{StandardWaterMaterial, WaterMaterial, WaterMesh};
 use crate::{player::CurrentPlayerMarker, world::FirstChunkReceived};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::{collections::HashSet, time::Instant};
 
@@ -43,6 +44,12 @@ pub(crate) struct WorldMapCache {
     cached: Option<Arc<ClientWorldMap>>,
 }
 
+/// Cache for UV coordinates to avoid cloning every frame
+#[derive(Default)]
+pub(crate) struct UvMapCache {
+    cached: Option<Arc<HashMap<String, super::meshing::UvCoords>>>,
+}
+
 fn update_chunk(
     chunk: &mut ClientChunk,
     chunk_pos: &IVec3,
@@ -51,7 +58,7 @@ fn update_chunk(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     new_meshes: ChunkMeshResponse,
-    lod_level: LodLevel, // Track the LOD level used for this mesh
+    _lod_level: LodLevel, // Kept for potential future use; LOD is set when task is queued
 ) {
     let solid_texture = material_resource
         .global_materials
@@ -87,10 +94,6 @@ fn update_chunk(
                 }
                 // Spawn water mesh with custom water material (only for LOD 0)
                 if let Some(new_water_mesh) = new_meshes.water_mesh {
-                    debug!(
-                        "Spawning water mesh for chunk (size: {:?})",
-                        new_meshes.water_body_size
-                    );
                     root.spawn((
                         StateScoped(GameState::Game),
                         Mesh3d(meshes.add(new_water_mesh)),
@@ -108,43 +111,33 @@ fn update_chunk(
 
         chunk.entity = Some(new_entity);
     }
-
-    // Update the chunk's current LOD level
-    chunk.current_lod = lod_level;
-    // debug!("ClientChunk updated : len={}", chunk.map.len());
+    // Note: current_lod is already updated when the mesh task was queued,
+    // so we don't need to set it again here.
 }
 
-/// Resource to store water material handles for different water body sizes.
-/// Each size category has a different wave amplitude.
+/// Resource to store water material handles.
+/// Two materials with different wave amplitudes:
+/// - Isolated: for water fully contained within a chunk (gentler waves)
+/// - Connected: for water touching chunk edges (full ocean waves for seamless boundaries)
 #[derive(Resource, Default)]
 pub struct ChunkWaterMaterials {
-    pub puddle: Option<Handle<StandardWaterMaterial>>,
-    pub small: Option<Handle<StandardWaterMaterial>>,
-    pub medium: Option<Handle<StandardWaterMaterial>>,
-    pub large: Option<Handle<StandardWaterMaterial>>,
-    pub ocean: Option<Handle<StandardWaterMaterial>>,
+    pub isolated: Option<Handle<StandardWaterMaterial>>,
+    pub connected: Option<Handle<StandardWaterMaterial>>,
 }
 
 impl ChunkWaterMaterials {
     /// Get the material handle for a given water body size
     pub fn get_for_size(&self, size: WaterBodySize) -> Handle<StandardWaterMaterial> {
         match size {
-            WaterBodySize::Puddle => self.puddle.clone(),
-            WaterBodySize::Small => self.small.clone(),
-            WaterBodySize::Medium => self.medium.clone(),
-            WaterBodySize::Large => self.large.clone(),
-            WaterBodySize::Ocean => self.ocean.clone(),
+            WaterBodySize::Isolated => self.isolated.clone(),
+            WaterBodySize::Connected => self.connected.clone(),
         }
         .expect("Water materials should be initialized before use")
     }
 
     /// Check if all materials are initialized
     pub fn is_initialized(&self) -> bool {
-        self.puddle.is_some()
-            && self.small.is_some()
-            && self.medium.is_some()
-            && self.large.is_some()
-            && self.ocean.is_some()
+        self.isolated.is_some() && self.connected.is_some()
     }
 }
 
@@ -185,6 +178,7 @@ pub fn world_render_system(
     mut queued_events: Local<QueuedEvents>,
     mut queued_meshes: Local<QueuedMeshes>,
     mut world_map_cache: Local<WorldMapCache>,
+    mut uv_map_cache: Local<UvMapCache>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     mut first_chunk_received: ResMut<FirstChunkReceived>,
@@ -199,27 +193,15 @@ pub fn world_render_system(
         return;
     }
 
-    // Initialize water materials for each size category if not already created
+    // Initialize water materials if not already created
     if !water_materials_res.is_initialized() {
-        water_materials_res.puddle = Some(create_water_material(
+        water_materials_res.isolated = Some(create_water_material(
             &mut water_materials,
-            WaterBodySize::Puddle.amplitude(),
+            WaterBodySize::Isolated.amplitude(),
         ));
-        water_materials_res.small = Some(create_water_material(
+        water_materials_res.connected = Some(create_water_material(
             &mut water_materials,
-            WaterBodySize::Small.amplitude(),
-        ));
-        water_materials_res.medium = Some(create_water_material(
-            &mut water_materials,
-            WaterBodySize::Medium.amplitude(),
-        ));
-        water_materials_res.large = Some(create_water_material(
-            &mut water_materials,
-            WaterBodySize::Large.amplitude(),
-        ));
-        water_materials_res.ocean = Some(create_water_material(
-            &mut water_materials,
-            WaterBodySize::Ocean.amplitude(),
+            WaterBodySize::Connected.amplitude(),
         ));
     }
 
@@ -247,7 +229,14 @@ pub fn world_render_system(
                 ))
             };
 
-        let uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
+        // Cache UV map to avoid cloning every frame
+        let uvs = if uv_map_cache.cached.is_none() {
+            let new_uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
+            uv_map_cache.cached = Some(Arc::clone(&new_uvs));
+            new_uvs
+        } else {
+            Arc::clone(uv_map_cache.cached.as_ref().unwrap())
+        };
 
         let player_pos = player_pos
             .single()
