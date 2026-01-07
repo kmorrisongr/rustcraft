@@ -6,7 +6,7 @@ use std::{collections::HashSet, time::Instant};
 use bevy::{
     asset::Assets,
     math::IVec3,
-    pbr::ExtendedMaterial,
+    pbr::{ExtendedMaterial, NotShadowCaster, NotShadowReceiver},
     prelude::*,
     tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
 };
@@ -96,6 +96,11 @@ fn update_chunk(
                         Mesh3d(meshes.add(new_water_mesh)),
                         MeshMaterial3d(water_material),
                         WaterMesh,
+                        // Disable shadow casting/receiving for water - critical for performance
+                        // Water shader is already expensive (wave calculations, fbm noise),
+                        // and shadow maps are rendered for all casters regardless of visibility
+                        NotShadowCaster,
+                        NotShadowReceiver,
                     ));
                 }
             })
@@ -280,9 +285,9 @@ pub fn world_render_system(
         chunks_to_reload.sort_by_key(|pos| pos.distance_squared(player_chunk_pos));
 
         for pos in chunks_to_reload {
-            if let Some(chunk) = world_map.map.get(&pos) {
+            if let Some(chunk_arc) = world_map.map.get_mut(&pos) {
                 // If chunk is empty, ignore it
-                if chunk.map.is_empty() {
+                if chunk_arc.map.is_empty() {
                     continue;
                 }
 
@@ -291,10 +296,21 @@ pub fn world_render_system(
                 let lod_level =
                     LodLevel::from_distance_squared(chunk_distance_sq, lod0_distance_sq);
 
+                // Skip if this chunk is already at the correct LOD level
+                // This prevents redundant mesh regeneration when events fire multiple times
+                if chunk_arc.current_lod == lod_level && chunk_arc.entity.is_some() {
+                    continue;
+                }
+
+                // Update current_lod immediately to prevent lod_transition_system
+                // from queuing duplicate events while the mesh task is in progress
+                let chunk = Arc::make_mut(chunk_arc);
+                chunk.current_lod = lod_level;
+
                 // Define variables to move to the thread
                 let map_clone = Arc::clone(&map_ptr);
                 let uvs_clone = Arc::clone(&uvs);
-                let ch = chunk.clone();
+                let ch = chunk_arc.clone();
                 let t = pool.spawn(async move {
                     world::meshing::generate_chunk_mesh_lod(
                         &map_clone, &ch, &pos, &uvs_clone, lod_level,
