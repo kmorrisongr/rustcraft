@@ -192,7 +192,11 @@ fn apply_movement_with_collision<W: WorldMap>(
         PLAYER_SPEED
     };
 
-    let horizontal_displacement = Vec3::new(direction.x * speed * delta, 0.0, direction.z * speed * delta);
+    let horizontal_displacement = Vec3::new(
+        direction.x * speed * delta,
+        0.0,
+        direction.z * speed * delta,
+    );
     let vertical_displacement = Vec3::new(0.0, player.velocity.y * delta, 0.0);
 
     let half_extents = Vec3::new(player.width / 2.0, player.height / 2.0, player.width / 2.0);
@@ -299,7 +303,11 @@ pub fn rapier_movement_system(
         &mut RustcraftPhysicsBody,
         &Collider,
     )>,
-    rapier_context: Query<(&RapierContextColliders, &RapierRigidBodySet, &RapierQueryPipeline)>,
+    rapier_context: Query<(
+        &RapierContextColliders,
+        &RapierRigidBodySet,
+        &RapierQueryPipeline,
+    )>,
 ) {
     let delta = time.delta_secs();
     if delta <= 0.0 {
