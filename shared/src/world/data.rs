@@ -1,9 +1,10 @@
 use crate::messages::PlayerId;
 use crate::players::Player;
 use crate::world::{block_to_chunk_coord, global_to_chunk_local, BlockHitbox, BlockId};
-use bevy::math::{bounding::Aabb3d, IVec3, Vec3};
+use bevy::math::{bounding::Aabb3d, IVec3, Vec2, Vec3};
 use bevy_ecs::resource::Resource;
 use bevy_log::info;
+use noiz::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -12,7 +13,7 @@ use super::{BlockData, ItemId, ItemType, MobId, ServerMob};
 
 // Biome generation constants - shared between client and server
 /// Scale factor for biome noise generation
-pub const BIOME_SCALE: f64 = 0.01;
+pub const BIOME_SCALE: f32 = 0.01;
 /// Seed offset for temperature noise generation
 pub const TEMP_SEED_OFFSET: u32 = 1;
 /// Seed offset for humidity noise generation
@@ -278,21 +279,43 @@ pub struct BiomeClimate {
 ///
 /// # Returns
 /// A BiomeClimate struct with temperature and humidity values, both between 0.0 and 1.0
-pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate {
-    use noise::{NoiseFn, Perlin};
+#[derive(Clone)]
+pub struct ClimateNoises {
+    temp: Noise<common_noise::Perlin>,
+    humidity: Noise<common_noise::Perlin>,
+}
 
-    let temp_perlin = Perlin::new(seed + TEMP_SEED_OFFSET);
-    let humidity_perlin = Perlin::new(seed + HUMIDITY_SEED_OFFSET);
+impl ClimateNoises {
+    pub fn new(seed: u32) -> Self {
+        let mut temp = Noise::<common_noise::Perlin>::default();
+        temp.set_seed(seed + TEMP_SEED_OFFSET);
 
-    let temperature =
-        (temp_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
-    let humidity =
-        (humidity_perlin.get([x as f64 * BIOME_SCALE, z as f64 * BIOME_SCALE]) + 1.0) / 2.0;
+        let mut humidity = Noise::<common_noise::Perlin>::default();
+        humidity.set_seed(seed + HUMIDITY_SEED_OFFSET);
+
+        Self { temp, humidity }
+    }
+}
+
+pub fn calculate_temperature_humidity_with_noises(
+    x: i32,
+    z: i32,
+    noises: &mut ClimateNoises,
+) -> BiomeClimate {
+    let sample_position = Vec2::new(x as f32 * BIOME_SCALE, z as f32 * BIOME_SCALE);
+
+    let temperature = (noises.temp.sample_for::<f64>(sample_position) + 1.0) / 2.0;
+    let humidity = (noises.humidity.sample_for::<f64>(sample_position) + 1.0) / 2.0;
 
     BiomeClimate {
         temperature,
         humidity,
     }
+}
+
+pub fn calculate_temperature_humidity(x: i32, z: i32, seed: u32) -> BiomeClimate {
+    let mut noises = ClimateNoises::new(seed);
+    calculate_temperature_humidity_with_noises(x, z, &mut noises)
 }
 
 /// Calculates the biome at a given world position.
@@ -444,5 +467,17 @@ mod tests {
         chunk.sent_to_clients.insert(1);
 
         assert_eq!(chunk.sent_to_clients.len(), 1);
+    }
+
+    #[test]
+    fn calculate_temperature_humidity_is_deterministic_and_bounded() {
+        let first = calculate_temperature_humidity(10, -5, 123);
+        let second = calculate_temperature_humidity(10, -5, 123);
+
+        assert!((0.0..=1.0).contains(&first.temperature));
+        assert!((0.0..=1.0).contains(&first.humidity));
+
+        assert!((first.temperature - second.temperature).abs() < f32::EPSILON as f64);
+        assert!((first.humidity - second.humidity).abs() < f32::EPSILON as f64);
     }
 }

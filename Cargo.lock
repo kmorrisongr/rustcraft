@@ -1945,7 +1945,6 @@ dependencies = [
  "egui",
  "lazy_static",
  "log",
- "noise",
  "rand",
  "ron 0.6.6",
  "serde",
@@ -3566,14 +3565,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
-name = "noise"
-version = "0.9.0"
+name = "noiz"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6da45c8333f2e152fc665d78a380be060eb84fad8ca4c9f7ac8ca29216cff0cc"
+checksum = "687ef8a22fde86b66e567dd7aeb17ee9bc85f05b17aa7db650ec0ad17879b6ac"
 dependencies = [
- "num-traits",
- "rand",
- "rand_xorshift",
+ "bevy_math",
+ "bevy_reflect",
+ "serde",
 ]
 
 [[package]]
@@ -4316,15 +4315,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rand_xorshift"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
-dependencies = [
- "rand_core",
-]
-
-[[package]]
 name = "range-alloc"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4732,7 +4722,7 @@ dependencies = [
  "clap",
  "futures-lite",
  "log",
- "noise",
+ "noiz",
  "rand",
  "ron 0.6.6",
  "serde",
@@ -4761,7 +4751,7 @@ dependencies = [
  "bincode",
  "log",
  "lz4",
- "noise",
+ "noiz",
  "nonempty",
  "rand",
  "serde",
