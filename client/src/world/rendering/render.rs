@@ -1,4 +1,4 @@
-use crate::shaders::water::{WaterMaterial, WaterMesh};
+use crate::shaders::water::{StandardWaterMaterial, WaterMaterial, WaterMesh};
 use crate::{player::CurrentPlayerMarker, world::FirstChunkReceived};
 use std::sync::Arc;
 use std::{collections::HashSet, time::Instant};
@@ -6,6 +6,7 @@ use std::{collections::HashSet, time::Instant};
 use bevy::{
     asset::Assets,
     math::IVec3,
+    pbr::ExtendedMaterial,
     prelude::*,
     tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
 };
@@ -46,7 +47,7 @@ fn update_chunk(
     chunk: &mut ClientChunk,
     chunk_pos: &IVec3,
     material_resource: &MaterialResource,
-    water_material: &Handle<WaterMaterial>,
+    water_material: &Handle<StandardWaterMaterial>,
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     new_meshes: ChunkMeshResponse,
@@ -105,7 +106,7 @@ fn update_chunk(
 /// Resource to store the water material handle for chunk rendering
 #[derive(Resource, Default)]
 pub struct ChunkWaterMaterial {
-    pub handle: Option<Handle<WaterMaterial>>,
+    pub handle: Option<Handle<StandardWaterMaterial>>,
 }
 
 pub fn world_render_system(
@@ -113,7 +114,7 @@ pub fn world_render_system(
     material_resource: Res<MaterialResource>,
     render_distance: Res<RenderDistance>,
     mut water_material_res: ResMut<ChunkWaterMaterial>,
-    mut water_materials: ResMut<Assets<WaterMaterial>>,
+    mut water_materials: ResMut<Assets<StandardWaterMaterial>>,
     mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
     mut queued_events: Local<QueuedEvents>,
     mut queued_meshes: Local<QueuedMeshes>,
@@ -136,11 +137,21 @@ pub fn world_render_system(
     let water_material_handle = if let Some(ref handle) = water_material_res.handle {
         handle.clone()
     } else {
-        let water_texture = material_resource.blocks.as_ref().map(|b| b.texture.clone());
-
-        let handle = water_materials.add(WaterMaterial {
-            texture: water_texture,
-            ..default()
+        let handle = water_materials.add(ExtendedMaterial {
+            base: StandardMaterial {
+                base_color: Color::srgba(0.1, 0.3, 0.5, 0.8),
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            },
+            extension: WaterMaterial {
+                amplitude: 0.5,
+                clarity: 0.3,
+                deep_color: Color::srgba(0.05, 0.15, 0.25, 0.9),
+                shallow_color: Color::srgba(0.15, 0.35, 0.45, 0.75),
+                edge_color: Color::srgba(0.8, 0.9, 1.0, 0.5),
+                edge_scale: 0.1,
+                ..default()
+            },
         });
         water_material_res.handle = Some(handle.clone());
         handle
