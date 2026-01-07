@@ -73,8 +73,8 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
         .insert_resource(WaterSettings {
-            height: 0.0,      // Sea level for voxel world
-            amplitude: 0.2,   // Gentle waves for block-based water
+            height: 0.0,       // Sea level for voxel world
+            amplitude: 0.2,    // Gentle waves for block-based water
             spawn_tiles: None, // Don't spawn automatic water tiles (we use chunk meshes)
             ..default()
         })
