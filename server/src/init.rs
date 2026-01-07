@@ -20,6 +20,7 @@ use shared::{
     constants::{NETCODE_SERVER_TRANSPORT_ERROR, SOCKET_LOCAL_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR},
     get_shared_renet_config,
     messages::PlayerId,
+    physics::RustcraftPhysicsPlugin,
     world::{ServerChunkWorldMap, ServerWorldMap},
     GameFolderPaths, GameServerConfig, TICKS_PER_SECOND,
 };
@@ -123,6 +124,7 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
     app.add_plugins(FrameTimeDiagnosticsPlugin::default());
     app.add_plugins(LogDiagnosticsPlugin::default());
     app.add_plugins(bevy::log::LogPlugin::default());
+    app.add_plugins(RustcraftPhysicsPlugin);
 
     app.insert_resource(ServerLobby::default());
     app.insert_resource(game_folder_paths.clone());

@@ -1,8 +1,8 @@
 use crate::{
     messages::PlayerFrameInput,
+    physics::simulate_player_movement_rapier,
     players::{
         blocks::{simulate_player_block_interactions, CallerType},
-        movement::simulate_player_movement,
         Player,
     },
     world::WorldMap,
@@ -27,5 +27,5 @@ pub fn simulate_player_actions(
     // debug!("Player view mode = {:?}", action.view_mode);
 
     simulate_player_block_interactions(player, world_map, action, caller_type);
-    simulate_player_movement(player, world_map, action);
+    simulate_player_movement_rapier(player, world_map, action);
 }

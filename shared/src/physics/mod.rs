@@ -1,9 +1,21 @@
+pub mod movement;
+pub mod rapier;
+
 use bevy::math::{bounding::Aabb3d, Vec3};
 
 use crate::world::WorldMap;
 
+// Re-export Rapier integration
+pub use movement::{
+    rapier_movement_system, simulate_player_movement_rapier, RapierMovementController,
+};
+pub use rapier::*;
+
 /// Physics representation shared by movable entities (players, mobs, etc.).
 /// `dimensions` is the full size of the entity's hitbox (width, height, depth).
+///
+/// NOTE: This is the legacy physics body struct. New code should use
+/// `RustcraftPhysicsBody` with Rapier components instead.
 #[derive(Clone, Copy, Debug)]
 pub struct PhysicsBody {
     /// Current world position of the entity (center of the hitbox).

@@ -10,7 +10,7 @@ use crate::world::{ClientWorldMap, WorldRenderRequestUpdateEvent};
 use crate::KeyMap;
 use bevy::prelude::*;
 use shared::messages::NetworkAction;
-use shared::players::movement::simulate_player_movement;
+use shared::physics::simulate_player_movement_rapier;
 use shared::players::{Player, ViewMode};
 
 use super::CurrentPlayerMarker;
@@ -102,7 +102,7 @@ pub fn player_movement_system(
         return;
     };
 
-    simulate_player_movement(&mut player, world_map.as_ref(), &frame_inputs.0);
+    simulate_player_movement_rapier(&mut player, world_map.as_ref(), &frame_inputs.0);
 
     frame_inputs.0.position = player.position;
 

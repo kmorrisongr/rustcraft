@@ -10,6 +10,7 @@ use bevy::color::palettes::css::ORANGE;
 use bevy::prelude::*;
 use shared::{
     messages::{PlayerSpawnEvent, PlayerUpdateEvent},
+    physics::PlayerPhysicsBundle,
     players::{blocks::CallerType, simulation::simulate_player_actions, Inventory, Player},
 };
 
@@ -76,6 +77,8 @@ pub fn spawn_players_system(
             },
             player.clone(),
             Name::new(player_name.clone()),
+            // Rapier physics components for collision detection
+            PlayerPhysicsBundle::new(player.width, player.height),
         ));
 
         let text_style = TextFont {
