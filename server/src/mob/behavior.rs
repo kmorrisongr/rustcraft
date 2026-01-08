@@ -9,6 +9,17 @@ use shared::{
     world::{MobAction, MobTarget, ServerWorldMap, WorldMap},
 };
 
+/// Mob movement speed as a fraction of player speed
+const MOB_WALK_SPEED_MULTIPLIER: f32 = 0.7;
+/// Mob flee speed as a fraction of player speed
+const MOB_FLEE_SPEED_MULTIPLIER: f32 = 0.5;
+
+/// Calculates half extents from mob dimensions for AABB collision detection.
+#[inline]
+fn calculate_half_extents(dimensions: Vec3) -> Vec3 {
+    Vec3::new(dimensions.x / 2.0, dimensions.y / 2.0, dimensions.z / 2.0)
+}
+
 /// Applies Rapier-style physics to a mob, including gravity and velocity clamping.
 ///
 /// # Arguments
@@ -36,7 +47,7 @@ fn apply_mob_physics(
 
     // Calculate vertical displacement
     let vertical_displacement = Vec3::new(0.0, velocity.y * delta, 0.0);
-    let half_extents = Vec3::new(dimensions.x / 2.0, dimensions.y / 2.0, dimensions.z / 2.0);
+    let half_extents = calculate_half_extents(dimensions);
 
     // Try vertical movement
     let candidate_y = *position + vertical_displacement;
@@ -68,7 +79,6 @@ fn apply_mob_physics(
 /// * `dimensions` - Mob dimensions (width, height, depth)
 /// * `direction` - Normalized movement direction
 /// * `speed` - Movement speed
-/// * `delta` - Time step in seconds
 fn apply_horizontal_movement(
     position: &mut Vec3,
     velocity: &mut Vec3,
@@ -84,7 +94,7 @@ fn apply_horizontal_movement(
         0.0,
         direction.z * speed * delta,
     );
-    let half_extents = Vec3::new(dimensions.x / 2.0, dimensions.y / 2.0, dimensions.z / 2.0);
+    let half_extents = calculate_half_extents(dimensions);
 
     // Try X-axis movement
     let candidate_x = *position + Vec3::new(horizontal_displacement.x, 0.0, 0.0);
@@ -168,8 +178,8 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
 
         match mob.action {
             MobAction::Walk | MobAction::Attack => {
-                // Use a slower speed for mobs (about 70% of player speed)
-                let speed = PLAYER_SPEED * 0.7;
+                // Use a slower speed for mobs
+                let speed = PLAYER_SPEED * MOB_WALK_SPEED_MULTIPLIER;
 
                 // Apply horizontal movement with obstacle avoidance
                 apply_horizontal_movement(
@@ -192,7 +202,7 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
             }
             MobAction::Flee => {
                 if mob.position.distance(target) < 15.0 {
-                    let flee_speed = PLAYER_SPEED * 0.5;
+                    let flee_speed = PLAYER_SPEED * MOB_FLEE_SPEED_MULTIPLIER;
                     let flee_dir = -dir;
 
                     // Apply horizontal movement while fleeing
