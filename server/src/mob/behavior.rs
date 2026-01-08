@@ -121,7 +121,7 @@ fn apply_horizontal_movement(
 
     // If blocked and on ground, try jumping to clear obstacle
     if blocked && on_ground {
-        velocity.y = JUMP_VELOCITY;
+        velocity.y += JUMP_VELOCITY * delta;
     }
 }
 
