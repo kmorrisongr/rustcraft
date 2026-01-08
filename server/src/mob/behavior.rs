@@ -174,36 +174,54 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
         );
 
         // Calculate direction to target
-        let dir = (target - mob.position).normalize_or_zero();
+        let direction_to_target = target - mob.position;
+        let distance_to_target = direction_to_target.length();
 
         match mob.action {
             MobAction::Walk | MobAction::Attack => {
-                // Use a slower speed for mobs
-                let speed = PLAYER_SPEED * MOB_WALK_SPEED_MULTIPLIER;
+                // Only move if there's a meaningful distance to the target
+                if distance_to_target > 0.01 {
+                    let dir = direction_to_target / distance_to_target; // Normalize manually
+                    let speed = PLAYER_SPEED * MOB_WALK_SPEED_MULTIPLIER;
 
-                // Apply horizontal movement with obstacle avoidance
-                apply_horizontal_movement(
-                    &mut mob.position,
-                    &mut mob.velocity,
-                    mob.on_ground,
-                    &world_map,
-                    dimensions,
-                    dir,
-                    speed,
-                    delta,
-                );
+                    // Apply horizontal movement with obstacle avoidance
+                    apply_horizontal_movement(
+                        &mut mob.position,
+                        &mut mob.velocity,
+                        mob.on_ground,
+                        &world_map,
+                        dimensions,
+                        dir,
+                        speed,
+                        delta,
+                    );
 
-                mob.rotation = Quat::from_rotation_y(atan2(dir.x, dir.z));
+                    mob.rotation = Quat::from_rotation_y(atan2(dir.x, dir.z));
 
-                // If reached destination, start fleeing
-                if mob.position.distance(target) < 0.5 {
-                    mob.action = MobAction::Flee;
+                    // If reached destination, start fleeing
+                    if distance_to_target < 0.5 {
+                        mob.action = MobAction::Flee;
+                    }
                 }
             }
             MobAction::Flee => {
-                if mob.position.distance(target) < 15.0 {
+                if distance_to_target < 15.0 {
                     let flee_speed = PLAYER_SPEED * MOB_FLEE_SPEED_MULTIPLIER;
-                    let flee_dir = -dir;
+
+                    // Calculate flee direction (away from target)
+                    // If very close to target, use the mob's current rotation to flee
+                    let flee_dir = if distance_to_target > 0.01 {
+                        -direction_to_target / distance_to_target // Normalize and invert
+                    } else {
+                        // Mob is exactly at target, use any direction to escape
+                        // Use current velocity direction if available, otherwise a default direction
+                        let vel_horizontal = Vec3::new(mob.velocity.x, 0.0, mob.velocity.z);
+                        if vel_horizontal.length() > 0.01 {
+                            vel_horizontal.normalize()
+                        } else {
+                            Vec3::new(1.0, 0.0, 0.0) // Default escape direction
+                        }
+                    };
 
                     // Apply horizontal movement while fleeing
                     apply_horizontal_movement(
