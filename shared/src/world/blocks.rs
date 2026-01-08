@@ -293,8 +293,11 @@ static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> 
                 BlockProperties {
                     breakability: None,
                     hitbox: Hitbox::Pathable {
+                        // Water has no collision - fluids are handled by particle system
                         ray_hitbox: BlockHitbox::None,
                     },
+                    // Still marked as liquid for rendering purposes
+                    // (though rendering will be handled by fluid particles)
                     visibility: BlockTransparency::Liquid,
                 },
             ),
