@@ -5,8 +5,8 @@ pub mod rendering;
 pub mod time;
 
 pub use data::*;
-pub use rendering::*;
 pub use fluid_sync::*;
+pub use rendering::*;
 
 use bevy::prelude::Resource;
 

@@ -2,15 +2,15 @@
 
 use bevy::prelude::*;
 use bevy_log::{debug, warn};
-use std::collections::HashMap;
 use nalgebra as na;
 use salva3d::{
-    object::{Fluid, FluidHandle, interaction_groups::InteractionGroups},
+    object::{interaction_groups::InteractionGroups, Fluid, FluidHandle},
     solver::*,
 };
+use std::collections::HashMap;
 
-use crate::world::BlockId;
 use crate::world::BlockData;
+use crate::world::BlockId;
 use crate::CHUNK_SIZE;
 
 use super::config::constants::*;
@@ -27,7 +27,7 @@ pub struct FluidParticle {
 pub struct FluidWorld {
     /// The Salva liquid world managing all fluid particles.
     pub liquid_world: salva3d::LiquidWorld,
-    
+
     /// Mapping from chunk position to fluid handles spawned in that chunk.
     pub chunk_fluids: HashMap<IVec3, Vec<FluidHandle>>,
 }
@@ -37,12 +37,12 @@ impl FluidWorld {
     pub fn new() -> Self {
         let particle_radius = PARTICLE_RADIUS;
         let smoothing_len = PARTICLE_RADIUS * SMOOTHING_FACTOR;
-        
+
         // Create the liquid world with DFSPH (Divergence-Free SPH) solver
         // Using default kernel types (CubicSplineKernel for both density and gradient)
         let solver: DFSPHSolver = DFSPHSolver::new();
         let liquid_world = salva3d::LiquidWorld::new(solver, particle_radius, smoothing_len);
-        
+
         Self {
             liquid_world,
             chunk_fluids: HashMap::new(),
@@ -102,9 +102,9 @@ impl FluidWorld {
                 REST_DENSITY,
                 InteractionGroups::default(),
             );
-            
+
             let fluid_handle = self.liquid_world.add_fluid(fluid);
-            
+
             self.chunk_fluids
                 .entry(*chunk_pos)
                 .or_insert_with(Vec::new)
@@ -143,27 +143,23 @@ impl FluidWorld {
     pub fn step(&mut self, dt: f32) {
         // Apply gravity
         let gravity = na::Vector3::new(0.0, -GRAVITY, 0.0);
-        
+
         // No coupling manager yet (will add rapier integration later)
         // Using unit type () as a placeholder
-        self.liquid_world.step_with_coupling(
-            dt,
-            &gravity,
-            &mut ()
-        );
+        self.liquid_world.step_with_coupling(dt, &gravity, &mut ());
     }
 
     /// Get all particle positions for rendering.
     pub fn get_all_particle_positions(&self) -> Vec<Vec3> {
         let mut positions = Vec::new();
-        
+
         for (_handle, fluid) in self.liquid_world.fluids().iter() {
             // positions is a field, not a method
             for particle_pos in &fluid.positions {
                 positions.push(Vec3::new(particle_pos.x, particle_pos.y, particle_pos.z));
             }
         }
-        
+
         positions
     }
 }

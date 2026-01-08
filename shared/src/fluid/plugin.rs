@@ -15,8 +15,7 @@ pub struct FluidPlugin;
 
 impl Plugin for FluidPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<FluidConfig>()
+        app.init_resource::<FluidConfig>()
             .init_resource::<FluidWorld>()
             .register_type::<FluidConfig>()
             .add_systems(FixedUpdate, step_fluid_simulation);

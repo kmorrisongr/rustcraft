@@ -74,7 +74,7 @@ pub mod constants {
     /// NOTE: Reserved for future use. The barrier system is not yet implemented.
     /// This will be used when chunk boundary protection is added.
     pub const CHUNK_BARRIER_MARGIN: f32 = 0.5;
-    
+
     /// Gravity acceleration (m/s²) applied to fluid particles.
     ///
     /// Standard Earth gravity is -9.81 m/s². Adjust for different gameplay feels.
@@ -101,7 +101,7 @@ pub struct FluidConfig {
     ///
     /// Adjust this to make particles appear larger or smaller in rendering.
     pub particle_render_scale: f32,
-    
+
     /// Maximum number of particles to render in debug visualization.
     ///
     /// This limits the performance impact of debug particle rendering.
