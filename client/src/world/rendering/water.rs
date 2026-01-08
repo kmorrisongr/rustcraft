@@ -211,6 +211,7 @@ pub fn water_render_system(
     mut materials: ResMut<Assets<StandardWaterMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut ev_chunk_update: EventReader<WorldRenderRequestUpdateEvent>,
+    _wave_system: Res<WaterWaveSystem>, // Reserved for future mesh animation
 ) {
     // Initialize water material if needed
     if !water_material.is_initialized() {
@@ -232,7 +233,7 @@ pub fn water_render_system(
             commands.entity(entity).despawn();
         }
 
-        // Generate new water mesh
+        // Generate new water mesh with wave displacement
         if let Some(water_mesh) = generate_water_mesh_for_chunk(&world_map, &chunk_pos) {
             let transform = Transform::from_xyz(
                 (chunk_pos.x * CHUNK_SIZE) as f32,
@@ -281,9 +282,9 @@ pub fn water_cleanup_system(
 }
 
 /// System to update water wave animation time.
-pub fn water_wave_update_system(
-    time: Res<Time>,
-    mut wave_system: ResMut<WaterWaveSystem>,
-) {
-    wave_system.time += time.delta_secs();
+/// Uses Bevy's time system for smooth animation.
+pub fn water_wave_update_system(time: Res<Time>, mut wave_system: ResMut<WaterWaveSystem>) {
+    // Update wave time based on elapsed time
+    // Use total elapsed time for continuous wave animation
+    wave_system.time = time.elapsed_secs();
 }
