@@ -10,6 +10,7 @@ use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
 use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerSpawnEvent, PlayerUpdateEvent};
+use shared::physics::RustcraftPhysicsPlugin;
 use shared::players::{Inventory, ViewMode};
 use shared::TICKS_PER_SECOND;
 use time::time_update_system;
@@ -75,6 +76,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(WireframePlugin::default())
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
+        .add_plugins(RustcraftPhysicsPlugin)
         .insert_resource(WaterSettings {
             height: 0.0,       // Sea level for voxel world
             amplitude: 0.2,    // Gentle waves for block-based water

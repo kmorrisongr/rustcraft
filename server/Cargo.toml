@@ -19,6 +19,7 @@ clap = { version = "4.5.19", features = ["derive"] }
 log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
 ulid = "1.1.4"
 futures-lite = "2.5"
+bevy_rapier3d = "0.30"
 
 # Define the library target
 [lib]
