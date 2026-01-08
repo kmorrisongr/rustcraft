@@ -232,6 +232,8 @@ pub fn game_plugin(app: &mut App) {
                 world_render_system,
                 // Fluid particle rendering (replaces water mesh rendering)
                 render_fluid_particles,
+                // Sync fluid particles with chunk loading/unloading
+                sync_fluids_with_chunks,
             )
                 .run_if(in_state(GameState::Game)),
         )
