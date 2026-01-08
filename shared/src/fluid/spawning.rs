@@ -5,7 +5,7 @@ use bevy_log::{debug, warn};
 use std::collections::HashMap;
 use nalgebra as na;
 use salva3d::{
-    object::{Fluid, FluidHandle,interaction_groups::InteractionGroups},
+    object::{Fluid, FluidHandle, interaction_groups::InteractionGroups},
     solver::*,
 };
 

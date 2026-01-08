@@ -10,7 +10,7 @@ use bevy::prelude::*;
 /// Adjust these values at compile-time to tune the simulation for your needs.
 pub mod constants {
     /// Number of fluid particles spawned per water block.
-    ///  
+    ///
     /// Higher values create more detailed fluid simulation but impact performance.
     /// Recommended range: 8-64 particles per block.
     pub const PARTICLES_PER_WATER_BLOCK: usize = 27; // 3x3x3 grid per block
@@ -79,7 +79,7 @@ pub struct FluidConfig {
     pub debug_barriers: bool,
 
     /// Particle render size multiplier.
-    /// 
+    ///
     /// Adjust this to make particles appear larger or smaller in rendering.
     pub particle_render_scale: f32,
 }
