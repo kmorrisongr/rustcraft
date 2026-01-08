@@ -4,7 +4,7 @@
 //! and fluid particle spawning/despawning.
 
 use bevy::prelude::*;
-use log::debug;
+use bevy::log::debug;
 use shared::fluid::FluidWorld;
 use crate::world::{ClientWorldMap, WorldRenderRequestUpdateEvent};
 
