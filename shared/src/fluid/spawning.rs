@@ -142,7 +142,7 @@ impl FluidWorld {
     /// Step the fluid simulation forward by one time step.
     pub fn step(&mut self, dt: f32) {
         // Apply gravity
-        let gravity = na::Vector3::new(0.0, -9.81, 0.0);
+        let gravity = na::Vector3::new(0.0, -GRAVITY, 0.0);
         
         // No coupling manager yet (will add rapier integration later)
         // Using unit type () as a placeholder

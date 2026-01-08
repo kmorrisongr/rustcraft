@@ -32,6 +32,9 @@ pub mod constants {
     /// Higher values make the fluid more viscous (honey-like).
     /// Lower values make it more fluid (water-like).
     /// Range: 0.0 (no viscosity) to 1.0 (very viscous)
+    ///
+    /// NOTE: Currently not applied to Salva solver. Reserved for future use
+    /// when configuring non-pressure forces and viscosity models.
     pub const VISCOSITY: f32 = 0.02;
 
     /// Fluid density at rest (kg/m³).
@@ -43,12 +46,20 @@ pub mod constants {
     ///
     /// Helps prevent particle clumping and maintains volume.
     /// Typical values: 0.0-0.1
+    ///
+    /// NOTE: Currently not applied to Salva solver. Reserved for future use
+    /// when implementing advanced pressure solvers or surface tension.
     pub const ARTIFICIAL_PRESSURE: f32 = 0.01;
 
-    /// Time step for fluid simulation (in seconds).
+    /// Target fixed time step for the fluid simulation (in seconds).
     ///
     /// Smaller time steps are more stable but require more computation.
-    /// This should be a fraction of the game's fixed timestep.
+    ///
+    /// This value represents the *target* timestep when FixedUpdate is configured.
+    /// The fluid stepping system uses `time.delta_secs()` at runtime, which should
+    /// match this value when Bevy's FixedUpdate schedule is properly configured.
+    /// Use this constant when setting up the fixed timestep to keep simulation
+    /// code and scheduling in sync.
     pub const FLUID_TIME_STEP: f32 = 1.0 / 120.0; // 120 Hz simulation
 
     /// Maximum number of fluid particles before warnings are logged.
@@ -59,7 +70,15 @@ pub mod constants {
     /// Distance from chunk boundary where barriers are placed (in blocks).
     ///
     /// Barriers prevent fluid from spilling into ungenerated chunks.
+    ///
+    /// NOTE: Reserved for future use. The barrier system is not yet implemented.
+    /// This will be used when chunk boundary protection is added.
     pub const CHUNK_BARRIER_MARGIN: f32 = 0.5;
+    
+    /// Gravity acceleration (m/s²) applied to fluid particles.
+    ///
+    /// Standard Earth gravity is -9.81 m/s². Adjust for different gameplay feels.
+    pub const GRAVITY: f32 = 9.81;
 }
 
 /// Runtime fluid simulation configuration resource.
@@ -82,6 +101,12 @@ pub struct FluidConfig {
     ///
     /// Adjust this to make particles appear larger or smaller in rendering.
     pub particle_render_scale: f32,
+    
+    /// Maximum number of particles to render in debug visualization.
+    ///
+    /// This limits the performance impact of debug particle rendering.
+    /// Only used when render_particles is true.
+    pub max_debug_particles: usize,
 }
 
 impl Default for FluidConfig {
@@ -91,6 +116,7 @@ impl Default for FluidConfig {
             render_particles: true,
             debug_barriers: false,
             particle_render_scale: 1.0,
+            max_debug_particles: 1000,
         }
     }
 }
