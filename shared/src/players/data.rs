@@ -140,6 +140,12 @@ pub struct Player {
     /// Chunk position when gravity_enabled was last computed
     #[serde(skip)]
     pub last_gravity_check_chunk: Option<IVec3>,
+    /// Whether the player is currently in water
+    #[serde(skip)]
+    pub in_water: bool,
+    /// Fraction of player submerged in water (0.0 to 1.0)
+    #[serde(skip)]
+    pub water_submersion: f32,
 }
 
 impl Player {
@@ -158,6 +164,8 @@ impl Player {
             last_input_processed: 0,
             gravity_enabled: false,
             last_gravity_check_chunk: None,
+            in_water: false,
+            water_submersion: 0.0,
         }
     }
 
@@ -183,6 +191,8 @@ impl Default for Player {
             last_input_processed: 0,
             gravity_enabled: false,
             last_gravity_check_chunk: None,
+            in_water: false,
+            water_submersion: 0.0,
         }
     }
 }

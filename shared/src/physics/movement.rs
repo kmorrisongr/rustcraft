@@ -1,7 +1,7 @@
 //! Rapier-based player movement system.
 //!
 //! This module provides player movement using Rapier physics with
-//! voxel world collision detection.
+//! voxel world collision detection and water physics integration.
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
@@ -10,6 +10,7 @@ use crate::{
     messages::{NetworkAction, PlayerFrameInput},
     physics::{
         constants::{FLY_SPEED_MULTIPLIER, GRAVITY, JUMP_VELOCITY, PLAYER_SPEED},
+        water as water_physics,
         RustcraftPhysicsBody,
     },
     players::Player,
@@ -80,6 +81,10 @@ pub fn simulate_player_movement_rapier<W: WorldMap>(
     // Update gravity state
     maybe_update_gravity_state(player, world_map);
 
+    // Check and apply water physics (pass None for wave_system for now - will be added later)
+    // Water physics affects buoyancy, drag, and wave motion
+    water_physics::apply_water_physics(player, world_map, None, 0.0, delta);
+
     // Apply physics based on flying state
     if player.is_flying {
         apply_flying_physics(player, &direction, delta);
@@ -148,7 +153,7 @@ fn apply_flying_physics(player: &mut Player, direction: &Vec3, delta: f32) {
     player.on_ground = false;
 }
 
-/// Apply ground physics (gravity, jumping, ground detection).
+/// Apply ground physics (gravity, jumping, ground detection, swimming).
 fn apply_ground_physics<W: WorldMap>(
     player: &mut Player,
     _world_map: &W,
@@ -158,20 +163,30 @@ fn apply_ground_physics<W: WorldMap>(
 ) {
     let is_jumping = action.inputs.contains(&NetworkAction::JumpOrFlyUp);
 
-    // Apply gravity if enabled
-    if player.gravity_enabled && !player.on_ground {
+    // Apply gravity if enabled and not in water (buoyancy handles water)
+    if player.gravity_enabled && !player.on_ground && !player.in_water {
         player.velocity.y += GRAVITY * delta;
     }
 
-    // Handle jumping
-    if player.on_ground && is_jumping {
-        player.velocity.y = JUMP_VELOCITY;
-        player.on_ground = false;
+    // Handle jumping - can jump from ground or while swimming
+    if is_jumping {
+        if player.on_ground {
+            player.velocity.y = JUMP_VELOCITY;
+            player.on_ground = false;
+        } else if player.in_water && player.water_submersion > 0.3 {
+            // Swimming upward
+            player.velocity.y += water_physics::constants::BUOYANCY_FORCE * 0.5 * delta;
+        }
     }
 
     // Clamp vertical velocity
     const MAX_FALL_SPEED: f32 = 50.0;
     player.velocity.y = player.velocity.y.clamp(-MAX_FALL_SPEED, MAX_FALL_SPEED);
+
+    // Apply water drag to horizontal movement
+    if player.in_water {
+        *direction *= water_physics::constants::SWIM_SPEED;
+    }
 
     // Remove vertical component from direction when not flying
     direction.y = 0.0;

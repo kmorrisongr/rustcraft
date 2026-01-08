@@ -354,7 +354,24 @@ pub trait WorldMap {
         0
     }
 
+    /// Check if a bounding box collides with the world, including dynamic water surfaces.
+    /// 
+    /// This method checks both solid block collisions and water surface collisions.
+    /// Water surfaces use Gerstner wave physics for dynamic height calculation.
     fn check_collision_box(&self, hitbox: &Aabb3d) -> bool {
+        self.check_collision_box_with_water(hitbox, None)
+    }
+
+    /// Check collision with optional water surface height.
+    /// 
+    /// # Arguments
+    /// * `hitbox` - The bounding box to check for collisions
+    /// * `water_height_fn` - Optional function to get dynamic water surface height at a position
+    fn check_collision_box_with_water(
+        &self,
+        hitbox: &Aabb3d,
+        water_height_fn: Option<&dyn Fn(f32, f32) -> f32>,
+    ) -> bool {
         // Check all blocks inside the hitbox
         // Manual flooring is needed for negative coordinates
         for x in (hitbox.min.x.floor() as i32)..=(hitbox.max.x.floor() as i32) {
@@ -363,7 +380,20 @@ pub trait WorldMap {
                     if let Some(block) = self.get_block_by_coordinates(&IVec3::new(x, y, z)) {
                         match block.id.get_hitbox() {
                             BlockHitbox::FullBlock => return true,
-                            BlockHitbox::None => continue,
+                            BlockHitbox::None => {
+                                // Check if this is a water block and if we should check dynamic surface
+                                if block.id == BlockId::Water {
+                                    if let Some(get_height) = water_height_fn {
+                                        // Check if hitbox intersects with dynamic water surface
+                                        let water_height = get_height(x as f32 + 0.5, z as f32 + 0.5);
+                                        if hitbox.min.y <= water_height && hitbox.max.y >= water_height {
+                                            // Consider this a collision if the object is moving downward into water
+                                            return true;
+                                        }
+                                    }
+                                }
+                                continue;
+                            }
                             BlockHitbox::Aabb(block_hitbox) => {
                                 let min = hitbox.min.max(block_hitbox.min);
                                 let max = hitbox.max.min(block_hitbox.max);

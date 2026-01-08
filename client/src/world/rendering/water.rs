@@ -20,6 +20,7 @@ use crate::shaders::water::{StandardWaterMaterial, WaterMaterial, WaterMesh};
 use crate::world::{ClientWorldMap, WorldRenderRequestUpdateEvent};
 use crate::GameState;
 use bevy::pbr::{ExtendedMaterial, NotShadowCaster, NotShadowReceiver};
+use shared::water_physics::GerstnerWaveSystem;
 use shared::world::{to_global_pos, BlockId, WorldMap};
 use shared::CHUNK_SIZE;
 
@@ -47,6 +48,23 @@ pub struct WaterEntities {
 #[derive(Resource, Default)]
 pub struct WaterMaterialHandle {
     pub handle: Option<Handle<StandardWaterMaterial>>,
+}
+
+/// Resource containing the Gerstner wave system for water physics and rendering.
+#[derive(Resource)]
+pub struct WaterWaveSystem {
+    pub gerstner: GerstnerWaveSystem,
+    /// Time offset for wave animation
+    pub time: f32,
+}
+
+impl Default for WaterWaveSystem {
+    fn default() -> Self {
+        Self {
+            gerstner: GerstnerWaveSystem::ocean_waves(0.0),
+            time: 0.0,
+        }
+    }
 }
 
 impl WaterMaterialHandle {
@@ -260,4 +278,12 @@ pub fn water_cleanup_system(
             commands.entity(entity).despawn();
         }
     }
+}
+
+/// System to update water wave animation time.
+pub fn water_wave_update_system(
+    time: Res<Time>,
+    mut wave_system: ResMut<WaterWaveSystem>,
+) {
+    wave_system.time += time.delta_secs();
 }
