@@ -22,6 +22,8 @@ bevy-inspector-egui = "0.31"
 egui = "0.31"
 bevy_image = "0.16.1"
 bevy_rapier3d = "0.30"
+nalgebra = "0.33.2"
+salva3d = { git = "https://github.com/nsjvidana/salva.git", rev = "c2fd202", version = "0.9.0" }
 
 [lints]
 workspace = true
