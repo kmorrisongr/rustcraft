@@ -23,6 +23,12 @@ pub mod constants {
     pub const SWIM_SPEED: f32 = 0.7;
     /// Wave push strength (how much waves move the player)
     pub const WAVE_PUSH_STRENGTH: f32 = 2.0;
+    /// Swimming upward boost multiplier when jump is pressed
+    pub const SWIM_JUMP_BOOST: f32 = 0.5;
+    /// Minimum water submersion to enable swimming boost
+    pub const SWIM_BOOST_THRESHOLD: f32 = 0.3;
+    /// Maximum world height for water search
+    pub const MAX_WATER_SEARCH_HEIGHT: i32 = 256;
 }
 
 /// Check if a player is in water at their current position
@@ -92,12 +98,12 @@ pub fn calculate_water_submersion(
 
 /// Find the water surface height at a given XZ position (fallback for when no wave system)
 fn find_water_surface_height(world_map: &impl WorldMap, x: i32, z: i32) -> f32 {
-    // Search downward from a reasonable height
-    for y in (0..128).rev() {
+    // Search downward from maximum height
+    for y in (0..constants::MAX_WATER_SEARCH_HEIGHT).rev() {
         if let Some(block) = world_map.get_block_by_coordinates(&bevy::math::IVec3::new(x, y, z)) {
             if block.id == BlockId::Water {
                 // Found water, now find the surface (first air block above water)
-                for surface_y in y..128 {
+                for surface_y in y..constants::MAX_WATER_SEARCH_HEIGHT {
                     if let Some(above_block) = world_map.get_block_by_coordinates(&bevy::math::IVec3::new(x, surface_y, z)) {
                         if above_block.id != BlockId::Water {
                             return surface_y as f32;

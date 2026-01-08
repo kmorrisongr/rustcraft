@@ -354,10 +354,10 @@ pub trait WorldMap {
         0
     }
 
-    /// Check if a bounding box collides with the world, including dynamic water surfaces.
+    /// Check if a bounding box collides with the world.
     /// 
-    /// This method checks both solid block collisions and water surface collisions.
-    /// Water surfaces use Gerstner wave physics for dynamic height calculation.
+    /// By default, this checks for solid block collisions only.
+    /// Override check_collision_box_with_water for dynamic water surface collision.
     fn check_collision_box(&self, hitbox: &Aabb3d) -> bool {
         self.check_collision_box_with_water(hitbox, None)
     }
@@ -367,6 +367,8 @@ pub trait WorldMap {
     /// # Arguments
     /// * `hitbox` - The bounding box to check for collisions
     /// * `water_height_fn` - Optional function to get dynamic water surface height at a position
+    /// 
+    /// Default implementation checks only solid blocks. Can be overridden for dynamic water.
     fn check_collision_box_with_water(
         &self,
         hitbox: &Aabb3d,
