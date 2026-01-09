@@ -19,7 +19,7 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use crate::shaders::water::{StandardWaterMaterial, WaterMaterial, WaterMesh};
 use crate::world::{ClientWorldMap, WorldRenderRequestUpdateEvent};
@@ -106,15 +106,6 @@ pub struct WaterMeshGenPool {
     vertex_index_map: HashMap<(i32, i32), u32>,
 }
 
-impl WaterMeshGenPool {
-    /// Clear all pooled collections for reuse
-    #[allow(dead_code)]
-    fn clear(&mut self) {
-        self.water_surfaces.clear();
-        self.vertex_index_map.clear();
-    }
-}
-
 /// Generates a continuous water surface mesh for a chunk.
 /// Vertices are shared between adjacent water blocks to prevent gaps during wave animation.
 /// Uses pooled allocations to avoid per-call heap allocations.
@@ -154,11 +145,11 @@ fn generate_water_mesh_for_chunk(
     let total_blocks: usize = pool.water_surfaces.values().map(|s| s.len()).sum();
 
     // Pre-allocate vectors (these are consumed by the mesh, so can't be pooled)
+    // Note: We don't use vertex colors - the water material/shader handles coloring
     let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(total_blocks * 2);
     let mut indices: Vec<u32> = Vec::with_capacity(total_blocks * 6);
     let mut normals: Vec<[f32; 3]> = Vec::with_capacity(total_blocks * 2);
     let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(total_blocks * 2);
-    let mut colors: Vec<[f32; 4]> = Vec::with_capacity(total_blocks * 2);
 
     let water_surface_offset = 0.875; // 14/16 of a block
 
@@ -176,19 +167,18 @@ fn generate_water_mesh_for_chunk(
                 (*block_x + 1, *block_z + 1),
             ];
 
-            for (cx, cz) in corners.iter() {
-                if !pool.vertex_index_map.contains_key(&(*cx, *cz)) {
+            for &(cx, cz) in corners.iter() {
+                // Use Entry API to avoid double HashMap lookup
+                if let Entry::Vacant(entry) = pool.vertex_index_map.entry((cx, cz)) {
                     let vertex_idx = vertices.len() as u32;
-                    pool.vertex_index_map.insert((*cx, *cz), vertex_idx);
+                    entry.insert(vertex_idx);
 
-                    vertices.push([*cx as f32, y, *cz as f32]);
+                    vertices.push([cx as f32, y, cz as f32]);
                     normals.push([0.0, 1.0, 0.0]);
 
-                    let world_x = (chunk_pos.x * CHUNK_SIZE + *cx) as f32;
-                    let world_z = (chunk_pos.z * CHUNK_SIZE + *cz) as f32;
+                    let world_x = (chunk_pos.x * CHUNK_SIZE + cx) as f32;
+                    let world_z = (chunk_pos.z * CHUNK_SIZE + cz) as f32;
                     uvs.push([world_x, world_z]);
-
-                    colors.push([1.0, 1.0, 1.0, 0.7]);
                 }
             }
 
@@ -209,7 +199,6 @@ fn generate_water_mesh_for_chunk(
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
     mesh.insert_indices(Indices::U32(indices));
 
     if let Err(e) = mesh.generate_tangents() {
@@ -321,13 +310,18 @@ pub fn water_render_system(
 }
 
 /// System to clean up water entities when their chunks are unloaded.
-/// Uses a pooled Vec to avoid per-frame allocations.
+/// Only runs when ClientWorldMap has changed, avoiding unnecessary iteration.
 pub fn water_cleanup_system(
     mut commands: Commands,
     world_map: Res<ClientWorldMap>,
     mut water_entities: ResMut<WaterEntities>,
     mut chunks_to_remove: Local<Vec<IVec3>>,
 ) {
+    // Only check for cleanup when the world map has actually changed
+    if !world_map.is_changed() {
+        return;
+    }
+
     // Clear and reuse pooled Vec
     chunks_to_remove.clear();
 
