@@ -53,6 +53,7 @@ pub struct WaterMaterialHandle {
 /// Resource containing the Gerstner wave system for water physics and rendering.
 #[derive(Resource)]
 pub struct WaterWaveSystem {
+    #[allow(dead_code)]
     pub gerstner: GerstnerWaveSystem,
     /// Time offset for wave animation
     pub time: f32,
