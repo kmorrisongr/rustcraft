@@ -35,104 +35,95 @@ var<uniform> water_colors: WaterColors;
 // ============================================================================
 
 const PI: f32 = 3.14159265359;
-const TWO_PI: f32 = 6.28318530718;
-
-// Precomputed normalized wave directions (avoids per-fragment normalize calls)
-const WAVE_DIR_1: vec2<f32> = vec2<f32>(0.9578262, 0.2873478);   // normalize(vec2(1.0, 0.3))
-const WAVE_DIR_2: vec2<f32> = vec2<f32>(-0.5734623, 0.8192319);  // normalize(vec2(-0.7, 1.0))
-const WAVE_DIR_3: vec2<f32> = vec2<f32>(0.4472136, -0.8944272);  // normalize(vec2(0.5, -1.0))
-const WAVE_DIR_4: vec2<f32> = vec2<f32>(-0.8944272, -0.4472136); // normalize(vec2(-1.0, -0.5))
-
-// Precomputed wave numbers (k = 2π / wavelength)
-const WAVE_K_1: f32 = 0.7853982;  // 2π / 8.0
-const WAVE_K_2: f32 = 1.2566371;  // 2π / 5.0
-const WAVE_K_3: f32 = 2.0943951;  // 2π / 3.0
-const WAVE_K_4: f32 = 4.1887902;  // 2π / 1.5
-
-// Wave speeds
-const WAVE_SPEED_1: f32 = 1.5;
-const WAVE_SPEED_2: f32 = 1.8;
-const WAVE_SPEED_3: f32 = 2.2;
-const WAVE_SPEED_4: f32 = 2.8;
-
-// Base steepness values (will be scaled by amplitude_scale)
-const WAVE_STEEPNESS_1: f32 = 0.5;
-const WAVE_STEEPNESS_2: f32 = 0.4;
-const WAVE_STEEPNESS_3: f32 = 0.3;
-const WAVE_STEEPNESS_4: f32 = 0.2;
-
-// Sum of all steepness values for height normalization
-const TOTAL_STEEPNESS: f32 = 1.4;  // 0.5 + 0.4 + 0.3 + 0.2
 
 // ============================================================================
-// Gerstner Wave Output Structure
+// Gerstner Wave Structures and Functions
 // ============================================================================
 
-struct WaveResult {
-    normal: vec3<f32>,
-    height: f32,
-}
-
-/// Calculate both normal and height contribution from a single wave
-/// This avoids redundant phase and trig calculations
-fn gerstner_wave(
+struct GerstnerWave {
     direction: vec2<f32>,
-    k: f32,
-    speed: f32,
     steepness: f32,
-    position: vec2<f32>,
-    time: f32
-) -> WaveResult {
-    let omega = k * speed;
-    let phase = k * dot(direction, position) - omega * time;
-    
-    // Compute sin and cos once per wave
-    let sin_phase = sin(phase);
-    let cos_phase = cos(phase);
-    
-    var result: WaveResult;
-    result.height = steepness * sin_phase;
-    result.normal = vec3<f32>(
-        -direction.x * steepness * cos_phase,
-        1.0 - steepness * sin_phase,
-        -direction.y * steepness * cos_phase
-    );
-    return result;
+    wavelength: f32,
+    speed: f32,
 }
 
-/// Calculate combined normal and height from all waves in a single pass
-fn calculate_waves(position: vec2<f32>, time: f32) -> WaveResult {
+/// Calculate wave number (k = 2π / wavelength)
+fn wave_number(wavelength: f32) -> f32 {
+    return 2.0 * PI / wavelength;
+}
+
+/// Calculate Gerstner wave height at a position
+fn gerstner_wave_height(wave: GerstnerWave, position: vec2<f32>, time: f32) -> f32 {
+    let k = wave_number(wave.wavelength);
+    let omega = k * wave.speed;
+    let phase = k * dot(wave.direction, position) - omega * time;
+    
+    // Height is based on sine of the phase, scaled by steepness
+    return wave.steepness * sin(phase);
+}
+
+/// Calculate Gerstner wave normal contribution
+fn gerstner_wave_normal(wave: GerstnerWave, position: vec2<f32>, time: f32) -> vec3<f32> {
+    let k = wave_number(wave.wavelength);
+    let omega = k * wave.speed;
+    let phase = k * dot(wave.direction, position) - omega * time;
+    
+    let cos_phase = cos(phase);
+    let sin_phase = sin(phase);
+    let wa = wave.steepness;
+    
+    return vec3<f32>(
+        -wave.direction.x * wa * cos_phase,
+        1.0 - wa * sin_phase,
+        -wave.direction.y * wa * cos_phase
+    );
+}
+
+/// Calculate combined normal from predefined ocean waves
+fn calculate_total_normal(position: vec2<f32>, time: f32) -> vec3<f32> {
+    var total = vec3<f32>(0.0, 1.0, 0.0);
+    
+    // Amplitude scale is packed in deep_color.w
     let amplitude_scale = water_colors.deep_color.w;
     
-    var total_normal = vec3<f32>(0.0, 1.0, 0.0);
-    var total_height: f32 = 0.0;
+    let wave1 = GerstnerWave(normalize(vec2<f32>(1.0, 0.3)), 0.5 * amplitude_scale, 8.0, 1.5);
+    total += gerstner_wave_normal(wave1, position, time);
     
-    // Wave 1
-    let w1 = gerstner_wave(WAVE_DIR_1, WAVE_K_1, WAVE_SPEED_1, WAVE_STEEPNESS_1 * amplitude_scale, position, time);
-    total_normal += w1.normal;
-    total_height += w1.height;
+    let wave2 = GerstnerWave(normalize(vec2<f32>(-0.7, 1.0)), 0.4 * amplitude_scale, 5.0, 1.8);
+    total += gerstner_wave_normal(wave2, position, time);
     
-    // Wave 2
-    let w2 = gerstner_wave(WAVE_DIR_2, WAVE_K_2, WAVE_SPEED_2, WAVE_STEEPNESS_2 * amplitude_scale, position, time);
-    total_normal += w2.normal;
-    total_height += w2.height;
+    let wave3 = GerstnerWave(normalize(vec2<f32>(0.5, -1.0)), 0.3 * amplitude_scale, 3.0, 2.2);
+    total += gerstner_wave_normal(wave3, position, time);
     
-    // Wave 3
-    let w3 = gerstner_wave(WAVE_DIR_3, WAVE_K_3, WAVE_SPEED_3, WAVE_STEEPNESS_3 * amplitude_scale, position, time);
-    total_normal += w3.normal;
-    total_height += w3.height;
+    let wave4 = GerstnerWave(normalize(vec2<f32>(-1.0, -0.5)), 0.2 * amplitude_scale, 1.5, 2.8);
+    total += gerstner_wave_normal(wave4, position, time);
     
-    // Wave 4
-    let w4 = gerstner_wave(WAVE_DIR_4, WAVE_K_4, WAVE_SPEED_4, WAVE_STEEPNESS_4 * amplitude_scale, position, time);
-    total_normal += w4.normal;
-    total_height += w4.height;
+    return normalize(total);
+}
+
+/// Calculate combined wave height from all waves (normalized to 0-1 range)
+fn calculate_total_height(position: vec2<f32>, time: f32) -> f32 {
+    // Amplitude scale is packed in deep_color.w
+    let amplitude_scale = water_colors.deep_color.w;
     
-    var result: WaveResult;
-    result.normal = normalize(total_normal);
-    // Normalize height to 0-1 range
-    let max_height = TOTAL_STEEPNESS * amplitude_scale;
-    result.height = (total_height / max_height + 1.0) * 0.5;
-    return result;
+    // Use same wave parameters as normal calculation
+    let wave1 = GerstnerWave(normalize(vec2<f32>(1.0, 0.3)), 0.5 * amplitude_scale, 8.0, 1.5);
+    let wave2 = GerstnerWave(normalize(vec2<f32>(-0.7, 1.0)), 0.4 * amplitude_scale, 5.0, 1.8);
+    let wave3 = GerstnerWave(normalize(vec2<f32>(0.5, -1.0)), 0.3 * amplitude_scale, 3.0, 2.2);
+    let wave4 = GerstnerWave(normalize(vec2<f32>(-1.0, -0.5)), 0.2 * amplitude_scale, 1.5, 2.8);
+    
+    // Sum all wave heights
+    var total_height = 0.0;
+    total_height += gerstner_wave_height(wave1, position, time);
+    total_height += gerstner_wave_height(wave2, position, time);
+    total_height += gerstner_wave_height(wave3, position, time);
+    total_height += gerstner_wave_height(wave4, position, time);
+    
+    // Maximum possible height is sum of all steepnesses
+    let max_height = (0.5 + 0.4 + 0.3 + 0.2) * amplitude_scale;
+    
+    // Normalize to 0-1 range (height goes from -max to +max, so we remap)
+    return (total_height / max_height + 1.0) * 0.5;
 }
 
 // ============================================================================
@@ -149,10 +140,11 @@ fn fragment(
     let position_2d = world_pos.xz;
     let time = globals.time;
     
-    // Calculate normal and height in a single pass
-    let waves = calculate_waves(position_2d, time);
-    let wave_normal = waves.normal;
-    let wave_height = waves.height;
+    // Calculate animated normal from Gerstner waves
+    let wave_normal = calculate_total_normal(position_2d, time);
+    
+    // Calculate wave height for color gradient (0 = deep/trough, 1 = shallow/crest)
+    let wave_height = calculate_total_height(position_2d, time);
     
     // Calculate view direction
     let view_dir = normalize(view.world_position.xyz - world_pos);
