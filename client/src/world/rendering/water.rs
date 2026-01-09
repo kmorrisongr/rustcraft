@@ -16,6 +16,7 @@
 //! 3. Water blocks (`BlockId::Water`) can remain for placement/removal via bucket
 
 use bevy::{
+    color::LinearRgba,
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
@@ -81,10 +82,18 @@ fn create_water_material(
         base: StandardMaterial {
             base_color: Color::srgba(0.1, 0.3, 0.5, 0.8),
             alpha_mode: AlphaMode::Blend,
-            cull_mode: None, // Render both sides of water surface
             ..default()
         },
-        extension: WaterMaterial::default(),
+        extension: WaterMaterial {
+            amplitude: 0.5, // Ocean amplitude for consistent cross-chunk waves
+            clarity: 0.3,
+            deep_color: LinearRgba::new(0.05, 0.15, 0.25, 0.9),
+            shallow_color: LinearRgba::new(0.15, 0.35, 0.45, 0.75),
+            edge_color: LinearRgba::new(0.8, 0.9, 1.0, 0.5),
+            edge_scale: 0.1,
+            coord_scale: Vec2::new(1.0, 1.0),
+            coord_offset: Vec2::ZERO,
+        },
     })
 }
 
