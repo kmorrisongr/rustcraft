@@ -5,12 +5,12 @@
 //! water appearance and effects.
 //!
 //! The shader implements:
-//! - Gerstner wave vertex displacement for realistic wave motion
+//! - Gerstner wave normal animation for realistic wave motion
 //! - Fresnel-based reflections
-//! - Configurable wave parameters (direction, steepness, wavelength, speed)
-//! - Up to 4 simultaneous waves
+//! - Hardcoded wave parameters matching `WavePreset::Ocean` from shared crate
 
 use bevy::{
+    asset::weak_handle,
     pbr::{ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline},
     prelude::*,
     render::render_resource::{
@@ -18,58 +18,36 @@ use bevy::{
     },
 };
 
-/// The Gerstner water shader source code, included at compile time.
-/// Using a unique UUID for the shader handle.
-const WATER_SHADER_HANDLE: Handle<Shader> =
-    Handle::weak_from_u128(0x1a2b3c4d5e6f7890abcdef1234567890);
-
 /// Plugin that registers the custom water material and shader.
 pub struct WaterPlugin;
 
 impl Plugin for WaterPlugin {
     fn build(&self, app: &mut App) {
         // Load the shader from the embedded source
-        app.world_mut().resource_mut::<Assets<Shader>>().insert(
-            &WATER_SHADER_HANDLE,
-            Shader::from_wgsl(
-                include_str!("../../../data/shaders/gerstner_water.wgsl"),
-                file!(),
-            ),
+        let shader = Shader::from_wgsl(
+            include_str!("../../../data/shaders/gerstner_water.wgsl"),
+            file!(),
         );
+        app.world_mut()
+            .resource_mut::<Assets<Shader>>()
+            .insert(WATER_SHADER_HANDLE.id(), shader);
 
-        app.add_plugins(MaterialPlugin::<StandardWaterMaterial>::default())
-            .init_resource::<WaterTime>()
-            .add_systems(Update, update_water_time);
+        app.add_plugins(MaterialPlugin::<StandardWaterMaterial>::default());
     }
 }
 
-/// Resource tracking time for water animation.
-/// This is used to update the shader uniforms.
-#[derive(Resource, Default)]
-pub struct WaterTime {
-    pub elapsed: f32,
-}
-
-/// System to update water time each frame.
-fn update_water_time(time: Res<Time>, mut water_time: ResMut<WaterTime>) {
-    water_time.elapsed = time.elapsed_secs();
-}
+/// Shader handle for the water material.
+const WATER_SHADER_HANDLE: Handle<Shader> = weak_handle!("1a2b3c4d-5e6f-7890-abcd-ef1234567890");
 
 /// Standard water material type alias for convenience.
 pub type StandardWaterMaterial = ExtendedMaterial<StandardMaterial, WaterMaterial>;
 
 /// Water material extension for the standard PBR pipeline.
 ///
-/// This material extends Bevy's StandardMaterial with custom water properties
-/// and uses our Gerstner wave shader for fragment animation.
-///
-/// Note: Currently wave parameters are hardcoded in the shader for simplicity.
-/// Future versions can add uniform bindings for runtime configuration.
+/// This material extends Bevy's StandardMaterial with our custom Gerstner wave
+/// fragment shader. Wave parameters are currently hardcoded in the shader.
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone, Default)]
-pub struct WaterMaterial {
-    // Placeholder - the shader currently uses hardcoded values
-    // Future: Add uniform bindings here for configurable wave parameters
-}
+pub struct WaterMaterial {}
 
 impl MaterialExtension for WaterMaterial {
     fn fragment_shader() -> ShaderRef {
