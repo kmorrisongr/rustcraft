@@ -355,7 +355,7 @@ pub trait WorldMap {
     }
 
     /// Check if a bounding box collides with the world.
-    /// 
+    ///
     /// By default, this checks for solid block collisions only.
     /// Override check_collision_box_with_water for dynamic water surface collision.
     fn check_collision_box(&self, hitbox: &Aabb3d) -> bool {
@@ -363,11 +363,11 @@ pub trait WorldMap {
     }
 
     /// Check collision with optional water surface height.
-    /// 
+    ///
     /// # Arguments
     /// * `hitbox` - The bounding box to check for collisions
     /// * `water_height_fn` - Optional function to get dynamic water surface height at a position
-    /// 
+    ///
     /// Default implementation checks only solid blocks. Can be overridden for dynamic water.
     fn check_collision_box_with_water(
         &self,
@@ -387,8 +387,11 @@ pub trait WorldMap {
                                 if block.id == BlockId::Water {
                                     if let Some(get_height) = water_height_fn {
                                         // Check if hitbox intersects with dynamic water surface
-                                        let water_height = get_height(x as f32 + 0.5, z as f32 + 0.5);
-                                        if hitbox.min.y <= water_height && hitbox.max.y >= water_height {
+                                        let water_height =
+                                            get_height(x as f32 + 0.5, z as f32 + 0.5);
+                                        if hitbox.min.y <= water_height
+                                            && hitbox.max.y >= water_height
+                                        {
                                             // Consider this a collision if the object is moving downward into water
                                             return true;
                                         }

@@ -10,8 +10,7 @@ use crate::{
     messages::{NetworkAction, PlayerFrameInput},
     physics::{
         constants::{FLY_SPEED_MULTIPLIER, GRAVITY, JUMP_VELOCITY, PLAYER_SPEED},
-        water as water_physics,
-        RustcraftPhysicsBody,
+        water as water_physics, RustcraftPhysicsBody,
     },
     players::Player,
     world::{world_position_to_chunk_position, WorldMap},
@@ -172,10 +171,12 @@ fn apply_ground_physics<W: WorldMap>(
         if player.on_ground {
             player.velocity.y = JUMP_VELOCITY;
             player.on_ground = false;
-        } else if player.in_water && player.water_submersion > water_physics::constants::SWIM_BOOST_THRESHOLD {
+        } else if player.in_water
+            && player.water_submersion > water_physics::constants::SWIM_BOOST_THRESHOLD
+        {
             // Swimming upward
-            player.velocity.y += water_physics::constants::BUOYANCY_FORCE 
-                * water_physics::constants::SWIM_JUMP_BOOST 
+            player.velocity.y += water_physics::constants::BUOYANCY_FORCE
+                * water_physics::constants::SWIM_JUMP_BOOST
                 * delta;
         }
     }
