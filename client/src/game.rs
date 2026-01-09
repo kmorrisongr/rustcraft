@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::entities::stack::stack_update_system;
 use crate::mob::*;
 use crate::network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime};
-use crate::shaders::WaterPlugin;
+use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::hud::chat::{render_chat, setup_chat};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use bevy::prelude::*;
@@ -77,6 +77,12 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
         .add_plugins(RustcraftPhysicsPlugin)
+        .insert_resource(WaterSettings {
+            height: 0.0,       // Sea level for voxel world
+            amplitude: 0.2,    // Gentle waves for block-based water
+            spawn_tiles: None, // Don't spawn automatic water tiles (we use chunk meshes)
+            ..default()
+        })
         .add_plugins(WaterPlugin)
         .insert_resource(WorldSeed(0))
         .insert_resource(ClientTime(0))

@@ -1,8 +1,8 @@
 //! Custom shader system for Rustcraft
 //!
-//! This module provides custom water rendering using our Gerstner wave shader.
+//! This module provides water rendering integration using the bevy_water crate.
 
 pub mod water;
 
 // Re-export water types for convenience
-pub use water::{StandardWaterMaterial, WaterMaterial, WaterMesh, WaterPlugin, WaterTime};
+pub use water::{WaterPlugin, WaterSettings};
