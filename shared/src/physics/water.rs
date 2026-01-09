@@ -3,12 +3,13 @@
 //! This module handles player-water interactions including:
 //! - Buoyancy forces
 //! - Water drag
-//! - Wave motion transfer
 //! - Swimming mechanics
+//!
+//! Note: Wave motion is handled by bevy_water on the client side.
+//! This module focuses on gameplay physics (buoyancy, drag, swimming).
 
-use bevy::math::{Vec2, Vec3};
+use bevy::math::Vec3;
 use crate::players::Player;
-use crate::water_physics::GerstnerWaveSystem;
 use crate::world::{BlockId, WorldMap};
 
 /// Constants for water physics
@@ -21,8 +22,6 @@ pub mod constants {
     pub const WATER_VERTICAL_DRAG: f32 = 0.8;
     /// Maximum swim speed multiplier
     pub const SWIM_SPEED: f32 = 0.7;
-    /// Wave push strength (how much waves move the player)
-    pub const WAVE_PUSH_STRENGTH: f32 = 2.0;
     /// Swimming upward boost multiplier when jump is pressed
     pub const SWIM_JUMP_BOOST: f32 = 0.5;
     /// Minimum water submersion to enable swimming boost
@@ -56,32 +55,24 @@ pub fn check_player_in_water(player: &Player, world_map: &impl WorldMap) -> bool
 pub fn calculate_water_submersion(
     player: &Player,
     world_map: &impl WorldMap,
-    wave_system: Option<&GerstnerWaveSystem>,
-    time: f32,
 ) -> f32 {
     let player_bottom = player.position.y - player.height / 2.0;
     let player_top = player.position.y + player.height / 2.0;
     
     // Sample water level at multiple points around the player
     let sample_positions = [
-        Vec2::new(player.position.x, player.position.z),
-        Vec2::new(player.position.x + player.width * 0.4, player.position.z),
-        Vec2::new(player.position.x - player.width * 0.4, player.position.z),
-        Vec2::new(player.position.x, player.position.z + player.width * 0.4),
-        Vec2::new(player.position.x, player.position.z - player.width * 0.4),
+        (player.position.x as i32, player.position.z as i32),
+        ((player.position.x + player.width * 0.4) as i32, player.position.z as i32),
+        ((player.position.x - player.width * 0.4) as i32, player.position.z as i32),
+        (player.position.x as i32, (player.position.z + player.width * 0.4) as i32),
+        (player.position.x as i32, (player.position.z - player.width * 0.4) as i32),
     ];
 
     let mut max_submersion: f32 = 0.0;
 
-    for sample_pos in &sample_positions {
-        // Get water surface height at this position
-        let water_height = if let Some(waves) = wave_system {
-            // Use Gerstner wave system for dynamic water surface
-            waves.get_surface_height(*sample_pos, time)
-        } else {
-            // Fallback: find the highest water block
-            find_water_surface_height(world_map, sample_pos.x as i32, sample_pos.y as i32)
-        };
+    for (sample_x, sample_z) in &sample_positions {
+        // Find the highest water block at this position
+        let water_height = find_water_surface_height(world_map, *sample_x, *sample_z);
 
         if water_height > player_bottom {
             let submersion = if water_height >= player_top {
@@ -96,7 +87,7 @@ pub fn calculate_water_submersion(
     max_submersion.clamp(0.0, 1.0)
 }
 
-/// Find the water surface height at a given XZ position (fallback for when no wave system)
+/// Find the water surface height at a given XZ position
 fn find_water_surface_height(world_map: &impl WorldMap, x: i32, z: i32) -> f32 {
     // Search downward from maximum height
     for y in (0..constants::MAX_WATER_SEARCH_HEIGHT).rev() {
@@ -123,12 +114,10 @@ fn find_water_surface_height(world_map: &impl WorldMap, x: i32, z: i32) -> f32 {
 pub fn apply_water_physics(
     player: &mut Player,
     world_map: &impl WorldMap,
-    wave_system: Option<&GerstnerWaveSystem>,
-    time: f32,
     delta: f32,
 ) {
     // Calculate water submersion
-    let submersion = calculate_water_submersion(player, world_map, wave_system, time);
+    let submersion = calculate_water_submersion(player, world_map);
     
     // Update player water state
     player.in_water = submersion > 0.1;
@@ -148,17 +137,6 @@ pub fn apply_water_physics(
     player.velocity.z *= drag_factor;
     player.velocity.y *= 1.0 - (constants::WATER_VERTICAL_DRAG * submersion * delta);
 
-    // Apply wave motion to player
-    if let Some(waves) = wave_system {
-        let player_pos_2d = Vec2::new(player.position.x, player.position.z);
-        let wave_velocity = waves.get_flow_velocity(player_pos_2d, time);
-        
-        // Push player with waves
-        let wave_push = wave_velocity * constants::WAVE_PUSH_STRENGTH * submersion * delta;
-        player.velocity.x += wave_push.x;
-        player.velocity.z += wave_push.y;
-    }
-
     // Limit vertical velocity in water
     const MAX_WATER_VELOCITY: f32 = 5.0;
     player.velocity.y = player.velocity.y.clamp(-MAX_WATER_VELOCITY, MAX_WATER_VELOCITY);
@@ -169,21 +147,18 @@ pub fn apply_water_physics(
 pub fn check_water_surface_support(
     player: &Player,
     world_map: &impl WorldMap,
-    wave_system: Option<&GerstnerWaveSystem>,
-    time: f32,
 ) -> bool {
     if player.is_flying {
         return false;
     }
 
     let player_bottom = player.position.y - player.height / 2.0;
-    let player_pos_2d = Vec2::new(player.position.x, player.position.z);
 
-    let water_surface = if let Some(waves) = wave_system {
-        waves.get_surface_height(player_pos_2d, time)
-    } else {
-        find_water_surface_height(world_map, player.position.x as i32, player.position.z as i32)
-    };
+    let water_surface = find_water_surface_height(
+        world_map,
+        player.position.x as i32,
+        player.position.z as i32,
+    );
 
     // Check if player is just above water surface and moving downward
     let distance_above_water = player_bottom - water_surface;

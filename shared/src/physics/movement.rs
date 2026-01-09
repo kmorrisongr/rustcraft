@@ -81,9 +81,8 @@ pub fn simulate_player_movement_rapier<W: WorldMap>(
     // Update gravity state
     maybe_update_gravity_state(player, world_map);
 
-    // Check and apply water physics (pass None for wave_system for now - will be added later)
-    // Water physics affects buoyancy, drag, and wave motion
-    water_physics::apply_water_physics(player, world_map, None, 0.0, delta);
+    // Apply water physics (buoyancy, drag, swimming)
+    water_physics::apply_water_physics(player, world_map, delta);
 
     // Apply physics based on flying state
     if player.is_flying {
