@@ -219,12 +219,6 @@ impl Plugin for RustcraftPhysicsPlugin {
 
         // System to configure Rapier once the context is spawned
         app.add_systems(Startup, configure_rapier_context);
-
-        // Debug rendering (only in debug builds)
-        #[cfg(debug_assertions)]
-        {
-            app.add_plugins(RapierDebugRenderPlugin::default());
-        }
     }
 }
 
