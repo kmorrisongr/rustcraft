@@ -1,43 +1,35 @@
 // Gerstner Waves Water Shader for Rustcraft
-// Implements Gerstner wave vertex animation and PBR water rendering
+// Implements Gerstner wave vertex animation for water surfaces
 //
 // Based on GPU Gems Chapter 1: Effective Water Simulation from Physical Models
 // https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models
+//
+// This shader extends Bevy's StandardMaterial using the MaterialExtension system.
 
 #import bevy_pbr::{
-    mesh_functions,
-    forward_io::{Vertex, VertexOutput},
-    view_transformations::position_world_to_clip,
     pbr_fragment::pbr_input_from_standard_material,
     pbr_functions::alpha_discard,
+    forward_io::{VertexOutput, FragmentOutput},
+    mesh_view_bindings::globals,
 }
-
-#import bevy_core_pipeline::tonemapping::tone_mapping
-#import bevy_render::view::View
-
-@group(0) @binding(0) var<uniform> view: View;
 
 // ============================================================================
-// Gerstner Wave Parameters
+// Material Extension Bindings (group 2)
 // ============================================================================
 
-struct GerstnerWave {
-    direction: vec2<f32>,    // Wave direction (normalized)
-    steepness: f32,          // 0.0 = sine wave, 1.0 = sharp crests
-    wavelength: f32,         // Wavelength in world units
-    speed: f32,              // Wave speed multiplier
-    _padding: f32,
+struct WaterMaterialUniform {
+    amplitude: f32,
+    clarity: f32,
+    deep_color: vec4<f32>,
+    shallow_color: vec4<f32>,
+    edge_color: vec4<f32>,
+    edge_scale: f32,
+    coord_scale: vec2<f32>,
+    coord_offset: vec2<f32>,
 }
 
-struct WaterUniforms {
-    time: f32,
-    base_level: f32,         // Base water level (Y coordinate)
-    num_waves: u32,
-    _padding: f32,
-    waves: array<GerstnerWave, 4>,  // Support up to 4 waves
-}
-
-@group(2) @binding(100) var<uniform> water_uniforms: WaterUniforms;
+@group(2) @binding(100)
+var<uniform> water_material: WaterMaterialUniform;
 
 // ============================================================================
 // Constants
@@ -46,165 +38,151 @@ struct WaterUniforms {
 const PI: f32 = 3.14159265359;
 
 // ============================================================================
-// Gerstner Wave Functions
+// Gerstner Wave Structures and Functions
 // ============================================================================
+
+struct GerstnerWave {
+    direction: vec2<f32>,
+    steepness: f32,
+    wavelength: f32,
+    speed: f32,
+}
 
 /// Calculate wave number (k = 2π / wavelength)
 fn wave_number(wavelength: f32) -> f32 {
     return 2.0 * PI / wavelength;
 }
 
-/// Calculate angular frequency (ω = k * speed)
-fn frequency(k: f32, speed: f32) -> f32 {
-    return k * speed;
-}
-
 /// Calculate Gerstner wave displacement for a single wave
-/// Returns (horizontal_displacement, vertical_displacement)
 fn gerstner_wave(wave: GerstnerWave, position: vec2<f32>, time: f32) -> vec3<f32> {
     let k = wave_number(wave.wavelength);
-    let omega = frequency(k, wave.speed);
+    let omega = k * wave.speed;
     let phase = k * dot(wave.direction, position) - omega * time;
     
     let cos_phase = cos(phase);
     let sin_phase = sin(phase);
     
-    // Amplitude based on steepness
     let amplitude = wave.steepness / k;
-    
-    // Horizontal displacement (X, Z)
     let horizontal = wave.direction * amplitude * sin_phase;
-    
-    // Vertical displacement (Y)
     let vertical = amplitude * cos_phase;
     
     return vec3<f32>(horizontal.x, vertical, horizontal.y);
 }
 
-/// Calculate combined displacement from all waves
-fn calculate_total_displacement(position: vec2<f32>, time: f32) -> vec3<f32> {
-    var total_displacement = vec3<f32>(0.0);
+/// Calculate combined displacement from predefined ocean waves
+fn calculate_total_displacement(position: vec2<f32>, time: f32, amplitude_scale: f32) -> vec3<f32> {
+    var total = vec3<f32>(0.0);
     
-    for (var i = 0u; i < water_uniforms.num_waves; i++) {
-        total_displacement += gerstner_wave(water_uniforms.waves[i], position, time);
-    }
+    // Primary wave - largest, slowest
+    let wave1 = GerstnerWave(normalize(vec2<f32>(1.0, 0.3)), 0.5 * amplitude_scale, 8.0, 1.5);
+    total += gerstner_wave(wave1, position, time);
     
-    return total_displacement;
+    // Secondary wave - medium size, different direction
+    let wave2 = GerstnerWave(normalize(vec2<f32>(-0.7, 1.0)), 0.4 * amplitude_scale, 5.0, 1.8);
+    total += gerstner_wave(wave2, position, time);
+    
+    // Tertiary wave - smaller, faster
+    let wave3 = GerstnerWave(normalize(vec2<f32>(0.5, -1.0)), 0.3 * amplitude_scale, 3.0, 2.2);
+    total += gerstner_wave(wave3, position, time);
+    
+    // Detail wave - smallest ripples
+    let wave4 = GerstnerWave(normalize(vec2<f32>(-1.0, -0.5)), 0.2 * amplitude_scale, 1.5, 2.8);
+    total += gerstner_wave(wave4, position, time);
+    
+    return total;
 }
 
-/// Calculate Gerstner wave normal for a single wave
+/// Calculate Gerstner wave normal contribution
 fn gerstner_wave_normal(wave: GerstnerWave, position: vec2<f32>, time: f32) -> vec3<f32> {
     let k = wave_number(wave.wavelength);
-    let omega = frequency(k, wave.speed);
+    let omega = k * wave.speed;
     let phase = k * dot(wave.direction, position) - omega * time;
     
     let cos_phase = cos(phase);
     let sin_phase = sin(phase);
-    
     let wa = wave.steepness;
     
-    // Normal calculation for Gerstner waves
-    let normal_x = -wave.direction.x * wa * cos_phase;
-    let normal_y = 1.0 - wa * sin_phase;
-    let normal_z = -wave.direction.y * wa * cos_phase;
-    
-    return vec3<f32>(normal_x, normal_y, normal_z);
-}
-
-/// Calculate combined normal from all waves
-fn calculate_total_normal(position: vec2<f32>, time: f32) -> vec3<f32> {
-    var total_normal = vec3<f32>(0.0, 1.0, 0.0);
-    
-    for (var i = 0u; i < water_uniforms.num_waves; i++) {
-        total_normal += gerstner_wave_normal(water_uniforms.waves[i], position, time);
-    }
-    
-    return normalize(total_normal);
-}
-
-// ============================================================================
-// Vertex Shader
-// ============================================================================
-
-@vertex
-fn vertex(vertex: Vertex) -> VertexOutput {
-    var out: VertexOutput;
-    
-    let world_from_local = mesh_functions::get_world_from_local(vertex.instance_index);
-    
-    // Get initial world position
-    var world_position = mesh_functions::mesh_position_local_to_world(
-        world_from_local,
-        vec4<f32>(vertex.position, 1.0)
+    return vec3<f32>(
+        -wave.direction.x * wa * cos_phase,
+        1.0 - wa * sin_phase,
+        -wave.direction.y * wa * cos_phase
     );
+}
+
+/// Calculate combined normal from predefined ocean waves
+fn calculate_total_normal(position: vec2<f32>, time: f32, amplitude_scale: f32) -> vec3<f32> {
+    var total = vec3<f32>(0.0, 1.0, 0.0);
     
-    // Apply Gerstner wave displacement to top faces
-#ifdef VERTEX_NORMALS
-    let is_top_face = vertex.normal.y > 0.5;
-    if is_top_face {
-        let position_2d = world_position.xz;
-        let displacement = calculate_total_displacement(position_2d, water_uniforms.time);
-        
-        // Apply displacement
-        world_position.x += displacement.x;
-        world_position.y += displacement.y;
-        world_position.z += displacement.z;
-        
-        // Calculate perturbed normal
-        out.world_normal = calculate_total_normal(position_2d, water_uniforms.time);
-    } else {
-        // Non-top faces use standard normal
-        out.world_normal = mesh_functions::mesh_normal_local_to_world(
-            vertex.normal,
-            vertex.instance_index
-        );
-    }
-#endif
+    let wave1 = GerstnerWave(normalize(vec2<f32>(1.0, 0.3)), 0.5 * amplitude_scale, 8.0, 1.5);
+    total += gerstner_wave_normal(wave1, position, time);
     
-    out.world_position = world_position;
-    out.position = position_world_to_clip(world_position.xyz);
-
-#ifdef VERTEX_UVS_A
-    out.uv = vertex.uv;
-#endif
-
-#ifdef VERTEX_COLORS
-    out.color = vertex.color;
-#endif
-
-    return out;
+    let wave2 = GerstnerWave(normalize(vec2<f32>(-0.7, 1.0)), 0.4 * amplitude_scale, 5.0, 1.8);
+    total += gerstner_wave_normal(wave2, position, time);
+    
+    let wave3 = GerstnerWave(normalize(vec2<f32>(0.5, -1.0)), 0.3 * amplitude_scale, 3.0, 2.2);
+    total += gerstner_wave_normal(wave3, position, time);
+    
+    let wave4 = GerstnerWave(normalize(vec2<f32>(-1.0, -0.5)), 0.2 * amplitude_scale, 1.5, 2.8);
+    total += gerstner_wave_normal(wave4, position, time);
+    
+    return normalize(total);
 }
 
 // ============================================================================
-// Fragment Shader (Basic PBR Water)
+// Fragment Shader - Custom Water Rendering
 // ============================================================================
 
 @fragment
-fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fragment(
+    in: VertexOutput,
+    @builtin(front_facing) is_front: bool,
+) -> FragmentOutput {
+    // Get world position and calculate wave-based effects
     let world_pos = in.world_position.xyz;
-    let camera_pos = view.world_position;
-    let view_dir = normalize(camera_pos - world_pos);
+    let position_2d = world_pos.xz * water_material.coord_scale + water_material.coord_offset;
+    let time = globals.time;
     
-    // Base water color
-    let base_color = vec4<f32>(0.1, 0.4, 0.6, 0.7);
-    let deep_color = vec3<f32>(0.05, 0.2, 0.4);
+    // Calculate animated normal from Gerstner waves
+    let wave_normal = calculate_total_normal(position_2d, time, water_material.amplitude);
     
-    // Fresnel effect
-    let ndotv = max(dot(in.world_normal, view_dir), 0.0);
+    // Get PBR input from base material
+    var pbr_input = pbr_input_from_standard_material(in, is_front);
+    
+    // Apply animated normal to PBR input
+    pbr_input.N = wave_normal;
+    pbr_input.world_normal = wave_normal;
+    
+    // Calculate view-dependent effects
+    let view_dir = normalize(pbr_input.V);
+    let ndotv = max(dot(wave_normal, view_dir), 0.0);
+    
+    // Fresnel effect for water reflectivity
     let fresnel = pow(1.0 - ndotv, 3.0);
     
-    // Simple reflection (sky color)
+    // Mix between shallow and deep water colors based on view angle
+    let depth_factor = 1.0 - ndotv;
+    var water_color = mix(
+        water_material.shallow_color.rgb,
+        water_material.deep_color.rgb,
+        depth_factor * 0.5
+    );
+    
+    // Add sky reflection using fresnel
     let sky_color = vec3<f32>(0.5, 0.7, 0.9);
+    water_color = mix(water_color, sky_color, fresnel * 0.6);
     
-    // Combine base color with reflection
-    var final_color = mix(base_color.rgb, sky_color, fresnel * 0.5);
-    final_color = mix(final_color, deep_color, (1.0 - ndotv) * 0.3);
+    // Apply clarity - more clarity means more of the underlying color shows through
+    let alpha = mix(0.9, water_material.shallow_color.a, water_material.clarity);
     
-    // Specular highlight
+    // Simple specular highlight for sun reflection
     let sun_dir = normalize(vec3<f32>(0.3, 0.8, 0.5));
     let half_vec = normalize(sun_dir + view_dir);
-    let spec = pow(max(dot(in.world_normal, half_vec), 0.0), 128.0);
-    final_color += vec3<f32>(1.0, 1.0, 0.9) * spec * 0.5;
+    let spec = pow(max(dot(wave_normal, half_vec), 0.0), 128.0);
+    water_color += vec3<f32>(1.0, 1.0, 0.9) * spec * 0.5;
     
-    return vec4<f32>(final_color, base_color.a);
+    // Output final color
+    var out: FragmentOutput;
+    out.color = vec4<f32>(water_color, alpha);
+    
+    return out;
 }
