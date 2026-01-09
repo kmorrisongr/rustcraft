@@ -11,7 +11,6 @@
 //! - Up to 4 simultaneous waves
 
 use bevy::{
-    asset::embedded_asset,
     pbr::{ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline},
     prelude::*,
     render::render_resource::{
@@ -19,13 +18,24 @@ use bevy::{
     },
 };
 
+/// The Gerstner water shader source code, included at compile time.
+/// Using a unique UUID for the shader handle.
+const WATER_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(0x1a2b3c4d5e6f7890abcdef1234567890);
+
 /// Plugin that registers the custom water material and shader.
 pub struct WaterPlugin;
 
 impl Plugin for WaterPlugin {
     fn build(&self, app: &mut App) {
-        // Embed the shader at compile time
-        embedded_asset!(app, "../../../data/shaders/gerstner_water.wgsl");
+        // Load the shader from the embedded source
+        app.world_mut().resource_mut::<Assets<Shader>>().insert(
+            &WATER_SHADER_HANDLE,
+            Shader::from_wgsl(
+                include_str!("../../../data/shaders/gerstner_water.wgsl"),
+                file!(),
+            ),
+        );
 
         app.add_plugins(MaterialPlugin::<StandardWaterMaterial>::default())
             .init_resource::<WaterTime>()
@@ -51,65 +61,23 @@ pub type StandardWaterMaterial = ExtendedMaterial<StandardMaterial, WaterMateria
 /// Water material extension for the standard PBR pipeline.
 ///
 /// This material extends Bevy's StandardMaterial with custom water properties
-/// and uses our Gerstner wave shader for vertex animation.
-#[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
+/// and uses our Gerstner wave shader for fragment animation.
+///
+/// Note: Currently wave parameters are hardcoded in the shader for simplicity.
+/// Future versions can add uniform bindings for runtime configuration.
+#[derive(Asset, AsBindGroup, Reflect, Debug, Clone, Default)]
 pub struct WaterMaterial {
-    /// Wave amplitude multiplier (affects wave height)
-    #[uniform(100)]
-    pub amplitude: f32,
-
-    /// Water clarity (0.0 = murky, 1.0 = crystal clear)
-    #[uniform(100)]
-    pub clarity: f32,
-
-    /// Deep water color
-    #[uniform(100)]
-    pub deep_color: LinearRgba,
-
-    /// Shallow water color
-    #[uniform(100)]
-    pub shallow_color: LinearRgba,
-
-    /// Foam/edge color
-    #[uniform(100)]
-    pub edge_color: LinearRgba,
-
-    /// Edge foam scale
-    #[uniform(100)]
-    pub edge_scale: f32,
-
-    /// UV coordinate scale for texturing
-    #[uniform(100)]
-    pub coord_scale: Vec2,
-
-    /// UV coordinate offset for texturing
-    #[uniform(100)]
-    pub coord_offset: Vec2,
-}
-
-impl Default for WaterMaterial {
-    fn default() -> Self {
-        Self {
-            amplitude: 0.5,
-            clarity: 0.3,
-            deep_color: LinearRgba::new(0.05, 0.15, 0.25, 0.9),
-            shallow_color: LinearRgba::new(0.15, 0.35, 0.45, 0.75),
-            edge_color: LinearRgba::new(0.8, 0.9, 1.0, 0.5),
-            edge_scale: 0.1,
-            coord_scale: Vec2::new(1.0, 1.0),
-            coord_offset: Vec2::ZERO,
-        }
-    }
+    // Placeholder - the shader currently uses hardcoded values
+    // Future: Add uniform bindings here for configurable wave parameters
 }
 
 impl MaterialExtension for WaterMaterial {
     fn fragment_shader() -> ShaderRef {
-        "embedded://client/data/shaders/gerstner_water.wgsl".into()
+        WATER_SHADER_HANDLE.into()
     }
 
-    fn vertex_shader() -> ShaderRef {
-        "embedded://client/data/shaders/gerstner_water.wgsl".into()
-    }
+    // Note: We don't override vertex_shader() - use Bevy's default vertex shader.
+    // Our fragment shader handles the Gerstner wave animation in screen space.
 
     fn specialize(
         _pipeline: &MaterialExtensionPipeline,

@@ -5,4 +5,4 @@
 pub mod water;
 
 // Re-export water types for convenience
-pub use water::{StandardWaterMaterial, WaterMaterial, WaterMesh, WaterPlugin, WaterTime};
+pub use water::WaterPlugin;
