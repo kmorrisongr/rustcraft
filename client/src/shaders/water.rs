@@ -7,14 +7,14 @@
 //! The shader implements:
 //! - Gerstner wave normal animation for realistic wave motion
 //! - Fresnel-based reflections
-//! - Configurable water colors via uniforms
+//! - Hardcoded wave parameters matching `WavePreset::Ocean` from shared crate
 
 use bevy::{
     asset::weak_handle,
     pbr::{ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline},
     prelude::*,
     render::render_resource::{
-        AsBindGroup, RenderPipelineDescriptor, ShaderRef, ShaderType, SpecializedMeshPipelineError,
+        AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
     },
 };
 
@@ -42,69 +42,12 @@ const WATER_SHADER_HANDLE: Handle<Shader> = weak_handle!("1a2b3c4d-5e6f-7890-abc
 /// Standard water material type alias for convenience.
 pub type StandardWaterMaterial = ExtendedMaterial<StandardMaterial, WaterMaterial>;
 
-/// Water color configuration passed to the shader as uniforms.
-///
-/// Uses `Vec4` for each color to ensure proper 16-byte alignment in GPU memory.
-/// The alpha channel of each vec4 is used to pack additional parameters:
-/// - `shallow_color.w` = water alpha/transparency
-/// - `deep_color.w` = wave amplitude scale
-/// - `sky_color.w` = unused (padding for alignment)
-#[derive(Clone, Copy, Debug, Reflect, ShaderType)]
-pub struct WaterColors {
-    /// Shallow water color (xyz) and water alpha (w)
-    pub shallow_color: Vec4,
-    /// Deep water color (xyz) and amplitude scale (w)
-    pub deep_color: Vec4,
-    /// Sky reflection color (xyz), w is padding
-    pub sky_color: Vec4,
-}
-
-impl Default for WaterColors {
-    fn default() -> Self {
-        Self {
-            // Shallow water: teal-ish, alpha = 0.8
-            shallow_color: Vec4::new(0.15, 0.35, 0.45, 0.8),
-            // Deep water: darker blue, amplitude_scale = 0.5
-            deep_color: Vec4::new(0.05, 0.15, 0.25, 0.5),
-            // Sky reflection: light blue, w unused
-            sky_color: Vec4::new(0.5, 0.7, 0.9, 1.0),
-        }
-    }
-}
-
-impl WaterColors {
-    /// Create water colors with custom transparency.
-    pub fn with_alpha(mut self, alpha: f32) -> Self {
-        self.shallow_color.w = alpha;
-        self
-    }
-
-    /// Create water colors with custom wave amplitude scale.
-    pub fn with_amplitude_scale(mut self, scale: f32) -> Self {
-        self.deep_color.w = scale;
-        self
-    }
-}
-
 /// Water material extension for the standard PBR pipeline.
 ///
 /// This material extends Bevy's StandardMaterial with our custom Gerstner wave
-/// fragment shader. Water colors and parameters are configurable via the
-/// `colors` uniform.
-#[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
-pub struct WaterMaterial {
-    /// Water color configuration passed to the shader
-    #[uniform(100)]
-    pub colors: WaterColors,
-}
-
-impl Default for WaterMaterial {
-    fn default() -> Self {
-        Self {
-            colors: WaterColors::default(),
-        }
-    }
-}
+/// fragment shader. Wave parameters are currently hardcoded in the shader.
+#[derive(Asset, AsBindGroup, Reflect, Debug, Clone, Default)]
+pub struct WaterMaterial {}
 
 impl MaterialExtension for WaterMaterial {
     fn fragment_shader() -> ShaderRef {
