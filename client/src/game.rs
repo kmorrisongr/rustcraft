@@ -29,8 +29,7 @@ use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use crate::ui::hud::debug::targeted_block::block_text_update_system;
 use crate::world::celestial::setup_main_lighting;
 use crate::world::rendering::water::{
-    water_cleanup_system, water_render_system, water_wave_update_system, WaterEntities,
-    WaterMaterialHandle, WaterWaveSystem,
+    water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle,
 };
 
 use crate::ui::hud::debug::*;
@@ -112,7 +111,6 @@ pub fn game_plugin(app: &mut App) {
         // Water rendering resources (decoupled from chunk system)
         .init_resource::<WaterEntities>()
         .init_resource::<WaterMaterialHandle>()
-        .init_resource::<WaterWaveSystem>()
         .insert_resource(AtlasHandles::<BlockId>::default())
         .insert_resource(AtlasHandles::<ItemId>::default())
         .insert_resource(RenderDistance { ..default() })
@@ -237,7 +235,6 @@ pub fn game_plugin(app: &mut App) {
                 // Water rendering runs after chunk meshing, listening to the same events
                 water_render_system,
                 water_cleanup_system,
-                water_wave_update_system,
             )
                 .run_if(in_state(GameState::Game)),
         )
