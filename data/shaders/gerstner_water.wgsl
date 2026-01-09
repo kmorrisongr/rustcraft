@@ -52,6 +52,16 @@ fn wave_number(wavelength: f32) -> f32 {
     return 2.0 * PI / wavelength;
 }
 
+/// Calculate Gerstner wave height at a position
+fn gerstner_wave_height(wave: GerstnerWave, position: vec2<f32>, time: f32) -> f32 {
+    let k = wave_number(wave.wavelength);
+    let omega = k * wave.speed;
+    let phase = k * dot(wave.direction, position) - omega * time;
+    
+    // Height is based on sine of the phase, scaled by steepness
+    return wave.steepness * sin(phase);
+}
+
 /// Calculate Gerstner wave normal contribution
 fn gerstner_wave_normal(wave: GerstnerWave, position: vec2<f32>, time: f32) -> vec3<f32> {
     let k = wave_number(wave.wavelength);
@@ -91,6 +101,31 @@ fn calculate_total_normal(position: vec2<f32>, time: f32) -> vec3<f32> {
     return normalize(total);
 }
 
+/// Calculate combined wave height from all waves (normalized to 0-1 range)
+fn calculate_total_height(position: vec2<f32>, time: f32) -> f32 {
+    // Amplitude scale is packed in deep_color.w
+    let amplitude_scale = water_colors.deep_color.w;
+    
+    // Use same wave parameters as normal calculation
+    let wave1 = GerstnerWave(normalize(vec2<f32>(1.0, 0.3)), 0.5 * amplitude_scale, 8.0, 1.5);
+    let wave2 = GerstnerWave(normalize(vec2<f32>(-0.7, 1.0)), 0.4 * amplitude_scale, 5.0, 1.8);
+    let wave3 = GerstnerWave(normalize(vec2<f32>(0.5, -1.0)), 0.3 * amplitude_scale, 3.0, 2.2);
+    let wave4 = GerstnerWave(normalize(vec2<f32>(-1.0, -0.5)), 0.2 * amplitude_scale, 1.5, 2.8);
+    
+    // Sum all wave heights
+    var total_height = 0.0;
+    total_height += gerstner_wave_height(wave1, position, time);
+    total_height += gerstner_wave_height(wave2, position, time);
+    total_height += gerstner_wave_height(wave3, position, time);
+    total_height += gerstner_wave_height(wave4, position, time);
+    
+    // Maximum possible height is sum of all steepnesses
+    let max_height = (0.5 + 0.4 + 0.3 + 0.2) * amplitude_scale;
+    
+    // Normalize to 0-1 range (height goes from -max to +max, so we remap)
+    return (total_height / max_height + 1.0) * 0.5;
+}
+
 // ============================================================================
 // Fragment Shader - Custom Water Rendering
 // ============================================================================
@@ -108,6 +143,9 @@ fn fragment(
     // Calculate animated normal from Gerstner waves
     let wave_normal = calculate_total_normal(position_2d, time);
     
+    // Calculate wave height for color gradient (0 = deep/trough, 1 = shallow/crest)
+    let wave_height = calculate_total_height(position_2d, time);
+    
     // Calculate view direction
     let view_dir = normalize(view.world_position.xyz - world_pos);
     let ndotv = max(dot(wave_normal, view_dir), 0.0);
@@ -121,9 +159,9 @@ fn fragment(
     let sky_color = water_colors.sky_color.xyz;
     let water_alpha = water_colors.shallow_color.w;
     
-    // Mix between shallow and deep water colors based on view angle
-    let depth_factor = 1.0 - ndotv;
-    var water_color = mix(shallow_color, deep_color, depth_factor * 0.5);
+    // Mix between deep and shallow water colors based on wave height
+    // Wave troughs (low height) get deep color, crests (high height) get shallow color
+    var water_color = mix(deep_color, shallow_color, wave_height);
     
     // Add sky reflection using fresnel
     water_color = mix(water_color, sky_color, fresnel * 0.6);
