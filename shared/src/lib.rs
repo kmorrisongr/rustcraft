@@ -10,6 +10,7 @@ pub mod messages;
 pub mod physics;
 pub mod players;
 pub mod utils;
+pub mod water;
 pub mod water_physics;
 pub mod world;
 
