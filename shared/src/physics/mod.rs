@@ -1,5 +1,6 @@
 pub mod movement;
 pub mod rapier;
+pub mod water;
 
 // Re-export Rapier integration
 pub use movement::{
