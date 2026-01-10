@@ -110,15 +110,18 @@ impl WaterSurfacePatch {
                 self.bounds_min = Some(min.min(local_pos));
                 self.bounds_max = Some(max.max(local_pos));
             }
-            (None, _) | (_, None) => {
+            (None, None) => {
                 // First cell sets both bounds
                 self.bounds_min = Some(local_pos);
                 self.bounds_max = Some(local_pos);
             }
+            // Invariant: bounds_min and bounds_max are always both Some or both None
+            _ => unreachable!("bounds_min and bounds_max should always be set together"),
         }
         
-        // Recalculate average Y
-        self.avg_y = self.cells.iter().map(|c| c.y as f32).sum::<f32>() / self.cells.len() as f32;
+        // Update average Y incrementally
+        let len = self.cells.len();
+        self.avg_y = (self.avg_y * (len - 1) as f32 + local_pos.y as f32) / len as f32;
     }
 
     /// Returns true if this patch contains the given position.
