@@ -289,4 +289,66 @@ mod tests {
             "Larger amplitude should produce larger waves"
         );
     }
+
+    #[test]
+    fn test_shader_wave_params_match_rust_constants() {
+        // This test validates that WAVE_PARAMS in data/shaders/water.wgsl
+        // matches DEFAULT_WAVE_LAYERS to ensure physics/rendering sync.
+        
+        // Read the shader file
+        let shader_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("data/shaders/water.wgsl");
+        
+        let shader_content = std::fs::read_to_string(&shader_path)
+            .expect("Failed to read water.wgsl - ensure file exists");
+        
+        // Parse WAVE_PARAMS values from shader
+        // Format: vec4<f32>(dir_x, dir_z, steepness, wavelength)
+        let expected_values = [
+            (1.0_f32, 0.0_f32, 0.5_f32, 8.0_f32),
+            (0.7_f32, 0.7_f32, 0.35_f32, 4.0_f32),
+            (-0.3_f32, 0.9_f32, 0.25_f32, 2.5_f32),
+            (0.9_f32, -0.4_f32, 0.15_f32, 1.5_f32),
+        ];
+        
+        // Verify each layer matches
+        for (i, (expected_dir_x, expected_dir_z, expected_steepness, expected_wavelength)) in expected_values.iter().enumerate() {
+            let layer = &DEFAULT_WAVE_LAYERS[i];
+            
+            assert!(
+                (layer.direction.x - expected_dir_x).abs() < 0.0001,
+                "Layer {} direction.x mismatch: Rust has {}, shader expects {}",
+                i, layer.direction.x, expected_dir_x
+            );
+            assert!(
+                (layer.direction.y - expected_dir_z).abs() < 0.0001,
+                "Layer {} direction.z mismatch: Rust has {}, shader expects {}",
+                i, layer.direction.y, expected_dir_z
+            );
+            assert!(
+                (layer.steepness - expected_steepness).abs() < 0.0001,
+                "Layer {} steepness mismatch: Rust has {}, shader expects {}",
+                i, layer.steepness, expected_steepness
+            );
+            assert!(
+                (layer.wavelength - expected_wavelength).abs() < 0.0001,
+                "Layer {} wavelength mismatch: Rust has {}, shader expects {}",
+                i, layer.wavelength, expected_wavelength
+            );
+        }
+        
+        // Also verify the shader file contains the expected pattern
+        assert!(
+            shader_content.contains("const WAVE_PARAMS: array<vec4<f32>, 4>"),
+            "Shader must define WAVE_PARAMS array"
+        );
+        
+        // Verify the comment warning exists
+        assert!(
+            shader_content.contains("MUST match") || shader_content.contains("must match"),
+            "Shader should contain a comment warning about keeping params in sync"
+        );
+    }
 }
