@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::entities::stack::stack_update_system;
 use crate::mob::*;
 use crate::network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime};
-use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::hud::chat::{render_chat, setup_chat};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use bevy::prelude::*;
@@ -28,9 +27,6 @@ use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 
 use crate::ui::hud::debug::targeted_block::block_text_update_system;
 use crate::world::celestial::setup_main_lighting;
-use crate::world::rendering::water::{
-    water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle,
-};
 
 use crate::ui::hud::debug::*;
 use crate::ui::hud::hotbar::*;
@@ -77,13 +73,6 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
         .add_plugins(RustcraftPhysicsPlugin)
-        .insert_resource(WaterSettings {
-            height: 0.0,       // Sea level for voxel world
-            amplitude: 0.2,    // Gentle waves for block-based water
-            spawn_tiles: None, // Don't spawn automatic water tiles (we use chunk meshes)
-            ..default()
-        })
-        .add_plugins(WaterPlugin)
         .insert_resource(WorldSeed(0))
         .insert_resource(ClientTime(0))
         .insert_resource(FirstChunkReceived(false))
@@ -108,9 +97,6 @@ pub fn game_plugin(app: &mut App) {
             default_color: WHITE.into(),
         })
         .insert_resource(MaterialResource { ..default() })
-        // Water rendering resources (decoupled from chunk system)
-        .init_resource::<WaterEntities>()
-        .init_resource::<WaterMaterialHandle>()
         .insert_resource(AtlasHandles::<BlockId>::default())
         .insert_resource(AtlasHandles::<ItemId>::default())
         .insert_resource(RenderDistance { ..default() })
@@ -230,13 +216,7 @@ pub fn game_plugin(app: &mut App) {
         .add_observer(observe_on_step)
         .add_systems(
             PostUpdate,
-            (
-                world_render_system,
-                // Water rendering runs after chunk meshing, listening to the same events
-                water_render_system,
-                water_cleanup_system,
-            )
-                .run_if(in_state(GameState::Game)),
+            world_render_system.run_if(in_state(GameState::Game)),
         )
         .add_systems(
             Update,

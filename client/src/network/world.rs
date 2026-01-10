@@ -39,6 +39,7 @@ pub fn update_world_from_network(
                 for (pos, chunk) in world_update.new_map {
                     let chunk = Arc::new(ClientChunk {
                         map: chunk.map,
+                        water: chunk.water,
                         entity: {
                             if let Some(c) = world.map.get(&pos) {
                                 c.entity

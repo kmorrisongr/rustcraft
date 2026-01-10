@@ -63,6 +63,9 @@ pub struct ServerItemStack {
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct ServerChunk {
     pub map: HashMap<IVec3, BlockData>,
+    /// Water storage for this chunk (sparse, volume-based)
+    /// Only stores voxels that contain water
+    pub water: super::water::ChunkWaterStorage,
     /// Timestamp marking the last update this chunk has received
     pub ts: u64,
     pub sent_to_clients: HashSet<PlayerId>,
@@ -333,6 +336,21 @@ pub fn calculate_biome_at_position(x: i32, z: i32, seed: u32) -> BiomeType {
     BiomeType::from_climate(climate)
 }
 
+/// Trait for world maps that support the volume-based water system.
+/// This allows physics and rendering systems to query water volumes at specific positions.
+pub trait WaterWorldMap {
+    /// Get the water volume at a global position (0.0 to 1.0, or None if no water data)
+    fn get_water_volume(&self, position: &IVec3) -> Option<f32>;
+
+    /// Get the water surface height at a global position (Y coordinate + surface offset)
+    fn get_water_surface_height(&self, position: &IVec3) -> Option<f32>;
+
+    /// Check if there is water at a global position
+    fn has_water_at(&self, position: &IVec3) -> bool {
+        self.get_water_volume(position).map(|v| v > 0.0).unwrap_or(false)
+    }
+}
+
 pub trait WorldMap {
     fn get_block_mut_by_coordinates(&mut self, position: &IVec3) -> Option<&mut BlockData>;
     fn get_block_by_coordinates(&self, position: &IVec3) -> Option<&BlockData>;
@@ -341,6 +359,12 @@ pub trait WorldMap {
 
     /// Check if a chunk at the given chunk position is loaded
     fn has_chunk(&self, chunk_pos: &IVec3) -> bool;
+
+    /// Returns this map as a WaterWorldMap if it supports volume-based water queries.
+    /// Default implementation returns None (no water support).
+    fn as_water_world_map(&self) -> Option<&dyn WaterWorldMap> {
+        None
+    }
 
     fn get_height_ground(&self, position: Vec3) -> i32 {
         for y in (0..256).rev() {
@@ -483,6 +507,27 @@ impl WorldMap for ServerChunkWorldMap {
         let cy: i32 = block_to_chunk_coord(y);
         let cz: i32 = block_to_chunk_coord(z);
         self.chunks_to_update.push(IVec3::new(cx, cy, cz));
+    }
+
+    fn as_water_world_map(&self) -> Option<&dyn WaterWorldMap> {
+        Some(self)
+    }
+}
+
+impl WaterWorldMap for ServerChunkWorldMap {
+    fn get_water_volume(&self, position: &IVec3) -> Option<f32> {
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk = self.map.get(&chunk_pos)?;
+        chunk.water.get(&local_pos).map(|cell| cell.volume())
+    }
+
+    fn get_water_surface_height(&self, position: &IVec3) -> Option<f32> {
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk = self.map.get(&chunk_pos)?;
+        chunk
+            .water
+            .get(&local_pos)
+            .map(|cell| position.y as f32 + cell.surface_height())
     }
 }
 
