@@ -260,6 +260,12 @@ pub mod water_utils {
         IVec3::new(0, 0, -1), // -Z
     ];
 
+    /// Upward direction for vertical water flow.
+    pub const UP: IVec3 = IVec3::new(0, 1, 0);
+
+    /// Downward direction for gravity-driven water flow.
+    pub const DOWN: IVec3 = IVec3::new(0, -1, 0);
+
     /// Converts global block coordinates to chunk-local water storage coordinates
     pub fn global_to_local(global_pos: IVec3, chunk_pos: IVec3) -> IVec3 {
         IVec3::new(

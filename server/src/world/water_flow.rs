@@ -230,7 +230,8 @@ fn process_chunk_lateral_flow(
     );
 
     // Build set of surface positions for quick neighbor lookup
-    let surface_set: HashSet<IVec3> = surface_cells.iter().copied().collect();
+    // Note: Currently unused but available for surface-only flow rules (see TODO below)
+    let _surface_set: HashSet<IVec3> = surface_cells.iter().copied().collect();
 
     // Compute flows for all cells
     let mut accumulator = FlowAccumulator::new();
@@ -271,9 +272,7 @@ fn process_chunk_lateral_flow(
 
             // Get neighbor info
             let neighbor_volume = water_volumes.get(&neighbor_pos).copied().unwrap_or(0.0);
-            // Note: neighbor_is_surface could be used for more sophisticated flow rules
-            // For now, we allow flow to any non-blocked position
-            let _neighbor_is_surface = surface_set.contains(&neighbor_pos);
+            // TODO: surface_set.contains(&neighbor_pos) could enable surface-only flow rules
 
             // Check if neighbor position is blocked by solid block
             let neighbor_blocked = {
@@ -526,7 +525,10 @@ mod tests {
         // Verify the shared constant has 4 horizontal directions
         assert_eq!(LATERAL_NEIGHBORS.len(), 4);
         for offset in LATERAL_NEIGHBORS {
-            assert_eq!(offset.y, 0, "LATERAL_NEIGHBORS should not have vertical components");
+            assert_eq!(
+                offset.y, 0,
+                "LATERAL_NEIGHBORS should not have vertical components"
+            );
         }
     }
 }

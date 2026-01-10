@@ -28,6 +28,10 @@ use shared::world::{
     BlockData, BlockHitbox, BlockId, ServerWorldMap, WorldMap, MAX_WATER_VOLUME, MIN_WATER_VOLUME,
 };
 
+/// Maximum vertical distance to search when forcing water overflow upward.
+/// Limits computational cost when water is trapped in deep columns.
+const MAX_UPWARD_FLOW_SEARCH: i32 = 10;
+
 use super::water_flow::LateralFlowQueue;
 use super::water_simulation::{WaterSimulationQueue, WaterSurfaceUpdateQueue};
 
@@ -100,22 +104,22 @@ pub fn handle_block_removal(
     // not wait for surface-based wave propagation
     let inflow_result = perform_immediate_lateral_inflow(world_map, removed_pos);
 
-    if inflow_result.total_inflow > MIN_WATER_VOLUME {
+    if inflow_result.volume_received > MIN_WATER_VOLUME {
         log::debug!(
             "Block removed at {:?}: immediate lateral inflow of {:.3} from {} neighbors",
             removed_pos,
-            inflow_result.total_inflow,
-            inflow_result.neighbors_with_water
+            inflow_result.volume_received,
+            inflow_result.contributing_neighbor_count
         );
 
         // Queue the position and neighbors for continued simulation
         simulation_queue.queue(removed_pos);
-        for neighbor_pos in &inflow_result.contributing_positions {
+        for neighbor_pos in &inflow_result.donor_positions {
             simulation_queue.queue(*neighbor_pos);
         }
 
         // Mark modified chunks for surface update and lateral flow
-        for chunk in &inflow_result.modified_chunks {
+        for chunk in &inflow_result.chunks_requiring_update {
             surface_queue.queue(*chunk);
             lateral_queue.queue(*chunk);
         }
@@ -145,21 +149,22 @@ pub fn handle_block_removal(
     log::debug!(
         "Block removal at {:?}: processing complete, inflow={:.3}",
         removed_pos,
-        inflow_result.total_inflow
+        inflow_result.volume_received
     );
 }
 
-/// Result of immediate lateral inflow calculation
+/// Result of immediate lateral inflow calculation when a block is removed.
+/// Captures the water equalization that occurs when space opens up.
 #[derive(Debug, Default)]
 struct LateralInflowResult {
-    /// Total water volume that flowed into the freed space
-    total_inflow: f32,
-    /// Number of neighbors that had water
-    neighbors_with_water: u32,
-    /// Positions that contributed water
-    contributing_positions: Vec<IVec3>,
-    /// Chunks that were modified
-    modified_chunks: Vec<IVec3>,
+    /// Total water volume (0.0 to MAX_WATER_VOLUME) that flowed into the freed space
+    volume_received: f32,
+    /// Count of neighboring cells that contributed water to equalization
+    contributing_neighbor_count: u32,
+    /// Global positions of cells that donated water
+    donor_positions: Vec<IVec3>,
+    /// Chunk coordinates that were modified and need mesh updates
+    chunks_requiring_update: Vec<IVec3>,
 }
 
 /// Performs immediate lateral water inflow when a block is removed.
@@ -215,7 +220,7 @@ fn perform_immediate_lateral_inflow(
         );
         if volume > MIN_WATER_VOLUME {
             neighbor_water.push((neighbor_pos, volume));
-            result.neighbors_with_water += 1;
+            result.contributing_neighbor_count += 1;
         }
     }
 
@@ -225,11 +230,9 @@ fn perform_immediate_lateral_inflow(
     }
 
     // Calculate total available water and target equalization level
-    // The freed position starts at 0, neighbors have their volumes
-    // We want to equalize: total_water / (num_neighbors + 1)
     let total_water: f32 = neighbor_water.iter().map(|(_, v)| *v).sum();
-    let num_cells = neighbor_water.len() as f32 + 1.0; // +1 for freed position
-    let target_level = (total_water / num_cells).min(MAX_WATER_VOLUME);
+    let cells_in_equalization_group = neighbor_water.len() as f32 + 1.0; // neighbors + freed position
+    let target_level = (total_water / cells_in_equalization_group).min(MAX_WATER_VOLUME);
 
     log::info!(
         "[TERRAIN MUT] Lateral inflow at {:?}: {} neighbors with total {:.3} water, target level {:.3}",
@@ -257,9 +260,9 @@ fn perform_immediate_lateral_inflow(
     }
 
     // The freed position can accept up to MAX_WATER_VOLUME
-    // Limit inflow to what the freed space can hold
     let actual_inflow = total_contribution.min(MAX_WATER_VOLUME);
-    let scale_factor = if total_contribution > actual_inflow {
+    // Scale contributions proportionally if total exceeds capacity
+    let contribution_scale_factor = if total_contribution > actual_inflow {
         actual_inflow / total_contribution
     } else {
         1.0
@@ -279,8 +282,8 @@ fn perform_immediate_lateral_inflow(
                 BlockData::new(BlockId::Water, shared::world::BlockDirection::Front),
             );
 
-            if !result.modified_chunks.contains(&freed_chunk_pos) {
-                result.modified_chunks.push(freed_chunk_pos);
+            if !result.chunks_requiring_update.contains(&freed_chunk_pos) {
+                result.chunks_requiring_update.push(freed_chunk_pos);
             }
 
             // Mark chunk for update
@@ -289,12 +292,12 @@ fn perform_immediate_lateral_inflow(
             }
         }
 
-        result.total_inflow = actual_inflow;
+        result.volume_received = actual_inflow;
     }
 
     // Remove water from contributing neighbors
     for (neighbor_pos, contribution) in contributions {
-        let scaled_contribution = contribution * scale_factor;
+        let scaled_contribution = contribution * contribution_scale_factor;
         if scaled_contribution < MIN_WATER_VOLUME {
             continue;
         }
@@ -315,10 +318,10 @@ fn perform_immediate_lateral_inflow(
                 chunk.water.set(neighbor_local_pos, new_volume);
             }
 
-            result.contributing_positions.push(neighbor_pos);
+            result.donor_positions.push(neighbor_pos);
 
-            if !result.modified_chunks.contains(&neighbor_chunk_pos) {
-                result.modified_chunks.push(neighbor_chunk_pos);
+            if !result.chunks_requiring_update.contains(&neighbor_chunk_pos) {
+                result.chunks_requiring_update.push(neighbor_chunk_pos);
             }
 
             // Mark chunk for update
@@ -418,8 +421,8 @@ pub fn handle_block_placement(
             while has_water_at(world_map, &check_pos) {
                 simulation_queue.queue(check_pos);
                 check_pos.y += 1;
-                if check_pos.y > placed_pos.y + 10 {
-                    break; // Safety limit
+                if check_pos.y > placed_pos.y + MAX_UPWARD_FLOW_SEARCH {
+                    break;
                 }
             }
         }
