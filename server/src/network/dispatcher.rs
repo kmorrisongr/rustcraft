@@ -17,6 +17,9 @@ use crate::world::water_simulation::{
     water_surface_detection_system, WaterSimulationQueue, WaterSurfaceUpdateQueue,
     WaterUpdateEvent,
 };
+use crate::world::water_sleep::{
+    water_sleep_update_system, water_wake_on_terrain_change_system, WaterSleepManager,
+};
 use crate::world::BlockInteractionEvent;
 use bevy::prelude::*;
 use bevy_renet::renet::{RenetServer, ServerEvent};
@@ -39,7 +42,8 @@ pub fn setup_resources_and_events(app: &mut App) {
         .init_resource::<WaterSimulationQueue>()
         .init_resource::<WaterSurfaceUpdateQueue>()
         .init_resource::<LateralFlowQueue>()
-        .init_resource::<WaterBoundaryCache>();
+        .init_resource::<WaterBoundaryCache>()
+        .init_resource::<WaterSleepManager>();
 
     setup_chat_resources(app);
 }
@@ -62,13 +66,19 @@ pub fn register_systems(app: &mut App) {
     app.add_systems(Update, background_chunk_generation_system);
 
     // Water simulation systems - ordered pipeline:
-    // 0. Process block changes for water (terrain mutation handling)
-    // 1. Handle events that trigger water updates
-    // 2. Vertical (downward) flow simulation
-    // 3. Surface detection to identify which cells are at the surface
-    // 4. Update boundary cache for cross-chunk lookups
-    // 5. Lateral flow simulation (spreading based on height differences)
+    // 0. Wake sleeping water on terrain changes (must be before other water systems)
+    // 1. Process block changes for water (terrain mutation handling)
+    // 2. Handle events that trigger water updates
+    // 3. Vertical (downward) flow simulation
+    // 4. Surface detection to identify which cells are at the surface
+    // 5. Update boundary cache for cross-chunk lookups
+    // 6. Lateral flow simulation (spreading based on height differences)
+    // 7. Update sleep states based on activity (must be after all simulation)
     app.add_systems(Update, handle_water_update_events);
+    app.add_systems(
+        FixedUpdate,
+        water_wake_on_terrain_change_system.before(process_block_changes_for_water),
+    );
     app.add_systems(
         FixedUpdate,
         process_block_changes_for_water.after(handle_player_inputs_system),
@@ -88,6 +98,10 @@ pub fn register_systems(app: &mut App) {
     app.add_systems(
         FixedUpdate,
         lateral_flow_system.after(update_water_boundaries_system),
+    );
+    app.add_systems(
+        FixedUpdate,
+        water_sleep_update_system.after(lateral_flow_system),
     );
 
     app.add_systems(PostUpdate, update_server_time);

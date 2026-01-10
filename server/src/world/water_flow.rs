@@ -100,11 +100,13 @@ impl FlowAccumulator {
 /// the next frame's vertical flow.
 ///
 /// Supports cross-chunk flow via the WaterBoundaryCache.
+/// Integrates with water sleep system to skip sleeping chunks and record activity.
 pub fn lateral_flow_system(
     mut world_map: ResMut<ServerWorldMap>,
     mut flow_queue: ResMut<LateralFlowQueue>,
     boundary_cache: Res<super::water_boundary::WaterBoundaryCache>,
     mut vertical_queue: ResMut<super::water_simulation::WaterSimulationQueue>,
+    mut sleep_manager: ResMut<super::water_sleep::WaterSleepManager>,
 ) {
     if flow_queue.pending_chunks.is_empty() {
         return;
@@ -122,6 +124,7 @@ pub fn lateral_flow_system(
     let mut total_updates = 0;
     let mut chunks_modified: HashSet<IVec3> = HashSet::new();
     let mut cross_chunk_flows: Vec<super::water_boundary::CrossChunkFlow> = Vec::new();
+    let mut skipped_sleeping = 0;
 
     for chunk_pos in chunks_to_process {
         if total_updates >= MAX_LATERAL_UPDATES_PER_TICK {
@@ -134,9 +137,15 @@ pub fn lateral_flow_system(
 
         flow_queue.remove(&chunk_pos);
 
+        // Check if this chunk is sleeping (skip simulation if so)
+        if !sleep_manager.should_simulate(&chunk_pos) {
+            skipped_sleeping += 1;
+            continue;
+        }
+
         log::debug!("[LATERAL FLOW] Processing chunk {:?}", chunk_pos);
 
-        if let Some((updates, neighbor_flows)) = process_chunk_lateral_flow(
+        if let Some((updates, neighbor_flows, volume_delta)) = process_chunk_lateral_flow(
             &mut world_map,
             chunk_pos,
             &boundary_cache,
@@ -148,6 +157,10 @@ pub fn lateral_flow_system(
                 updates,
                 neighbor_flows.len()
             );
+
+            // Record activity for sleep detection
+            sleep_manager.record_activity(chunk_pos, volume_delta, updates);
+
             total_updates += updates;
             if updates > 0 {
                 chunks_modified.insert(chunk_pos);
@@ -162,10 +175,19 @@ pub fn lateral_flow_system(
     // Apply cross-chunk flows
     let neighbor_chunks =
         apply_cross_chunk_flows(&mut world_map, cross_chunk_flows, &mut vertical_queue);
-    for neighbor_chunk in neighbor_chunks {
-        chunks_modified.insert(neighbor_chunk);
+    for neighbor_chunk in &neighbor_chunks {
+        chunks_modified.insert(*neighbor_chunk);
         // Queue neighbor for continued simulation
-        flow_queue.queue(neighbor_chunk);
+        flow_queue.queue(*neighbor_chunk);
+        // Wake neighboring chunks that received cross-chunk flow
+        sleep_manager.wake_chunk(*neighbor_chunk, "cross-chunk flow", false);
+    }
+
+    if skipped_sleeping > 0 {
+        log::debug!(
+            "[LATERAL FLOW] Skipped {} sleeping chunks",
+            skipped_sleeping
+        );
     }
 
     log::debug!(
@@ -183,14 +205,14 @@ pub fn lateral_flow_system(
 }
 
 /// Process lateral flow for a single chunk.
-/// Returns the number of cells that were updated and any cross-chunk flows,
-/// or None if chunk doesn't exist.
+/// Returns the number of cells that were updated, any cross-chunk flows,
+/// and the total volume delta (for sleep detection), or None if chunk doesn't exist.
 fn process_chunk_lateral_flow(
     world_map: &mut ServerWorldMap,
     chunk_pos: IVec3,
     boundary_cache: &super::water_boundary::WaterBoundaryCache,
     vertical_queue: &mut super::water_simulation::WaterSimulationQueue,
-) -> Option<(usize, Vec<super::water_boundary::CrossChunkFlow>)> {
+) -> Option<(usize, Vec<super::water_boundary::CrossChunkFlow>, f32)> {
     // First pass: gather surface cells and their current heights
     let (surface_cells, water_volumes): (Vec<IVec3>, HashMap<IVec3, f32>) = {
         let chunk = world_map.chunks.map.get(&chunk_pos)?;
@@ -206,7 +228,7 @@ fn process_chunk_lateral_flow(
         );
 
         if surface_count == 0 {
-            return Some((0, Vec::new()));
+            return Some((0, Vec::new(), 0.0));
         }
 
         let cells: Vec<IVec3> = chunk.water_surfaces.cell_positions().copied().collect();
@@ -220,7 +242,7 @@ fn process_chunk_lateral_flow(
     };
 
     if surface_cells.is_empty() {
-        return Some((0, Vec::new()));
+        return Some((0, Vec::new(), 0.0));
     }
 
     log::debug!(
@@ -361,13 +383,19 @@ fn process_chunk_lateral_flow(
 
     // Apply accumulated flows
     if !accumulator.has_changes() && cross_chunk_flows.is_empty() {
-        return Some((0, Vec::new()));
+        return Some((0, Vec::new(), 0.0));
     }
 
     // Even if no intra-chunk changes, we may have cross-chunk flows
     if !accumulator.has_changes() {
-        return Some((0, cross_chunk_flows));
+        // Cross-chunk flows still count as activity
+        let cross_chunk_delta: f32 = cross_chunk_flows.iter().map(|f| f.flow_amount).sum();
+        return Some((0, cross_chunk_flows, cross_chunk_delta));
     }
+
+    // Calculate total volume delta for sleep detection BEFORE consuming accumulator
+    let total_volume_delta: f32 = accumulator.delta.values().map(|d| d.abs()).sum();
+    let cross_chunk_delta: f32 = cross_chunk_flows.iter().map(|f| f.flow_amount).sum();
 
     let chunk = world_map.chunks.map.get_mut(&chunk_pos)?;
     let mut cells_updated = 0;
@@ -410,7 +438,11 @@ fn process_chunk_lateral_flow(
         }
     }
 
-    Some((cells_updated, cross_chunk_flows))
+    Some((
+        cells_updated,
+        cross_chunk_flows,
+        total_volume_delta + cross_chunk_delta,
+    ))
 }
 
 /// Applies cross-chunk water flows collected during lateral flow processing.

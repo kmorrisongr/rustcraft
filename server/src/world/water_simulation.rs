@@ -14,7 +14,7 @@ use shared::world::{
     global_to_chunk_local, BlockData, BlockHitbox, BlockId, ServerWorldMap, WorldMap,
     MAX_WATER_VOLUME, MIN_WATER_VOLUME,
 };
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Event triggered when water needs to be re-evaluated at a position.
 /// This can be caused by:
@@ -175,24 +175,42 @@ pub fn handle_water_update_events(
 /// 1. Check if there's water at the position
 /// 2. Check if the block below is air (or has room for more water)
 /// 3. Transfer water volume downward
+///
+/// Integrates with sleep system to record vertical flow activity.
 pub fn water_simulation_system(
     mut world_map: ResMut<ServerWorldMap>,
     mut queue: ResMut<WaterSimulationQueue>,
     mut surface_queue: ResMut<WaterSurfaceUpdateQueue>,
+    mut sleep_manager: ResMut<super::water_sleep::WaterSleepManager>,
 ) {
     let mut updates_this_tick = 0;
     let mut chunks_modified: HashSet<IVec3> = HashSet::new();
+    let mut chunk_flow_counts: HashMap<IVec3, usize> = HashMap::new();
 
     while updates_this_tick < MAX_UPDATES_PER_TICK {
         let Some(pos) = queue.pop() else {
             break;
         };
 
+        // Check if the chunk containing this position is sleeping
+        let (chunk_pos, _) = global_to_chunk_local(&pos);
+        if !sleep_manager.should_simulate(&chunk_pos) {
+            // Wake the chunk since we have pending work
+            sleep_manager.wake_chunk(chunk_pos, "pending vertical flow", false);
+        }
+
         if let Some(chunk_pos) = process_water_at_position(&mut world_map, pos, &mut queue) {
             chunks_modified.insert(chunk_pos);
+            *chunk_flow_counts.entry(chunk_pos).or_insert(0) += 1;
         }
 
         updates_this_tick += 1;
+    }
+
+    // Record flow activity for sleep detection
+    for (chunk_pos, flow_count) in chunk_flow_counts {
+        // Vertical flow is significant activity
+        sleep_manager.record_activity(chunk_pos, flow_count as f32 * 0.1, flow_count);
     }
 
     // Mark modified chunks for broadcast and surface update

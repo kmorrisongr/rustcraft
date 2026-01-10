@@ -10,6 +10,7 @@ pub mod terrain_mutation;
 pub mod water_boundary;
 pub mod water_flow;
 pub mod water_simulation;
+pub mod water_sleep;
 
 use bevy::prelude::Event;
 use bevy::prelude::EventReader;

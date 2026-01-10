@@ -138,7 +138,7 @@ Rendering never affects simulation state.
 	5.	✅ Chunk boundary exchange (`server/src/world/water_boundary.rs`)
 	6.	✅ Terrain mutation handling (`server/src/world/terrain_mutation.rs`)
 	7.	✅ Visual wave rendering (`client/src/world/rendering/water*.rs`, `data/shaders/water.wgsl`)
-	8.	Optimization & sleeping
+	8.	✅ Optimization & sleeping
 
 ⸻
 
