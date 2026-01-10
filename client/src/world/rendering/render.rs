@@ -204,9 +204,12 @@ pub fn world_render_system(
                 let lod_level =
                     LodLevel::from_distance_squared(chunk_distance_sq, lod0_distance_sq);
 
-                // Skip if this chunk is already at the correct LOD level
+                // Skip if this chunk is already at the correct LOD level AND doesn't need remesh
                 // This prevents redundant mesh regeneration when events fire multiple times
-                if chunk_arc.current_lod == lod_level && chunk_arc.entity.is_some() {
+                if chunk_arc.current_lod == lod_level
+                    && chunk_arc.entity.is_some()
+                    && !chunk_arc.needs_remesh
+                {
                     continue;
                 }
 
@@ -214,6 +217,7 @@ pub fn world_render_system(
                 // from queuing duplicate events while the mesh task is in progress
                 let chunk = Arc::make_mut(chunk_arc);
                 chunk.current_lod = lod_level;
+                chunk.needs_remesh = false; // Clear the flag as we're regenerating
 
                 // Define variables to move to the thread
                 let map_clone = Arc::clone(&map_ptr);

@@ -49,6 +49,7 @@ pub fn update_world_from_network(
                         },
                         last_mesh_ts: Instant::now(),
                         current_lod: shared::world::LodLevel::default(),
+                        needs_remesh: true, // Mark for remesh since data changed from server
                     });
 
                     world.map.insert(pos, chunk);

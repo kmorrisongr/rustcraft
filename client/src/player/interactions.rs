@@ -1,14 +1,14 @@
 use crate::mob::{MobMarker, TargetedMob, TargetedMobData};
 use crate::network::buffered_client::CurrentFrameInputs;
 use crate::ui::hud::UIMode;
-use crate::world::ClientWorldMap;
+use crate::world::{ClientWorldMap, WorldRenderRequestUpdateEvent};
 use bevy::color::palettes::css::WHITE;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use shared::messages::NetworkAction;
 use shared::players::blocks::{simulate_player_block_interactions, CallerType};
 use shared::players::{Player, ViewMode};
-use shared::world::raycast;
+use shared::world::{global_to_chunk_local, raycast};
 
 use super::CurrentPlayerMarker;
 
@@ -28,6 +28,7 @@ pub struct PlayerInteractionResources<'w> {
     view_mode: Res<'w, ViewMode>,
     targeted_mob: ResMut<'w, TargetedMob>,
     frame_inputs: ResMut<'w, CurrentFrameInputs>,
+    ev_render: EventWriter<'w, WorldRenderRequestUpdateEvent>,
 }
 
 // Function to handle block placement and breaking
@@ -50,6 +51,7 @@ pub fn handle_block_interactions(
         view_mode,
         mut targeted_mob,
         mut frame_inputs,
+        mut ev_render,
     } = resources;
 
     let mut player = player_query.single_mut().unwrap();
@@ -119,5 +121,14 @@ pub fn handle_block_interactions(
             &frame_inputs.0,
             CallerType::Client,
         );
+
+        // Trigger chunk re-render if breaking/placing blocks
+        // This ensures the breaking animation is visible
+        if frame_inputs.0.inputs.contains(&NetworkAction::LeftClick)
+            || frame_inputs.0.inputs.contains(&NetworkAction::RightClick)
+        {
+            let (chunk_pos, _) = global_to_chunk_local(&res.position);
+            ev_render.write(WorldRenderRequestUpdateEvent::ChunkToReload(chunk_pos));
+        }
     }
 }
