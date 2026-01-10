@@ -3,7 +3,11 @@ use crate::{
         cleanup::cleanup_all_players_from_world,
         dispatcher::{self, setup_resources_and_events},
     },
-    world::{data::SAVE_PATH, load_from_file::load_world_data},
+    world::{
+        data::SAVE_PATH,
+        generation::generate_debug_water_world,
+        load_from_file::load_world_data,
+    },
 };
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -130,6 +134,7 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
     app.insert_resource(game_folder_paths.clone());
 
     let world_name = &config.world_name.clone();
+    let debug_water_world = config.debug_water_world;
 
     app.insert_resource(config);
 
@@ -141,15 +146,28 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
 
     setup_resources_and_events(&mut app);
 
-    // Load world from files
-    let world_data = match load_world_data(world_name, &game_folder_paths) {
-        Ok(data) => data,
-        Err(err) => {
-            error!(
-                "Failed to load world {} & failed to create a default world : {}",
-                world_name, err
-            );
-            panic!()
+    // Load world from files (or generate debug world)
+    let world_data = if debug_water_world {
+        info!("Generating debug water world for wave scale testing...");
+        let debug_chunks = generate_debug_water_world();
+        crate::world::save::WorldData {
+            name: "debug_water".to_string(),
+            seed: shared::world::WorldSeed(12345),
+            map: debug_chunks,
+            mobs: HashMap::new(),
+            item_stacks: Vec::new(),
+            time: 6000, // Start at noon for good lighting
+        }
+    } else {
+        match load_world_data(world_name, &game_folder_paths) {
+            Ok(data) => data,
+            Err(err) => {
+                error!(
+                    "Failed to load world {} & failed to create a default world : {}",
+                    world_name, err
+                );
+                panic!()
+            }
         }
     };
 

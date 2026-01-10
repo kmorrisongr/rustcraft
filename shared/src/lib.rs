@@ -33,6 +33,8 @@ pub struct GameServerConfig {
     pub world_name: String,
     pub is_solo: bool,
     pub broadcast_render_distance: i32,
+    /// If true, generate a debug water world for testing wave scaling
+    pub debug_water_world: bool,
 }
 
 const MAX_MEMORY: usize = 128 * 1024 * 1024;
