@@ -419,6 +419,13 @@ pub fn calculate_cross_chunk_flows(
         // Determine which face of the neighbor chunk this position is on
         // (it's the opposite of the face we're crossing from our chunk)
         let neighbor_face = face.opposite();
+        debug_assert_eq!(
+            neighbor_face.opposite(),
+            face,
+            "BoundaryFace::opposite() must be bidirectional (face: {:?}, neighbor_face: {:?})",
+            face,
+            neighbor_face
+        );
 
         // Check if neighbor chunk exists
         let Some(neighbor_chunk) = world_map.chunks.map.get(&neighbor_chunk_pos) else {
@@ -437,6 +444,9 @@ pub fn calculate_cross_chunk_flows(
             }
         }
 
+        // Pre-compute fallback value to avoid closure allocation
+        let fallback_volume = neighbor_chunk.water.volume_at(&neighbor_local_in_chunk);
+
         // Try to get neighbor water info from boundary cache first, fall back to direct lookup
         let neighbor_volume = boundary_cache
             .get(&neighbor_chunk_pos)
@@ -445,7 +455,7 @@ pub fn calculate_cross_chunk_flows(
                 let face_pos = local_to_face_pos(&neighbor_local_in_chunk, neighbor_face);
                 face_data.get(&face_pos).map(|cell| cell.volume)
             })
-            .unwrap_or_else(|| neighbor_chunk.water.volume_at(&neighbor_local_in_chunk));
+            .unwrap_or(fallback_volume);
 
         // Calculate neighbor surface height
         let neighbor_surface_height = if neighbor_volume > MIN_WATER_VOLUME {
