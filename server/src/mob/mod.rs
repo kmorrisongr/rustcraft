@@ -1,6 +1,7 @@
 pub mod behavior;
 
 use bevy::prelude::*;
+use bevy_log::{debug, info};
 use shared::world::{MobAction, MobKind, MobTarget, ServerMob, ServerWorldMap, WorldMap};
 use ulid::Ulid;
 

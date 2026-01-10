@@ -12,6 +12,7 @@ use crate::world::save::SaveRequestEvent;
 use crate::world::simulation::{handle_player_inputs_system, PlayerInputsEvent};
 use crate::world::BlockInteractionEvent;
 use bevy::prelude::*;
+use bevy_log::{debug, info};
 use bevy_renet::renet::{RenetServer, ServerEvent};
 use shared::messages::{
     AuthRegisterResponse, ChatConversation, ClientToServerMessage, FullChatMessage, PlayerSave,
