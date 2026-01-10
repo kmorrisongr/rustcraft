@@ -621,7 +621,7 @@ fn force_water_upward(
 ) -> f32 {
     let mut remaining = volume;
     let mut current_y = base_pos.y + 1;
-    let max_y = base_pos.y + 16; // Reasonable limit
+    let max_y = base_pos.y + MAX_UPWARD_FLOW_SEARCH;
 
     while remaining > MIN_WATER_VOLUME && current_y <= max_y {
         let check_pos = IVec3::new(base_pos.x, current_y, base_pos.z);
