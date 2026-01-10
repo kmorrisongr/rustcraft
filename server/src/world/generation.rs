@@ -710,11 +710,13 @@ fn get_debug_water_body(
     config: &DebugWaterWorld,
 ) -> Option<(i32, bool)> {
     // Define water bodies: (center_x, center_z, half_size, depth, name)
-    // Using wave scale thresholds as reference:
-    // - Puddle threshold: 2.0 volume -> 1x1x1 = 1.0, need 1x1x2 or 2x1x1
-    // - Pond threshold: 8.0 volume -> 3x3x1 = 9.0
-    // - Lake threshold: 25.0 volume -> 5x5x1 = 25.0
-    // - Ocean threshold: 50.0 volume -> 7x7x1 = 49.0, or smaller with depth
+    // Using the wave scale categories as reference; exact volume thresholds
+    // are defined in `water_wave_scale.rs`. The examples below illustrate
+    // typical sizes for:
+    // - puddle-like pools (e.g. 1x1 with varying depth)
+    // - pond-like pools (e.g. around 3x3)
+    // - lake-like pools (e.g. around 5x5)
+    // - ocean-like bodies (e.g. larger areas or smaller areas with more depth)
 
     let pools = [
         // (center_x, center_z, half_size, depth, name)
