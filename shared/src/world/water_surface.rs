@@ -174,6 +174,12 @@ impl ChunkWaterSurfaces {
         self.surface_cells.contains_key(pos)
     }
 
+    /// Alias for has_surface - returns true if this is a surface cell.
+    #[inline]
+    pub fn is_surface(&self, pos: &IVec3) -> bool {
+        self.surface_cells.contains_key(pos)
+    }
+
     /// Returns all surface cells.
     pub fn cells(&self) -> impl Iterator<Item = &WaterSurfaceCell> {
         self.surface_cells.values()

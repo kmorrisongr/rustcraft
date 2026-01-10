@@ -115,7 +115,7 @@ Rendering never affects simulation state.
 	2.	✅ Downward-only flow (`server/src/world/water_simulation.rs`)
 	3.	✅ Surface detection (`shared/src/world/water_surface.rs`)
 	4.	✅ Lateral shallow-water simulation (`server/src/world/water_flow.rs`)
-	5.	Chunk boundary exchange
+	5.	✅ Chunk boundary exchange (`server/src/world/water_boundary.rs`)
 	6.	Terrain mutation handling
 	7.	Visual wave rendering
 	8.	Optimization & sleeping

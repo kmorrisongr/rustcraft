@@ -6,6 +6,7 @@ pub mod load_from_file;
 pub mod save;
 pub mod simulation;
 pub mod stacks;
+pub mod water_boundary;
 pub mod water_flow;
 pub mod water_simulation;
 

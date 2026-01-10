@@ -10,6 +10,7 @@ use crate::world::broadcast_world::broadcast_world_state;
 use crate::world::load_from_file::load_player_data;
 use crate::world::save::SaveRequestEvent;
 use crate::world::simulation::{handle_player_inputs_system, PlayerInputsEvent};
+use crate::world::water_boundary::{update_water_boundaries_system, WaterBoundaryCache};
 use crate::world::water_flow::{lateral_flow_system, LateralFlowQueue};
 use crate::world::water_simulation::{
     handle_water_update_events, water_simulation_system, water_surface_detection_system,
@@ -36,7 +37,8 @@ pub fn setup_resources_and_events(app: &mut App) {
         .init_resource::<ChunkGenerationTasks>()
         .init_resource::<WaterSimulationQueue>()
         .init_resource::<WaterSurfaceUpdateQueue>()
-        .init_resource::<LateralFlowQueue>();
+        .init_resource::<LateralFlowQueue>()
+        .init_resource::<WaterBoundaryCache>();
 
     setup_chat_resources(app);
 }
@@ -62,7 +64,8 @@ pub fn register_systems(app: &mut App) {
     // 1. Handle events that trigger water updates
     // 2. Vertical (downward) flow simulation
     // 3. Surface detection to identify which cells are at the surface
-    // 4. Lateral flow simulation (spreading based on height differences)
+    // 4. Update boundary cache for cross-chunk lookups
+    // 5. Lateral flow simulation (spreading based on height differences)
     app.add_systems(Update, handle_water_update_events);
     app.add_systems(
         FixedUpdate,
@@ -74,7 +77,11 @@ pub fn register_systems(app: &mut App) {
     );
     app.add_systems(
         FixedUpdate,
-        lateral_flow_system.after(water_surface_detection_system),
+        update_water_boundaries_system.after(water_surface_detection_system),
+    );
+    app.add_systems(
+        FixedUpdate,
+        lateral_flow_system.after(update_water_boundaries_system),
     );
 
     app.add_systems(PostUpdate, update_server_time);

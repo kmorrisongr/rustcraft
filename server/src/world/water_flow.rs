@@ -26,19 +26,19 @@ use std::collections::{HashMap, HashSet};
 /// Flow rate coefficient - controls how fast water spreads laterally.
 /// Higher values = faster spreading, but may cause instability.
 /// This is effectively the "hydraulic conductivity" of our simplified model.
-const FLOW_RATE: f32 = 0.25;
+pub const FLOW_RATE: f32 = 0.25;
 
 /// Minimum height difference to trigger flow (prevents oscillation).
 /// Water won't flow if the height difference is below this threshold.
-const MIN_HEIGHT_DIFF: f32 = 0.001;
+pub const MIN_HEIGHT_DIFF: f32 = 0.001;
 
 /// Maximum flow per cell per tick (as fraction of cell volume).
 /// Limits how much water can leave a cell in one simulation step.
-const MAX_FLOW_PER_TICK: f32 = 0.25;
+pub const MAX_FLOW_PER_TICK: f32 = 0.25;
 
 /// Damping factor to reduce oscillations (0 = no damping, 1 = full damping).
 /// Applied to flow calculations to prevent water from sloshing indefinitely.
-const FLOW_DAMPING: f32 = 0.1;
+pub const FLOW_DAMPING: f32 = 0.1;
 
 /// Maximum number of lateral flow updates per tick.
 const MAX_LATERAL_UPDATES_PER_TICK: usize = 512;
@@ -97,9 +97,12 @@ impl FlowAccumulator {
 /// This system processes surface patches and simulates horizontal water flow
 /// based on height differences. It runs after surface detection and before
 /// the next frame's vertical flow.
+///
+/// Supports cross-chunk flow via the WaterBoundaryCache.
 pub fn lateral_flow_system(
     mut world_map: ResMut<ServerWorldMap>,
     mut flow_queue: ResMut<LateralFlowQueue>,
+    boundary_cache: Res<super::water_boundary::WaterBoundaryCache>,
 ) {
     if flow_queue.pending_chunks.is_empty() {
         return;
@@ -110,6 +113,7 @@ pub fn lateral_flow_system(
 
     let mut total_updates = 0;
     let mut chunks_modified: HashSet<IVec3> = HashSet::new();
+    let mut cross_chunk_flows: Vec<super::water_boundary::CrossChunkFlow> = Vec::new();
 
     for chunk_pos in chunks_to_process {
         if total_updates >= MAX_LATERAL_UPDATES_PER_TICK {
@@ -118,14 +122,26 @@ pub fn lateral_flow_system(
 
         flow_queue.remove(&chunk_pos);
 
-        if let Some(updates) = process_chunk_lateral_flow(&mut world_map, chunk_pos) {
+        if let Some((updates, neighbor_flows)) =
+            process_chunk_lateral_flow(&mut world_map, chunk_pos, &boundary_cache)
+        {
             total_updates += updates;
             if updates > 0 {
                 chunks_modified.insert(chunk_pos);
                 // Re-queue for continued simulation if flow occurred
                 flow_queue.queue(chunk_pos);
             }
+            // Collect cross-chunk flows for batch processing
+            cross_chunk_flows.extend(neighbor_flows);
         }
+    }
+
+    // Apply cross-chunk flows
+    let neighbor_chunks = apply_cross_chunk_flows(&mut world_map, cross_chunk_flows);
+    for neighbor_chunk in neighbor_chunks {
+        chunks_modified.insert(neighbor_chunk);
+        // Queue neighbor for continued simulation
+        flow_queue.queue(neighbor_chunk);
     }
 
     // Mark modified chunks for broadcast
@@ -137,14 +153,19 @@ pub fn lateral_flow_system(
 }
 
 /// Process lateral flow for a single chunk.
-/// Returns the number of cells that were updated, or None if chunk doesn't exist.
-fn process_chunk_lateral_flow(world_map: &mut ServerWorldMap, chunk_pos: IVec3) -> Option<usize> {
+/// Returns the number of cells that were updated and any cross-chunk flows,
+/// or None if chunk doesn't exist.
+fn process_chunk_lateral_flow(
+    world_map: &mut ServerWorldMap,
+    chunk_pos: IVec3,
+    boundary_cache: &super::water_boundary::WaterBoundaryCache,
+) -> Option<(usize, Vec<super::water_boundary::CrossChunkFlow>)> {
     // First pass: gather surface cells and their current heights
     let (surface_cells, water_volumes): (Vec<IVec3>, HashMap<IVec3, f32>) = {
         let chunk = world_map.chunks.map.get(&chunk_pos)?;
 
         if chunk.water_surfaces.cell_count() == 0 {
-            return Some(0);
+            return Some((0, Vec::new()));
         }
 
         let cells: Vec<IVec3> = chunk.water_surfaces.cell_positions().copied().collect();
@@ -158,7 +179,7 @@ fn process_chunk_lateral_flow(world_map: &mut ServerWorldMap, chunk_pos: IVec3) 
     };
 
     if surface_cells.is_empty() {
-        return Some(0);
+        return Some((0, Vec::new()));
     }
 
     // Build set of surface positions for quick neighbor lookup
@@ -166,6 +187,7 @@ fn process_chunk_lateral_flow(world_map: &mut ServerWorldMap, chunk_pos: IVec3) 
 
     // Compute flows for all cells
     let mut accumulator = FlowAccumulator::new();
+    let mut cross_chunk_flows: Vec<super::water_boundary::CrossChunkFlow> = Vec::new();
 
     for &pos in &surface_cells {
         let volume = water_volumes.get(&pos).copied().unwrap_or(0.0);
@@ -187,7 +209,16 @@ fn process_chunk_lateral_flow(world_map: &mut ServerWorldMap, chunk_pos: IVec3) 
         for neighbor_pos in neighbors {
             // Check if neighbor is within chunk bounds
             if !is_valid_local_pos(&neighbor_pos) {
-                // Cross-chunk flow would be handled in step 5 (chunk boundary exchange)
+                // Cross-chunk flow: calculate using boundary cache
+                let flows = super::water_boundary::calculate_cross_chunk_flows(
+                    chunk_pos,
+                    pos,
+                    volume,
+                    surface_height,
+                    boundary_cache,
+                    world_map,
+                );
+                cross_chunk_flows.extend(flows);
                 continue;
             }
 
@@ -261,8 +292,13 @@ fn process_chunk_lateral_flow(world_map: &mut ServerWorldMap, chunk_pos: IVec3) 
     }
 
     // Apply accumulated flows
+    if !accumulator.has_changes() && cross_chunk_flows.is_empty() {
+        return Some((0, Vec::new()));
+    }
+
+    // Even if no intra-chunk changes, we may have cross-chunk flows
     if !accumulator.has_changes() {
-        return Some(0);
+        return Some((0, cross_chunk_flows));
     }
 
     let chunk = world_map.chunks.map.get_mut(&chunk_pos)?;
@@ -293,12 +329,47 @@ fn process_chunk_lateral_flow(world_map: &mut ServerWorldMap, chunk_pos: IVec3) 
         }
     }
 
-    Some(cells_updated)
+    Some((cells_updated, cross_chunk_flows))
+}
+
+/// Applies cross-chunk water flows collected during lateral flow processing.
+/// Returns the set of neighbor chunks that were modified.
+fn apply_cross_chunk_flows(
+    world_map: &mut ServerWorldMap,
+    flows: Vec<super::water_boundary::CrossChunkFlow>,
+) -> HashSet<IVec3> {
+    let mut modified_chunks = HashSet::new();
+
+    for flow in flows {
+        let Some(neighbor_chunk) = world_map.chunks.map.get_mut(&flow.neighbor_chunk) else {
+            continue;
+        };
+
+        // Get current water at destination
+        let current_volume = neighbor_chunk.water.volume_at(&flow.neighbor_local_pos);
+        let new_volume = (current_volume + flow.flow_amount).min(MAX_WATER_VOLUME);
+
+        if (new_volume - current_volume).abs() > MIN_WATER_VOLUME {
+            neighbor_chunk.water.set(flow.neighbor_local_pos, new_volume);
+
+            // Add Water block if not present
+            if neighbor_chunk.map.get(&flow.neighbor_local_pos).is_none() {
+                neighbor_chunk.map.insert(
+                    flow.neighbor_local_pos,
+                    BlockData::new(BlockId::Water, shared::world::BlockDirection::Front),
+                );
+            }
+
+            modified_chunks.insert(flow.neighbor_chunk);
+        }
+    }
+
+    modified_chunks
 }
 
 /// Check if a local position is within valid chunk bounds.
 #[inline]
-fn is_valid_local_pos(pos: &IVec3) -> bool {
+pub fn is_valid_local_pos(pos: &IVec3) -> bool {
     pos.x >= 0
         && pos.x < CHUNK_SIZE
         && pos.y >= 0
