@@ -121,6 +121,7 @@ impl WaterSurfacePatch {
         
         // Update average Y incrementally
         let len = self.cells.len();
+        debug_assert!(len > 0, "cells should not be empty after push");
         self.avg_y = (self.avg_y * (len - 1) as f32 + local_pos.y as f32) / len as f32;
     }
 
