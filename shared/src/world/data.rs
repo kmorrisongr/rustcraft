@@ -132,7 +132,7 @@ impl ServerChunk {
     /// # Arguments
     /// * `pos` - Local position within the chunk (0..CHUNK_SIZE for each axis)
     pub fn remove_water_block_if_present(&mut self, pos: &IVec3) {
-        if self.map.get(pos).map(|b| b.id) == Some(super::BlockId::Water) {
+        if self.map.get(pos).map(|b| b.id) == Some(BlockId::Water) {
             self.map.remove(pos);
         }
     }
