@@ -1,5 +1,6 @@
 pub mod blocks;
 pub mod data;
+pub mod gerstner;
 pub mod items;
 pub mod lod;
 pub mod mobs;
@@ -10,6 +11,7 @@ pub mod water_surface;
 
 pub use blocks::*;
 pub use data::*;
+pub use gerstner::*;
 pub use items::*;
 pub use lod::*;
 pub use mobs::*;

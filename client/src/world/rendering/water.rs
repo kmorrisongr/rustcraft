@@ -160,11 +160,13 @@ pub fn process_water_mesh_tasks(
     mut tasks: ResMut<WaterMeshTasks>,
     mut water_entities: ResMut<WaterMeshEntities>,
     material_resource: Option<Res<WaterMaterialResource>>,
-    mut standard_materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Use fallback material if water material not ready
-    // TODO: Use custom water material when shader is properly loaded
-    let _material_handle = material_resource.map(|r| r.handle.clone());
+    // Get water material handle if available
+    let Some(material_res) = material_resource else {
+        // Water material not yet initialized, skip processing
+        return;
+    };
+    let material_handle = material_res.handle.clone();
 
     // Process completed tasks
     tasks.tasks.retain_mut(|mesh_task| {
@@ -183,24 +185,13 @@ pub fn process_water_mesh_tasks(
                         (mesh_task.chunk_pos.z * CHUNK_SIZE) as f32,
                     );
 
-                    // Use standard material as fallback until custom shader is loaded
-                    let fallback_material = standard_materials.add(StandardMaterial {
-                        base_color: Color::srgba(0.2, 0.5, 0.8, 0.7),
-                        alpha_mode: AlphaMode::Blend,
-                        perceptual_roughness: 0.1,
-                        reflectance: 0.5,
-                        cull_mode: None,
-                        double_sided: true,
-                        ..default()
-                    });
-
                     let entity = commands
                         .spawn((
                             StateScoped(GameState::Game),
                             transform,
                             Visibility::Visible,
                             Mesh3d(meshes.add(mesh)),
-                            MeshMaterial3d(fallback_material),
+                            MeshMaterial3d(material_handle.clone()),
                             WaterMesh {
                                 chunk_pos: mesh_task.chunk_pos,
                                 is_lod: mesh_task.is_lod,

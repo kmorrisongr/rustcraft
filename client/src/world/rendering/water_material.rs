@@ -20,7 +20,7 @@ pub struct WaterMaterialUniform {
     pub shallow_color: Vec4,
     /// Time offset for desynchronizing wave animation between chunks
     pub time_offset: f32,
-    /// Wave amplitude multiplier (default: 0.1)
+    /// Wave amplitude multiplier (default: 0.08)
     pub wave_amplitude: f32,
     /// Wave speed multiplier (default: 1.0)
     pub wave_speed: f32,
@@ -44,7 +44,7 @@ impl Default for WaterMaterialUniform {
 /// Water material extension that adds Gerstner wave parameters.
 ///
 /// This is used with `ExtendedMaterial<StandardMaterial, WaterMaterialExtension>`
-/// to create a complete water material.
+/// to create a complete water material with animated waves.
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
 pub struct WaterMaterialExtension {
     #[uniform(100)]

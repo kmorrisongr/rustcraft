@@ -5,6 +5,7 @@ use crate::mob::*;
 use crate::network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime};
 use crate::ui::hud::chat::{render_chat, setup_chat};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
+use bevy::pbr::MaterialPlugin;
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
 use shared::messages::mob::MobUpdateEvent;
@@ -73,6 +74,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
         .add_plugins(RustcraftPhysicsPlugin)
+        .add_plugins(MaterialPlugin::<rendering::WaterMaterial>::default())
         .insert_resource(WorldSeed(0))
         .insert_resource(ClientTime(0))
         .insert_resource(FirstChunkReceived(false))
@@ -137,6 +139,7 @@ pub fn game_plugin(app: &mut App) {
                 launch_local_server_system,
                 init_server_connection,
                 setup_materials,
+                rendering::setup_water_material,
                 setup_server_connect_loading_screen,
             )
                 .chain(),

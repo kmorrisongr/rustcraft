@@ -87,6 +87,17 @@ pub enum WaterFace {
     Bottom, // Y- (underwater view)
 }
 
+/// Number of subdivisions per water cell for smooth wave displacement.
+/// Higher values = smoother waves but more vertices.
+/// - 1 = 4 vertices per cell (original, no tessellation)
+/// - 2 = 9 vertices per cell (2x2 grid)
+/// - 4 = 25 vertices per cell (4x4 grid) - recommended for waves
+/// - 8 = 81 vertices per cell (high quality)
+pub const WATER_TESSELLATION: u32 = 4;
+
+/// LOD tessellation level (fewer subdivisions for distant water)
+pub const WATER_TESSELLATION_LOD: u32 = 2;
+
 /// Generates a water mesh for a chunk.
 ///
 /// This creates a mesh from all water surface cells in the chunk.
@@ -263,7 +274,10 @@ fn should_render_side_faces(input: &WaterMeshInput, local_pos: &IVec3) -> SideFa
     faces
 }
 
-/// Adds a top (Y+) water surface quad.
+/// Adds a top (Y+) water surface quad with tessellation for smooth waves.
+///
+/// The quad is subdivided into a grid of smaller triangles to allow
+/// the vertex shader to displace individual vertices smoothly.
 fn add_top_face(
     data: &mut WaterMeshData,
     x: f32,
@@ -273,42 +287,57 @@ fn add_top_face(
     world_z: f32,
     volume: f32,
 ) {
+    add_top_face_tessellated(data, x, y, z, world_x, world_z, volume, WATER_TESSELLATION);
+}
+
+/// Adds a tessellated top face with configurable subdivision level.
+fn add_top_face_tessellated(
+    data: &mut WaterMeshData,
+    x: f32,
+    y: f32,
+    z: f32,
+    world_x: f32,
+    world_z: f32,
+    volume: f32,
+    subdivisions: u32,
+) {
     let base_idx = data.positions.len() as u32;
-
-    // Four corners of the quad (counterclockwise when viewed from above)
-    data.positions.extend_from_slice(&[
-        [x, y, z],             // 0: bottom-left
-        [x + 1.0, y, z],       // 1: bottom-right
-        [x + 1.0, y, z + 1.0], // 2: top-right
-        [x, y, z + 1.0],       // 3: top-left
-    ]);
-
-    // Normals pointing up
-    data.normals.extend_from_slice(&[
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ]);
-
-    // UVs based on world position for consistent wave patterns
-    data.uvs.extend_from_slice(&[
-        [world_x, world_z],
-        [world_x + 1.0, world_z],
-        [world_x + 1.0, world_z + 1.0],
-        [world_x, world_z + 1.0],
-    ]);
+    let step = 1.0 / subdivisions as f32;
+    let verts_per_side = subdivisions + 1;
 
     // Colors encode volume (alpha) and depth hint (RGB)
     let alpha = volume.clamp(0.5, 1.0);
     let color = [0.2, 0.5, 0.8, alpha];
-    data.colors.extend_from_slice(&[color, color, color, color]);
 
-    // Two triangles (counterclockwise)
-    data.indices
-        .extend_from_slice(&[base_idx, base_idx + 1, base_idx + 2]);
-    data.indices
-        .extend_from_slice(&[base_idx, base_idx + 2, base_idx + 3]);
+    // Generate vertex grid
+    for row in 0..verts_per_side {
+        for col in 0..verts_per_side {
+            let local_x = x + col as f32 * step;
+            let local_z = z + row as f32 * step;
+            let wx = world_x + col as f32 * step;
+            let wz = world_z + row as f32 * step;
+
+            data.positions.push([local_x, y, local_z]);
+            data.normals.push([0.0, 1.0, 0.0]); // Will be recalculated by vertex shader
+            data.uvs.push([wx, wz]);
+            data.colors.push(color);
+        }
+    }
+
+    // Generate triangle indices (two triangles per grid cell)
+    for row in 0..subdivisions {
+        for col in 0..subdivisions {
+            let tl = base_idx + row * verts_per_side + col;
+            let tr = tl + 1;
+            let bl = tl + verts_per_side;
+            let br = bl + 1;
+
+            // First triangle (counterclockwise)
+            data.indices.extend_from_slice(&[tl, bl, tr]);
+            // Second triangle
+            data.indices.extend_from_slice(&[tr, bl, br]);
+        }
+    }
 }
 
 /// Adds a side face in the X+ direction.
@@ -505,6 +534,7 @@ pub fn generate_water_mesh_lod(input: &WaterMeshInput) -> Option<WaterMeshData> 
     let chunk_world_z = input.chunk_pos.z * CHUNK_SIZE;
 
     // For LOD, we just render top faces (no sides) and use a fixed height
+    // with reduced tessellation for better performance
     for (local_pos, cell) in input.water.iter() {
         if !should_render_top_face(input, local_pos) {
             continue;
@@ -516,7 +546,17 @@ pub fn generate_water_mesh_lod(input: &WaterMeshInput) -> Option<WaterMeshData> 
         let world_x = (chunk_world_x + local_pos.x) as f32;
         let world_z = (chunk_world_z + local_pos.z) as f32;
 
-        add_top_face(&mut data, x, y, z, world_x, world_z, 1.0);
+        // Use lower tessellation for LOD meshes
+        add_top_face_tessellated(
+            &mut data,
+            x,
+            y,
+            z,
+            world_x,
+            world_z,
+            1.0,
+            WATER_TESSELLATION_LOD,
+        );
     }
 
     if data.is_empty() {
