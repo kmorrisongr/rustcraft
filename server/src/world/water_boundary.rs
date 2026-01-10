@@ -420,7 +420,7 @@ pub fn calculate_cross_chunk_flows(
         // (it's the opposite of the face we're crossing from our chunk)
         let neighbor_face = face.opposite();
 
-        // Check if neighbor chunk exists for block lookup
+        // Check if neighbor chunk exists
         let Some(neighbor_chunk) = world_map.chunks.map.get(&neighbor_chunk_pos) else {
             continue;
         };
@@ -438,18 +438,14 @@ pub fn calculate_cross_chunk_flows(
         }
 
         // Try to get neighbor water info from boundary cache first, fall back to direct lookup
-        let neighbor_volume = if let Some(neighbor_boundary) = boundary_cache.get(&neighbor_chunk_pos) {
-            if let Some(face_data) = neighbor_boundary.face(neighbor_face) {
+        let neighbor_volume = boundary_cache
+            .get(&neighbor_chunk_pos)
+            .and_then(|neighbor_boundary| neighbor_boundary.face(neighbor_face))
+            .and_then(|face_data| {
                 let face_pos = local_to_face_pos(&neighbor_local_in_chunk, neighbor_face);
-                face_data.get(&face_pos).map(|cell| cell.volume).unwrap_or(0.0)
-            } else {
-                // Face not in cache, fall back to direct lookup
-                neighbor_chunk.water.volume_at(&neighbor_local_in_chunk)
-            }
-        } else {
-            // Chunk not in cache, fall back to direct lookup
-            neighbor_chunk.water.volume_at(&neighbor_local_in_chunk)
-        };
+                face_data.get(&face_pos).map(|cell| cell.volume)
+            })
+            .unwrap_or_else(|| neighbor_chunk.water.volume_at(&neighbor_local_in_chunk));
 
         // Calculate neighbor surface height
         let neighbor_surface_height = if neighbor_volume > MIN_WATER_VOLUME {
