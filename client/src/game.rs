@@ -105,6 +105,10 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(DebugOptions::default())
         .insert_resource(Inventory::new())
+        // Water debug resources
+        .init_resource::<rendering::WaterDebugSettings>()
+        .init_resource::<rendering::WaterDebugEntities>()
+        .init_resource::<rendering::WaterDebugMaterial>()
         .init_resource::<CurrentPlayerProfile>()
         .init_resource::<ParticleAssets>()
         .init_resource::<FoxFeetTargets>()
@@ -217,6 +221,22 @@ pub fn game_plugin(app: &mut App) {
         .add_systems(
             PostUpdate,
             world_render_system.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            (
+                rendering::toggle_water_debug_system,
+                rendering::water_debug_rebuild_on_enable_system,
+            )
+                .run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            PostUpdate,
+            (
+                rendering::water_debug_render_system,
+                rendering::water_debug_cleanup_system,
+            )
+                .run_if(in_state(GameState::Game)),
         )
         .add_systems(
             Update,

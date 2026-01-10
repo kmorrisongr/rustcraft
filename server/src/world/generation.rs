@@ -428,6 +428,8 @@ pub fn generate_chunk(
                 } else if y == terrain_height {
                     biome.surface_block
                 } else if y <= SEA_LEVEL {
+                    // Add water to volume storage as well as block
+                    chunk.water.set_full(IVec3::new(dx, dy, dz));
                     BlockId::Water
                 } else {
                     panic!();
