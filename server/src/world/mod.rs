@@ -6,6 +6,7 @@ pub mod load_from_file;
 pub mod save;
 pub mod simulation;
 pub mod stacks;
+pub mod water_simulation;
 
 use bevy::prelude::Event;
 use bevy::prelude::EventReader;
@@ -14,6 +15,7 @@ use bevy::prelude::ResMut;
 use bevy::prelude::*;
 use shared::world::{BlockData, ItemStack, ServerItemStack, ServerWorldMap, WorldMap};
 use ulid::Ulid;
+use water_simulation::WaterSimulationQueue;
 
 #[derive(Event, Debug)]
 pub struct BlockInteractionEvent {
@@ -24,10 +26,17 @@ pub struct BlockInteractionEvent {
 pub fn handle_block_interactions(
     mut world_map: ResMut<ServerWorldMap>,
     mut events: EventReader<BlockInteractionEvent>,
+    mut water_queue: ResMut<WaterSimulationQueue>,
 ) {
     for event in events.read() {
         match &event.block_type {
             Some(block) => {
+                // Block placement - trigger water displacement
+                water_simulation::trigger_water_displacement_on_block_placement(
+                    &mut world_map,
+                    event.position,
+                    &mut water_queue,
+                );
                 world_map.chunks.set_block(&event.position, *block);
                 debug!("Block added at {:?}: {:?}", event.position, block);
             }
@@ -60,6 +69,13 @@ pub fn handle_block_interactions(
                 world_map
                     .chunks
                     .remove_block_by_coordinates(&event.position);
+
+                // Trigger water flow check after block removal
+                water_simulation::trigger_water_flow_on_block_removal(
+                    event.position,
+                    &mut water_queue,
+                );
+
                 info!("Block removed at {:?}", event.position);
             }
         }

@@ -10,6 +10,9 @@ use crate::world::broadcast_world::broadcast_world_state;
 use crate::world::load_from_file::load_player_data;
 use crate::world::save::SaveRequestEvent;
 use crate::world::simulation::{handle_player_inputs_system, PlayerInputsEvent};
+use crate::world::water_simulation::{
+    handle_water_update_events, water_simulation_system, WaterSimulationQueue, WaterUpdateEvent,
+};
 use crate::world::BlockInteractionEvent;
 use bevy::prelude::*;
 use bevy_renet::renet::{RenetServer, ServerEvent};
@@ -27,7 +30,9 @@ pub fn setup_resources_and_events(app: &mut App) {
     app.add_event::<SaveRequestEvent>()
         .add_event::<BlockInteractionEvent>()
         .add_event::<PlayerInputsEvent>()
-        .init_resource::<ChunkGenerationTasks>();
+        .add_event::<WaterUpdateEvent>()
+        .init_resource::<ChunkGenerationTasks>()
+        .init_resource::<WaterSimulationQueue>();
 
     setup_chat_resources(app);
 }
@@ -48,6 +53,13 @@ pub fn register_systems(app: &mut App) {
     app.add_systems(Update, handle_player_inputs_system);
 
     app.add_systems(Update, background_chunk_generation_system);
+
+    // Water simulation systems
+    app.add_systems(Update, handle_water_update_events);
+    app.add_systems(
+        FixedUpdate,
+        water_simulation_system.after(handle_player_inputs_system),
+    );
 
     app.add_systems(PostUpdate, update_server_time);
 
