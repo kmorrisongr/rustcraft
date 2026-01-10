@@ -224,11 +224,6 @@ impl ChunkWaterStorage {
         self.cells.is_empty()
     }
 
-    /// Removes all empty cells (volume < MIN_WATER_VOLUME) from storage
-    pub fn cleanup_empty_cells(&mut self) {
-        self.cells.retain(|_, cell| !cell.is_empty());
-    }
-
     /// Returns the total water volume in this chunk
     pub fn total_volume(&self) -> f32 {
         self.cells.values().map(|c| c.volume()).sum()

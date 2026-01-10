@@ -60,23 +60,6 @@ impl BoundaryFace {
         }
     }
 
-    /// Returns which axis this face is perpendicular to.
-    pub fn axis(&self) -> usize {
-        match self {
-            BoundaryFace::NegX | BoundaryFace::PosX => 0,
-            BoundaryFace::NegY | BoundaryFace::PosY => 1,
-            BoundaryFace::NegZ | BoundaryFace::PosZ => 2,
-        }
-    }
-
-    /// Returns the local coordinate value for cells on this face.
-    pub fn boundary_coord(&self) -> i32 {
-        match self {
-            BoundaryFace::NegX | BoundaryFace::NegY | BoundaryFace::NegZ => 0,
-            BoundaryFace::PosX | BoundaryFace::PosY | BoundaryFace::PosZ => CHUNK_SIZE - 1,
-        }
-    }
-
     /// All six boundary faces.
     pub const ALL: [BoundaryFace; 6] = [
         BoundaryFace::NegX,
@@ -235,69 +218,6 @@ impl WaterBoundaryCache {
     pub fn take_dirty(&mut self) -> HashSet<IVec3> {
         std::mem::take(&mut self.dirty_chunks)
     }
-
-    /// Gets water volume at a neighbor's boundary cell.
-    ///
-    /// Given a chunk position and a local position that is outside the chunk,
-    /// returns the water volume from the neighboring chunk's boundary cache.
-    ///
-    /// # Arguments
-    /// * `chunk_pos` - The chunk we're flowing FROM
-    /// * `local_pos` - The local position (may be outside 0..CHUNK_SIZE range)
-    pub fn get_neighbor_water(&self, chunk_pos: IVec3, local_pos: IVec3) -> Option<f32> {
-        // Determine which boundary face we're crossing
-        let (neighbor_chunk, face, face_pos) = local_to_neighbor_boundary(local_pos)?;
-        let neighbor_chunk_pos = chunk_pos + neighbor_chunk;
-
-        // Look up in neighbor's boundary cache
-        self.boundaries
-            .get(&neighbor_chunk_pos)?
-            .face(face.opposite())?
-            .get(&face_pos)
-            .map(|cell| cell.volume)
-    }
-
-    /// Checks if a neighbor position is a water surface.
-    pub fn is_neighbor_surface(&self, chunk_pos: IVec3, local_pos: IVec3) -> bool {
-        let Some((neighbor_chunk, face, face_pos)) = local_to_neighbor_boundary(local_pos) else {
-            return false;
-        };
-        let neighbor_chunk_pos = chunk_pos + neighbor_chunk;
-
-        self.boundaries
-            .get(&neighbor_chunk_pos)
-            .and_then(|b| b.face(face.opposite()))
-            .and_then(|f| f.get(&face_pos))
-            .map(|cell| cell.is_surface)
-            .unwrap_or(false)
-    }
-}
-
-/// Converts a local position that's outside chunk bounds to the neighbor chunk offset,
-/// the boundary face being accessed, and the 2D position on that face.
-///
-/// Returns None if the position is within valid chunk bounds.
-fn local_to_neighbor_boundary(local_pos: IVec3) -> Option<(IVec3, BoundaryFace, IVec2)> {
-    let x = local_pos.x;
-    let y = local_pos.y;
-    let z = local_pos.z;
-
-    // Check which axis is out of bounds (should only be one for lateral flow)
-    if x < 0 {
-        Some((IVec3::new(-1, 0, 0), BoundaryFace::NegX, IVec2::new(y, z)))
-    } else if x >= CHUNK_SIZE {
-        Some((IVec3::new(1, 0, 0), BoundaryFace::PosX, IVec2::new(y, z)))
-    } else if y < 0 {
-        Some((IVec3::new(0, -1, 0), BoundaryFace::NegY, IVec2::new(x, z)))
-    } else if y >= CHUNK_SIZE {
-        Some((IVec3::new(0, 1, 0), BoundaryFace::PosY, IVec2::new(x, z)))
-    } else if z < 0 {
-        Some((IVec3::new(0, 0, -1), BoundaryFace::NegZ, IVec2::new(x, y)))
-    } else if z >= CHUNK_SIZE {
-        Some((IVec3::new(0, 0, 1), BoundaryFace::PosZ, IVec2::new(x, y)))
-    } else {
-        None // Within bounds
-    }
 }
 
 /// Converts a local position on a chunk boundary to the 2D face position.
@@ -380,36 +300,20 @@ fn extract_chunk_boundaries(
 ) -> ChunkBoundaryWater {
     let mut boundary = ChunkBoundaryWater::new();
 
-    // Iterate through all water cells and check if they're on boundaries
     for (pos, cell) in chunk.water.iter() {
         let volume = cell.volume();
         if volume < MIN_WATER_VOLUME {
             continue;
         }
 
-        // Check if this cell is a surface
         let is_surface = surfaces.is_surface(pos);
 
-        // Check each horizontal face (we primarily care about lateral flow)
-        for face in BoundaryFace::HORIZONTAL {
+        // Check all 6 faces
+        for face in BoundaryFace::ALL {
             if is_on_boundary(pos, face) {
                 let face_pos = local_to_face_pos(pos, face);
                 boundary.face_mut(face).set(face_pos, volume, is_surface);
             }
-        }
-
-        // Also check vertical faces for vertical flow across chunk boundaries
-        if is_on_boundary(pos, BoundaryFace::NegY) {
-            let face_pos = local_to_face_pos(pos, BoundaryFace::NegY);
-            boundary
-                .face_mut(BoundaryFace::NegY)
-                .set(face_pos, volume, is_surface);
-        }
-        if is_on_boundary(pos, BoundaryFace::PosY) {
-            let face_pos = local_to_face_pos(pos, BoundaryFace::PosY);
-            boundary
-                .face_mut(BoundaryFace::PosY)
-                .set(face_pos, volume, is_surface);
         }
     }
 
@@ -419,38 +323,30 @@ fn extract_chunk_boundaries(
 
 /// Checks if two boundary data structures differ significantly.
 fn boundaries_differ(a: &ChunkBoundaryWater, b: &ChunkBoundaryWater) -> bool {
-    // Quick check: if one has water and other doesn't
     if a.has_boundary_water() != b.has_boundary_water() {
         return true;
     }
 
-    // Check each face
     for face in BoundaryFace::ALL {
-        let a_face = a.face(face);
-        let b_face = b.face(face);
-
-        match (a_face, b_face) {
+        match (a.face(face), b.face(face)) {
             (None, None) => continue,
             (Some(_), None) | (None, Some(_)) => return true,
             (Some(af), Some(bf)) => {
                 if af.cells.len() != bf.cells.len() {
                     return true;
                 }
-                // Check if volumes differ significantly
                 for (pos, a_cell) in &af.cells {
-                    match bf.cells.get(pos) {
-                        None => return true,
-                        Some(b_cell) => {
-                            if (a_cell.volume - b_cell.volume).abs() > MIN_WATER_VOLUME {
-                                return true;
-                            }
+                    if let Some(b_cell) = bf.cells.get(pos) {
+                        if (a_cell.volume - b_cell.volume).abs() > MIN_WATER_VOLUME {
+                            return true;
                         }
+                    } else {
+                        return true;
                     }
                 }
             }
         }
     }
-
     false
 }
 
@@ -622,29 +518,6 @@ mod tests {
     }
 
     #[test]
-    fn test_local_to_neighbor_boundary() {
-        // Out of bounds in -X direction
-        let result = local_to_neighbor_boundary(IVec3::new(-1, 5, 5));
-        assert!(result.is_some());
-        let (offset, face, face_pos) = result.unwrap();
-        assert_eq!(offset, IVec3::new(-1, 0, 0));
-        assert_eq!(face, BoundaryFace::NegX);
-        assert_eq!(face_pos, IVec2::new(5, 5));
-
-        // Out of bounds in +Z direction
-        let result = local_to_neighbor_boundary(IVec3::new(5, 5, CHUNK_SIZE));
-        assert!(result.is_some());
-        let (offset, face, face_pos) = result.unwrap();
-        assert_eq!(offset, IVec3::new(0, 0, 1));
-        assert_eq!(face, BoundaryFace::PosZ);
-        assert_eq!(face_pos, IVec2::new(5, 5));
-
-        // Within bounds - should return None
-        let result = local_to_neighbor_boundary(IVec3::new(5, 5, 5));
-        assert!(result.is_none());
-    }
-
-    #[test]
     fn test_wrap_to_neighbor_chunk() {
         // Negative X overflow
         let (offset, wrapped) = wrap_to_neighbor_chunk(IVec3::new(-1, 5, 5));
@@ -655,6 +528,11 @@ mod tests {
         let (offset, wrapped) = wrap_to_neighbor_chunk(IVec3::new(5, 5, CHUNK_SIZE));
         assert_eq!(offset, IVec3::new(0, 0, 1));
         assert_eq!(wrapped, IVec3::new(5, 5, 0));
+
+        // Within bounds - no change
+        let (offset, wrapped) = wrap_to_neighbor_chunk(IVec3::new(5, 5, 5));
+        assert_eq!(offset, IVec3::ZERO);
+        assert_eq!(wrapped, IVec3::new(5, 5, 5));
     }
 
     #[test]

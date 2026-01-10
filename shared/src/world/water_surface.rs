@@ -334,30 +334,6 @@ impl ChunkWaterSurfaces {
         }
     }
 
-    /// Returns an iterator over surface cells in the given patch.
-    pub fn cells_in_patch(
-        &self,
-        patch_id: SurfacePatchId,
-    ) -> impl Iterator<Item = &WaterSurfaceCell> {
-        self.surface_cells
-            .values()
-            .filter(move |cell| cell.patch_id == patch_id)
-    }
-
-    /// Marks a patch as stable (no recent changes).
-    pub fn mark_stable(&mut self, patch_id: SurfacePatchId) {
-        if let Some(patch) = self.patches.get_mut(patch_id as usize) {
-            patch.is_stable = true;
-        }
-    }
-
-    /// Marks a patch as unstable (needs simulation).
-    pub fn mark_unstable(&mut self, patch_id: SurfacePatchId) {
-        if let Some(patch) = self.patches.get_mut(patch_id as usize) {
-            patch.is_stable = false;
-        }
-    }
-
     /// Invalidates surface data at a specific position.
     /// Call this when water at a position changes.
     pub fn invalidate_at(&mut self, _pos: &IVec3) {
@@ -365,49 +341,6 @@ impl ChunkWaterSurfaces {
         // A more sophisticated approach would do incremental updates.
         self.generation += 1;
     }
-}
-
-/// Trait for objects that can provide solidity information for surface detection.
-pub trait SolidityProvider {
-    /// Returns true if the block at the given global position is solid.
-    fn is_solid_at(&self, global_pos: IVec3) -> bool;
-}
-
-/// Helper function to detect surfaces for a single chunk with cross-chunk lookups.
-///
-/// This function handles boundary cases by looking up blocks in neighboring chunks
-/// when checking cells at the top of a chunk.
-///
-/// # Arguments
-/// * `chunk_pos` - The chunk's position in chunk coordinates
-/// * `water` - The chunk's water storage
-/// * `get_block_at` - Callback to get block solidity at a global position
-///
-/// # Returns
-/// A populated `ChunkWaterSurfaces` structure
-pub fn detect_chunk_surfaces<F>(
-    chunk_pos: IVec3,
-    water: &ChunkWaterStorage,
-    get_block_at: F,
-) -> ChunkWaterSurfaces
-where
-    F: Fn(IVec3) -> bool,
-{
-    let mut surfaces = ChunkWaterSurfaces::new();
-
-    // Create a closure that converts local positions to global for lookups
-    let is_solid_above = |local_above: IVec3| {
-        // Convert local position to global
-        let global_pos = IVec3::new(
-            chunk_pos.x * CHUNK_SIZE + local_above.x,
-            chunk_pos.y * CHUNK_SIZE + local_above.y,
-            chunk_pos.z * CHUNK_SIZE + local_above.z,
-        );
-        get_block_at(global_pos)
-    };
-
-    surfaces.detect_surfaces(water, is_solid_above);
-    surfaces
 }
 
 /// Summary statistics for water surfaces in a chunk.
