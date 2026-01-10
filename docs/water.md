@@ -101,8 +101,8 @@ functions queue positions for the simulation system rather than processing immed
 	•	Vertex heights come from simulated surface height.
 	•	Apply GPU wave shaders (noise, Gerstner waves, etc.) for detail.
 	•	LOD:
-	•	Distant water collapses to flat surfaces.
-	•	Simulation disabled beyond a radius.
+	    •	Distant water collapses to flat surfaces.
+	    •	Simulation disabled beyond a radius.
 
 Rendering never affects simulation state.
 
