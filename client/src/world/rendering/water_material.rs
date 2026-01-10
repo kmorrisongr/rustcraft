@@ -156,6 +156,15 @@ pub struct WaterRenderSettings {
     pub wave_speed: f32,
     /// Configuration for wave scale based on local water volume
     pub wave_scale_config: WaveScaleConfig,
+    /// Number of subdivisions per water cell for smooth wave displacement.
+    /// Higher values = smoother waves but more vertices.
+    /// - 1 = 4 vertices per cell (original, no tessellation)
+    /// - 2 = 9 vertices per cell (2x2 grid) - default
+    /// - 4 = 25 vertices per cell (4x4 grid) - higher quality, more expensive
+    /// - 8 = 81 vertices per cell (high quality)
+    pub tessellation: u32,
+    /// LOD tessellation level (fewer subdivisions for distant water)
+    pub tessellation_lod: u32,
 }
 
 impl Default for WaterRenderSettings {
@@ -168,6 +177,8 @@ impl Default for WaterRenderSettings {
             wave_amplitude: 0.08,
             wave_speed: 1.0,
             wave_scale_config: WaveScaleConfig::default(),
+            tessellation: 4,
+            tessellation_lod: 2,
         }
     }
 }

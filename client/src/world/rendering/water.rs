@@ -111,11 +111,21 @@ pub fn spawn_water_mesh_tasks(
 
     let lod_distance_sq = render_distance.lod0_distance_sq() as f32;
 
-    // Get wave scale config (use default if settings not available)
+    // Get wave scale config and tessellation settings (use defaults if settings not available)
     let wave_scale_config = render_settings
         .as_ref()
         .map(|s| s.wave_scale_config)
         .unwrap_or_default();
+    
+    let tessellation = render_settings
+        .as_ref()
+        .map(|s| s.tessellation)
+        .unwrap_or(4);
+    
+    let tessellation_lod = render_settings
+        .as_ref()
+        .map(|s| s.tessellation_lod)
+        .unwrap_or(2);
 
     for WaterMeshUpdateEvent(chunk_pos) in ev_water_update.read() {
         // Check if chunk exists and has water
@@ -137,6 +147,8 @@ pub fn spawn_water_mesh_tasks(
         let chunk_pos_copy = *chunk_pos;
         let world_map_clone = world_map.clone();
         let wave_scale_config_copy = wave_scale_config;
+        let tessellation_copy = tessellation;
+        let tessellation_lod_copy = tessellation_lod;
 
         let task = pool.spawn(async move {
             let input = WaterMeshInput {
@@ -144,6 +156,8 @@ pub fn spawn_water_mesh_tasks(
                 water: &chunk.water,
                 world_map: &world_map_clone,
                 wave_scale_config: wave_scale_config_copy,
+                tessellation: tessellation_copy,
+                tessellation_lod: tessellation_lod_copy,
             };
 
             if is_lod {

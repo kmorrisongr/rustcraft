@@ -37,6 +37,10 @@ pub struct WaterMeshInput<'a> {
     pub world_map: &'a ClientWorldMap,
     /// Configuration for wave scale calculation
     pub wave_scale_config: WaveScaleConfig,
+    /// Number of subdivisions per water cell for tessellation
+    pub tessellation: u32,
+    /// LOD tessellation level for distant water
+    pub tessellation_lod: u32,
 }
 
 /// Generated water mesh data ready for GPU upload.
@@ -95,17 +99,6 @@ pub enum WaterFace {
     Bottom, // Y- (underwater view)
 }
 
-/// Number of subdivisions per water cell for smooth wave displacement.
-/// Higher values = smoother waves but more vertices.
-/// - 1 = 4 vertices per cell (original, no tessellation)
-/// - 2 = 9 vertices per cell (2x2 grid)
-/// - 4 = 25 vertices per cell (4x4 grid) - recommended for waves
-/// - 8 = 81 vertices per cell (high quality)
-pub const WATER_TESSELLATION: u32 = 4;
-
-/// LOD tessellation level (fewer subdivisions for distant water)
-pub const WATER_TESSELLATION_LOD: u32 = 2;
-
 /// Generates a water mesh for a chunk.
 ///
 /// This creates a mesh from all water surface cells in the chunk.
@@ -157,6 +150,7 @@ pub fn generate_water_mesh(input: &WaterMeshInput) -> Option<WaterMeshData> {
                 world_z as f32,
                 volume,
                 wave_scale,
+                input.tessellation,
             );
         }
 
@@ -311,6 +305,7 @@ fn add_top_face(
     world_z: f32,
     volume: f32,
     wave_scale: f32,
+    tessellation: u32,
 ) {
     add_top_face_tessellated(
         data,
@@ -321,7 +316,7 @@ fn add_top_face(
         world_z,
         volume,
         wave_scale,
-        WATER_TESSELLATION,
+        tessellation,
     );
 }
 
@@ -603,7 +598,7 @@ pub fn generate_water_mesh_lod(input: &WaterMeshInput) -> Option<WaterMeshData> 
             world_z,
             1.0,
             wave_scale,
-            WATER_TESSELLATION_LOD,
+            input.tessellation_lod,
         );
     }
 
