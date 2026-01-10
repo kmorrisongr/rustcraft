@@ -312,7 +312,7 @@ mod tests {
         
         // Verify each layer in DEFAULT_WAVE_LAYERS matches the shader
         // Shader format: vec4<f32>(dir_x, dir_z, steepness, wavelength)
-        // The shader uses explicit .0 for whole numbers, so we need to format accordingly
+        // Note: Vec2.y component represents z-direction in 3D world space (horizontal plane is x,z)
         for (i, layer) in DEFAULT_WAVE_LAYERS.iter().enumerate() {
             // Helper to format float with .0 for whole numbers
             let fmt_float = |v: f32| -> String {
