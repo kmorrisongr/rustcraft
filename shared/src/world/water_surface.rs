@@ -110,7 +110,7 @@ impl WaterSurfacePatch {
                 self.bounds_min = Some(min.min(local_pos));
                 self.bounds_max = Some(max.max(local_pos));
             }
-            _ => {
+            (None, _) | (_, None) => {
                 // First cell sets both bounds
                 self.bounds_min = Some(local_pos);
                 self.bounds_max = Some(local_pos);
@@ -149,18 +149,6 @@ impl WaterSurfacePatch {
             ),
             _ => (0, 0),
         }
-    }
-    
-    /// Returns the minimum bounds if the patch is non-empty.
-    #[inline]
-    pub fn bounds_min(&self) -> Option<IVec3> {
-        self.bounds_min
-    }
-    
-    /// Returns the maximum bounds if the patch is non-empty.
-    #[inline]
-    pub fn bounds_max(&self) -> Option<IVec3> {
-        self.bounds_max
     }
 }
 
@@ -553,15 +541,15 @@ mod tests {
         surfaces.detect_surfaces(&water, |_| false);
 
         let patch = surfaces.patch(0).unwrap();
-        assert_eq!(patch.bounds_min(), Some(IVec3::new(2, 10, 3)));
-        assert_eq!(patch.bounds_max(), Some(IVec3::new(5, 10, 3)));
+        assert_eq!(patch.bounds_min, Some(IVec3::new(2, 10, 3)));
+        assert_eq!(patch.bounds_max, Some(IVec3::new(5, 10, 3)));
     }
     
     #[test]
     fn test_empty_patch_bounds() {
         let patch = WaterSurfacePatch::new(0);
-        assert_eq!(patch.bounds_min(), None);
-        assert_eq!(patch.bounds_max(), None);
+        assert_eq!(patch.bounds_min, None);
+        assert_eq!(patch.bounds_max, None);
         assert_eq!(patch.xz_extent(), (0, 0));
         assert!(patch.is_empty());
     }
