@@ -109,6 +109,10 @@ pub fn game_plugin(app: &mut App) {
         .init_resource::<rendering::WaterDebugSettings>()
         .init_resource::<rendering::WaterDebugEntities>()
         .init_resource::<rendering::WaterDebugMaterial>()
+        // Water rendering resources
+        .init_resource::<rendering::WaterRenderSettings>()
+        .init_resource::<rendering::WaterMeshEntities>()
+        .init_resource::<rendering::WaterMeshTasks>()
         .init_resource::<CurrentPlayerProfile>()
         .init_resource::<ParticleAssets>()
         .init_resource::<FoxFeetTargets>()
@@ -125,6 +129,7 @@ pub fn game_plugin(app: &mut App) {
         .add_event::<PlayerUpdateEvent>()
         .add_event::<MobUpdateEvent>()
         .add_event::<ItemStackUpdateEvent>()
+        .add_event::<rendering::WaterMeshUpdateEvent>()
         .add_systems(
             OnEnter(GameState::PreGameLoading),
             (
@@ -235,6 +240,30 @@ pub fn game_plugin(app: &mut App) {
             (
                 rendering::water_debug_render_system,
                 rendering::water_debug_cleanup_system,
+            )
+                .run_if(in_state(GameState::Game)),
+        )
+        // Water rendering systems
+        .add_systems(
+            OnEnter(GameState::Game),
+            rendering::rebuild_all_water_meshes,
+        )
+        .add_systems(
+            Update,
+            (
+                rendering::queue_water_mesh_updates,
+                rendering::spawn_water_mesh_tasks,
+                rendering::toggle_water_rendering,
+                rendering::update_water_lod,
+            )
+                .chain()
+                .run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            PostUpdate,
+            (
+                rendering::process_water_mesh_tasks,
+                rendering::cleanup_water_meshes,
             )
                 .run_if(in_state(GameState::Game)),
         )

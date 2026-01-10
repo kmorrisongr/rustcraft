@@ -97,12 +97,26 @@ functions queue positions for the simulation system rather than processing immed
 ⸻
 
 8. Rendering
-	•	Generate meshes only from surface patches.
-	•	Vertex heights come from simulated surface height.
-	•	Apply GPU wave shaders (noise, Gerstner waves, etc.) for detail.
-	•	LOD:
-	    •	Distant water collapses to flat surfaces.
-	    •	Simulation disabled beyond a radius.
+
+> **Implementation**: `client/src/world/rendering/water.rs`, `client/src/world/rendering/water_mesh.rs`, `client/src/world/rendering/water_material.rs`, `data/shaders/water.wgsl`
+
+Mesh Generation
+	•	Generate meshes only from water cells with exposed surfaces.
+	•	Vertex heights come from simulated surface height (volume-based).
+	•	Top faces rendered when air above; side faces when air adjacent.
+	•	UV coordinates based on world position for consistent wave patterns.
+
+Gerstner Wave Shader
+	•	Four wave layers with configurable direction, steepness, and wavelength.
+	•	Vertex displacement in shader for smooth animation.
+	•	Fresnel-based reflectivity for realistic water appearance.
+	•	Depth-based color blending (deep blue to shallow turquoise).
+
+LOD System
+	•	Full detail waves (4 layers) at close range.
+	•	Reduced wave layers (2) at medium distance.
+	•	Flat surfaces at far distance (simplified mesh).
+	•	Toggle with F9 key for debugging.
 
 Rendering never affects simulation state.
 
@@ -123,7 +137,7 @@ Rendering never affects simulation state.
 	4.	✅ Lateral shallow-water simulation (`server/src/world/water_flow.rs`)
 	5.	✅ Chunk boundary exchange (`server/src/world/water_boundary.rs`)
 	6.	✅ Terrain mutation handling (`server/src/world/terrain_mutation.rs`)
-	7.	Visual wave rendering
+	7.	✅ Visual wave rendering (`client/src/world/rendering/water*.rs`, `data/shaders/water.wgsl`)
 	8.	Optimization & sleeping
 
 ⸻
