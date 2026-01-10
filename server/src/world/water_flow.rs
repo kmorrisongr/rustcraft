@@ -103,6 +103,7 @@ pub fn lateral_flow_system(
     mut world_map: ResMut<ServerWorldMap>,
     mut flow_queue: ResMut<LateralFlowQueue>,
     boundary_cache: Res<super::water_boundary::WaterBoundaryCache>,
+    mut vertical_queue: ResMut<super::water_simulation::WaterSimulationQueue>,
 ) {
     if flow_queue.pending_chunks.is_empty() {
         return;
@@ -134,9 +135,12 @@ pub fn lateral_flow_system(
 
         log::debug!("[LATERAL FLOW] Processing chunk {:?}", chunk_pos);
 
-        if let Some((updates, neighbor_flows)) =
-            process_chunk_lateral_flow(&mut world_map, chunk_pos, &boundary_cache)
-        {
+        if let Some((updates, neighbor_flows)) = process_chunk_lateral_flow(
+            &mut world_map,
+            chunk_pos,
+            &boundary_cache,
+            &mut vertical_queue,
+        ) {
             log::debug!(
                 "[LATERAL FLOW] Chunk {:?}: {} cell updates, {} cross-chunk flows",
                 chunk_pos,
@@ -155,7 +159,8 @@ pub fn lateral_flow_system(
     }
 
     // Apply cross-chunk flows
-    let neighbor_chunks = apply_cross_chunk_flows(&mut world_map, cross_chunk_flows);
+    let neighbor_chunks =
+        apply_cross_chunk_flows(&mut world_map, cross_chunk_flows, &mut vertical_queue);
     for neighbor_chunk in neighbor_chunks {
         chunks_modified.insert(neighbor_chunk);
         // Queue neighbor for continued simulation
@@ -183,6 +188,7 @@ fn process_chunk_lateral_flow(
     world_map: &mut ServerWorldMap,
     chunk_pos: IVec3,
     boundary_cache: &super::water_boundary::WaterBoundaryCache,
+    vertical_queue: &mut super::water_simulation::WaterSimulationQueue,
 ) -> Option<(usize, Vec<super::water_boundary::CrossChunkFlow>)> {
     // First pass: gather surface cells and their current heights
     let (surface_cells, water_volumes): (Vec<IVec3>, HashMap<IVec3, f32>) = {
@@ -377,6 +383,19 @@ fn process_chunk_lateral_flow(
         let new_volume = (current_volume + delta).clamp(0.0, MAX_WATER_VOLUME);
 
         if (new_volume - current_volume).abs() > MIN_WATER_VOLUME {
+            // If water is flowing OUT of this cell, queue the cell above
+            // for vertical flow check (so water above can fall down)
+            if delta < -MIN_WATER_VOLUME {
+                let global_pos = chunk_pos * CHUNK_SIZE as i32 + pos;
+                let above_pos = global_pos + IVec3::new(0, 1, 0);
+                vertical_queue.queue(above_pos);
+                log::trace!(
+                    "[LATERAL FLOW] Water left {:?}, queuing cell above {:?} for vertical flow",
+                    global_pos,
+                    above_pos
+                );
+            }
+
             if new_volume < MIN_WATER_VOLUME {
                 chunk.water.remove(&pos);
                 // Also remove Water block if present
@@ -402,13 +421,51 @@ fn process_chunk_lateral_flow(
 
 /// Applies cross-chunk water flows collected during lateral flow processing.
 /// Returns the set of neighbor chunks that were modified.
+///
+/// This function:
+/// 1. Deducts water from the source cell
+/// 2. Adds water to the destination cell
+/// 3. Queues cells above source for vertical flow re-evaluation
 fn apply_cross_chunk_flows(
     world_map: &mut ServerWorldMap,
     flows: Vec<super::water_boundary::CrossChunkFlow>,
+    vertical_queue: &mut super::water_simulation::WaterSimulationQueue,
 ) -> HashSet<IVec3> {
     let mut modified_chunks = HashSet::new();
 
     for flow in flows {
+        // First, deduct water from source chunk
+        if let Some(source_chunk) = world_map.chunks.map.get_mut(&flow.source_chunk) {
+            let source_volume = source_chunk.water.volume_at(&flow.source_local_pos);
+            let new_source_volume = (source_volume - flow.flow_amount).max(0.0);
+
+            if new_source_volume < MIN_WATER_VOLUME {
+                source_chunk.water.remove(&flow.source_local_pos);
+                if source_chunk.map.get(&flow.source_local_pos).map(|b| b.id)
+                    == Some(BlockId::Water)
+                {
+                    source_chunk.map.remove(&flow.source_local_pos);
+                }
+            } else {
+                source_chunk
+                    .water
+                    .set(flow.source_local_pos, new_source_volume);
+            }
+
+            modified_chunks.insert(flow.source_chunk);
+
+            // Queue the cell above source for vertical flow check
+            let global_source_pos = flow.source_chunk * CHUNK_SIZE as i32 + flow.source_local_pos;
+            let above_pos = global_source_pos + IVec3::new(0, 1, 0);
+            vertical_queue.queue(above_pos);
+            log::trace!(
+                "[CROSS-CHUNK FLOW] Water left {:?}, queuing cell above {:?} for vertical flow",
+                global_source_pos,
+                above_pos
+            );
+        }
+
+        // Then, add water to destination chunk
         let Some(neighbor_chunk) = world_map.chunks.map.get_mut(&flow.neighbor_chunk) else {
             continue;
         };

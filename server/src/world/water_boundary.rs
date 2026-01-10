@@ -353,7 +353,11 @@ fn boundaries_differ(a: &ChunkBoundaryWater, b: &ChunkBoundaryWater) -> bool {
 /// Result of a cross-chunk flow calculation.
 #[derive(Debug, Clone)]
 pub struct CrossChunkFlow {
-    /// The neighbor chunk position
+    /// The source chunk position (where water is coming FROM)
+    pub source_chunk: IVec3,
+    /// Local position in the source chunk
+    pub source_local_pos: IVec3,
+    /// The neighbor chunk position (where water is going TO)
     pub neighbor_chunk: IVec3,
     /// Local position in the neighbor chunk
     pub neighbor_local_pos: IVec3,
@@ -460,6 +464,8 @@ pub fn calculate_cross_chunk_flows(
 
         if flow_amount >= MIN_WATER_VOLUME {
             flows.push(CrossChunkFlow {
+                source_chunk: chunk_pos,
+                source_local_pos: local_pos,
                 neighbor_chunk: neighbor_chunk_pos,
                 neighbor_local_pos: neighbor_local_in_chunk,
                 flow_amount,
