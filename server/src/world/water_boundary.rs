@@ -374,7 +374,7 @@ pub struct CrossChunkFlow {
 /// * `local_pos` - Local position of the source water cell
 /// * `source_volume` - Water volume at source
 /// * `source_height` - Surface height at source
-/// * `_boundary_cache` - The boundary cache for neighbor lookups (currently unused, for future optimization)
+/// * `boundary_cache` - The boundary cache for neighbor lookups
 /// * `world_map` - World map for block lookups
 ///
 /// # Returns
@@ -384,7 +384,7 @@ pub fn calculate_cross_chunk_flows(
     local_pos: IVec3,
     source_volume: f32,
     source_height: f32,
-    _boundary_cache: &WaterBoundaryCache,
+    boundary_cache: &WaterBoundaryCache,
     world_map: &ServerWorldMap,
 ) -> Vec<CrossChunkFlow> {
     use shared::world::{BlockHitbox, BlockId, FULL_WATER_HEIGHT, MAX_WATER_VOLUME};
@@ -399,7 +399,7 @@ pub fn calculate_cross_chunk_flows(
         (IVec3::new(0, 0, -1), BoundaryFace::NegZ),
     ];
 
-    for (offset, _face) in neighbors {
+    for (offset, face) in neighbors {
         let neighbor_local = local_pos + offset;
 
         // Skip if not crossing boundary
@@ -416,7 +416,11 @@ pub fn calculate_cross_chunk_flows(
             wrap_to_neighbor_chunk(neighbor_local);
         let neighbor_chunk_pos = chunk_pos + neighbor_chunk_offset;
 
-        // Check if neighbor chunk exists
+        // Determine which face of the neighbor chunk this position is on
+        // (it's the opposite of the face we're crossing from our chunk)
+        let neighbor_face = face.opposite();
+
+        // Check if neighbor chunk exists for block lookup
         let Some(neighbor_chunk) = world_map.chunks.map.get(&neighbor_chunk_pos) else {
             continue;
         };
@@ -433,8 +437,19 @@ pub fn calculate_cross_chunk_flows(
             }
         }
 
-        // Get neighbor water info from boundary cache or direct lookup
-        let neighbor_volume = neighbor_chunk.water.volume_at(&neighbor_local_in_chunk);
+        // Try to get neighbor water info from boundary cache first, fall back to direct lookup
+        let neighbor_volume = if let Some(neighbor_boundary) = boundary_cache.get(&neighbor_chunk_pos) {
+            if let Some(face_data) = neighbor_boundary.face(neighbor_face) {
+                let face_pos = local_to_face_pos(&neighbor_local_in_chunk, neighbor_face);
+                face_data.get(&face_pos).map(|cell| cell.volume).unwrap_or(0.0)
+            } else {
+                // Face not in cache, fall back to direct lookup
+                neighbor_chunk.water.volume_at(&neighbor_local_in_chunk)
+            }
+        } else {
+            // Chunk not in cache, fall back to direct lookup
+            neighbor_chunk.water.volume_at(&neighbor_local_in_chunk)
+        };
 
         // Calculate neighbor surface height
         let neighbor_surface_height = if neighbor_volume > MIN_WATER_VOLUME {
