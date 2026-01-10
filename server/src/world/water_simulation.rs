@@ -75,9 +75,32 @@ impl WaterSimulationQueue {
     }
 }
 
+/// Resource to track chunks that need water surface detection update
+#[derive(Resource, Default)]
+pub struct WaterSurfaceUpdateQueue {
+    /// Chunks that need surface detection refresh
+    pub pending_chunks: HashSet<IVec3>,
+}
+
+impl WaterSurfaceUpdateQueue {
+    /// Queue a chunk for surface detection update
+    pub fn queue(&mut self, chunk_pos: IVec3) {
+        self.pending_chunks.insert(chunk_pos);
+    }
+
+    /// Clear all pending chunks
+    #[allow(dead_code)]
+    pub fn clear(&mut self) {
+        self.pending_chunks.clear();
+    }
+}
+
 /// Maximum number of water updates to process per tick
 /// This prevents simulation from blocking the server
 const MAX_UPDATES_PER_TICK: usize = 256;
+
+/// Maximum number of chunks to update surfaces for per tick
+const MAX_SURFACE_UPDATES_PER_TICK: usize = 8;
 
 /// System to handle water update events and queue them for simulation
 pub fn handle_water_update_events(
@@ -100,6 +123,7 @@ pub fn handle_water_update_events(
 pub fn water_simulation_system(
     mut world_map: ResMut<ServerWorldMap>,
     mut queue: ResMut<WaterSimulationQueue>,
+    mut surface_queue: ResMut<WaterSurfaceUpdateQueue>,
 ) {
     let mut updates_this_tick = 0;
     let mut chunks_modified: HashSet<IVec3> = HashSet::new();
@@ -116,10 +140,132 @@ pub fn water_simulation_system(
         updates_this_tick += 1;
     }
 
-    // Mark modified chunks for broadcast
+    // Mark modified chunks for broadcast and surface update
     for chunk_pos in chunks_modified {
         if !world_map.chunks.chunks_to_update.contains(&chunk_pos) {
             world_map.chunks.chunks_to_update.push(chunk_pos);
+        }
+        // Queue for surface detection update
+        surface_queue.queue(chunk_pos);
+    }
+}
+
+/// System to update water surface detection for chunks that have been modified.
+///
+/// This runs after water simulation to detect which water cells are surface cells
+/// (have air above them) and groups them into patches for efficient simulation.
+///
+/// Surface detection is important for:
+/// 1. Efficient shallow-water wave simulation (only simulate surfaces)
+/// 2. Mesh generation (only render surfaces)
+/// 3. Future lateral flow (waves propagate on surfaces)
+pub fn water_surface_detection_system(
+    mut world_map: ResMut<ServerWorldMap>,
+    mut surface_queue: ResMut<WaterSurfaceUpdateQueue>,
+) {
+    if surface_queue.pending_chunks.is_empty() {
+        return;
+    }
+
+    // Take up to MAX_SURFACE_UPDATES_PER_TICK chunks to process
+    let chunks_to_process: Vec<IVec3> = surface_queue
+        .pending_chunks
+        .iter()
+        .take(MAX_SURFACE_UPDATES_PER_TICK)
+        .copied()
+        .collect();
+
+    for chunk_pos in &chunks_to_process {
+        surface_queue.pending_chunks.remove(chunk_pos);
+    }
+
+    // Process each chunk
+    for chunk_pos in chunks_to_process {
+        update_chunk_surfaces(&mut world_map, chunk_pos);
+    }
+}
+
+/// Updates water surface detection for a single chunk.
+fn update_chunk_surfaces(world_map: &mut ServerWorldMap, chunk_pos: IVec3) {
+    use shared::CHUNK_SIZE;
+
+    // First, extract the water positions we need to check
+    // and gather information about which positions above have solid blocks
+    let water_positions: Vec<IVec3> = {
+        let Some(chunk) = world_map.chunks.map.get(&chunk_pos) else {
+            return;
+        };
+        chunk.water.iter().map(|(pos, _)| *pos).collect()
+    };
+
+    if water_positions.is_empty() {
+        // No water, clear surfaces
+        if let Some(chunk) = world_map.chunks.map.get_mut(&chunk_pos) {
+            chunk.water_surfaces.clear();
+        }
+        return;
+    }
+
+    // Build a set of positions that have solid blocks above (for local lookups)
+    // and check cross-chunk boundaries separately
+    let mut solid_above_positions: HashSet<IVec3> = HashSet::new();
+
+    for local_pos in &water_positions {
+        let above_local = *local_pos + IVec3::new(0, 1, 0);
+
+        // Check if above is within this chunk
+        if above_local.y < CHUNK_SIZE {
+            // Check within same chunk
+            if let Some(chunk) = world_map.chunks.map.get(&chunk_pos) {
+                if let Some(block) = chunk.map.get(&above_local) {
+                    if block.id != BlockId::Water {
+                        let is_solid = matches!(
+                            block.id.get_hitbox(),
+                            BlockHitbox::FullBlock | BlockHitbox::Aabb(_)
+                        );
+                        if is_solid {
+                            solid_above_positions.insert(above_local);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Need cross-chunk lookup
+            let global_above = IVec3::new(
+                chunk_pos.x * CHUNK_SIZE + above_local.x,
+                chunk_pos.y * CHUNK_SIZE + above_local.y,
+                chunk_pos.z * CHUNK_SIZE + above_local.z,
+            );
+            if let Some(block) = world_map.chunks.get_block_by_coordinates(&global_above) {
+                if block.id != BlockId::Water {
+                    let is_solid = matches!(
+                        block.id.get_hitbox(),
+                        BlockHitbox::FullBlock | BlockHitbox::Aabb(_)
+                    );
+                    if is_solid {
+                        solid_above_positions.insert(above_local);
+                    }
+                }
+            }
+        }
+    }
+
+    // Now we can do the surface detection with owned data
+    let is_solid_above = |above_pos: IVec3| -> bool { solid_above_positions.contains(&above_pos) };
+
+    // Get the chunk and update its surfaces
+    if let Some(chunk) = world_map.chunks.map.get_mut(&chunk_pos) {
+        chunk.detect_water_surfaces(chunk_pos, is_solid_above);
+
+        // Log surface detection results for debugging
+        let stats = chunk.water_surfaces.stats();
+        if stats.total_cells > 0 {
+            log::debug!(
+                "Chunk {:?}: detected {} surface cells in {} patches",
+                chunk_pos,
+                stats.total_cells,
+                stats.patch_count
+            );
         }
     }
 }

@@ -379,6 +379,7 @@ pub fn generate_chunk(
     let mut chunk = ServerChunk {
         map: HashMap::new(),
         water: shared::world::ChunkWaterStorage::new(),
+        water_surfaces: shared::world::ChunkWaterSurfaces::new(),
         ts: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

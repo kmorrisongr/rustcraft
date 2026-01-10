@@ -111,9 +111,9 @@ Rendering never affects simulation state.
 ⸻
 
 10. Implementation Order (Recommended)
-	1.	Volume-per-voxel water storage
-	2.	Downward-only flow
-	3.	Surface detection
+	1.	✅ Volume-per-voxel water storage (`shared/src/world/water.rs`)
+	2.	✅ Downward-only flow (`server/src/world/water_simulation.rs`)
+	3.	✅ Surface detection (`shared/src/world/water_surface.rs`)
 	4.	Lateral shallow-water simulation
 	5.	Chunk boundary exchange
 	6.	Terrain mutation handling

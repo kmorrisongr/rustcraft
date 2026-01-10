@@ -7,6 +7,7 @@ use shared::LOD1_MULTIPLIER;
 use std::collections::HashSet;
 
 use crate::world::generation::{generate_chunk, ChunkGenerationResult};
+use crate::world::water_simulation::WaterSurfaceUpdateQueue;
 
 use super::broadcast_world::get_all_active_chunks;
 use shared::GameServerConfig;
@@ -37,6 +38,7 @@ pub fn background_chunk_generation_system(
     seed: Res<WorldSeed>,
     config: Res<GameServerConfig>,
     mut generation_tasks: ResMut<ChunkGenerationTasks>,
+    mut surface_queue: ResMut<WaterSurfaceUpdateQueue>,
 ) {
     // === Phase 1: Collect completed tasks ===
     let mut completed: Vec<(usize, IVec3, ChunkGenerationResult)> = Vec::new();
@@ -53,6 +55,11 @@ pub fn background_chunk_generation_system(
     // Process completed results
     for (index, chunk_pos, result) in completed {
         info!("Generated chunk: {:?}", chunk_pos);
+
+        // Queue for surface detection if the chunk has water
+        if !result.chunk.water.is_empty() {
+            surface_queue.queue(chunk_pos);
+        }
 
         world_map.chunks.map.insert(chunk_pos, result.chunk);
 

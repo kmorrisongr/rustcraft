@@ -66,9 +66,62 @@ pub struct ServerChunk {
     /// Water storage for this chunk (sparse, volume-based)
     /// Only stores voxels that contain water
     pub water: super::water::ChunkWaterStorage,
+    /// Cached water surface detection results
+    /// Rebuilt when water or terrain changes
+    #[serde(skip)]
+    pub water_surfaces: super::water_surface::ChunkWaterSurfaces,
     /// Timestamp marking the last update this chunk has received
     pub ts: u64,
     pub sent_to_clients: HashSet<PlayerId>,
+}
+
+impl ServerChunk {
+    /// Detects water surfaces in this chunk.
+    ///
+    /// A surface cell is a water cell with air (not solid, not water) above it.
+    /// Connected surface cells are grouped into patches for efficient simulation.
+    ///
+    /// # Arguments
+    /// * `is_solid_at_global` - Callback to check if a block at a global position is solid.
+    ///                          This is needed for cross-chunk boundary lookups.
+    pub fn detect_water_surfaces<F>(&mut self, chunk_pos: IVec3, is_solid_at_global: F)
+    where
+        F: Fn(IVec3) -> bool,
+    {
+        use crate::CHUNK_SIZE;
+
+        let is_solid_above = |local_above: IVec3| {
+            // Check if it's within this chunk first
+            if local_above.y < CHUNK_SIZE {
+                // Check if there's a solid block in this chunk
+                if let Some(block) = self.map.get(&local_above) {
+                    return matches!(
+                        block.id.get_hitbox(),
+                        super::BlockHitbox::FullBlock | super::BlockHitbox::Aabb(_)
+                    ) && block.id != super::BlockId::Water;
+                }
+                false
+            } else {
+                // Need cross-chunk lookup
+                let global_pos = IVec3::new(
+                    chunk_pos.x * CHUNK_SIZE + local_above.x,
+                    chunk_pos.y * CHUNK_SIZE + local_above.y,
+                    chunk_pos.z * CHUNK_SIZE + local_above.z,
+                );
+                is_solid_at_global(global_pos)
+            }
+        };
+
+        self.water_surfaces
+            .detect_surfaces(&self.water, is_solid_above);
+    }
+
+    /// Returns true if surface detection data may be stale and needs refresh.
+    pub fn surfaces_need_refresh(&self) -> bool {
+        // Simple heuristic: if water storage is non-empty but no surfaces detected,
+        // or if the generation counter doesn't match, surfaces may need refresh.
+        !self.water.is_empty() && self.water_surfaces.cell_count() == 0
+    }
 }
 
 // #[derive(Resource)]
@@ -347,7 +400,9 @@ pub trait WaterWorldMap {
 
     /// Check if there is water at a global position
     fn has_water_at(&self, position: &IVec3) -> bool {
-        self.get_water_volume(position).map(|v| v > 0.0).unwrap_or(false)
+        self.get_water_volume(position)
+            .map(|v| v > 0.0)
+            .unwrap_or(false)
     }
 }
 

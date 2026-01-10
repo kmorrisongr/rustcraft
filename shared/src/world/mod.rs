@@ -6,6 +6,7 @@ pub mod mobs;
 pub mod raycast;
 mod utils;
 pub mod water;
+pub mod water_surface;
 
 pub use blocks::*;
 pub use data::*;
@@ -15,3 +16,4 @@ pub use mobs::*;
 pub use raycast::*;
 pub use utils::*;
 pub use water::*;
+pub use water_surface::*;

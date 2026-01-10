@@ -11,7 +11,8 @@ use crate::world::load_from_file::load_player_data;
 use crate::world::save::SaveRequestEvent;
 use crate::world::simulation::{handle_player_inputs_system, PlayerInputsEvent};
 use crate::world::water_simulation::{
-    handle_water_update_events, water_simulation_system, WaterSimulationQueue, WaterUpdateEvent,
+    handle_water_update_events, water_simulation_system, water_surface_detection_system,
+    WaterSimulationQueue, WaterSurfaceUpdateQueue, WaterUpdateEvent,
 };
 use crate::world::BlockInteractionEvent;
 use bevy::prelude::*;
@@ -32,7 +33,8 @@ pub fn setup_resources_and_events(app: &mut App) {
         .add_event::<PlayerInputsEvent>()
         .add_event::<WaterUpdateEvent>()
         .init_resource::<ChunkGenerationTasks>()
-        .init_resource::<WaterSimulationQueue>();
+        .init_resource::<WaterSimulationQueue>()
+        .init_resource::<WaterSurfaceUpdateQueue>();
 
     setup_chat_resources(app);
 }
@@ -59,6 +61,11 @@ pub fn register_systems(app: &mut App) {
     app.add_systems(
         FixedUpdate,
         water_simulation_system.after(handle_player_inputs_system),
+    );
+    // Surface detection runs after water simulation to update surfaces
+    app.add_systems(
+        FixedUpdate,
+        water_surface_detection_system.after(water_simulation_system),
     );
 
     app.add_systems(PostUpdate, update_server_time);
