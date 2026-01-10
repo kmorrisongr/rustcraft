@@ -94,10 +94,13 @@ pub fn queue_water_mesh_updates(
 pub fn spawn_water_mesh_tasks(
     world_map: Res<ClientWorldMap>,
     render_distance: Res<RenderDistance>,
+    render_settings: Option<Res<WaterRenderSettings>>,
     player_query: Query<&Transform, With<CurrentPlayerMarker>>,
     mut ev_water_update: EventReader<WaterMeshUpdateEvent>,
     mut tasks: ResMut<WaterMeshTasks>,
 ) {
+    use shared::world::WaveScaleConfig;
+
     let pool = AsyncComputeTaskPool::get();
 
     // Get player position for LOD determination
@@ -107,6 +110,12 @@ pub fn spawn_water_mesh_tasks(
     let player_pos = player_transform.translation;
 
     let lod_distance_sq = render_distance.lod0_distance_sq() as f32;
+
+    // Get wave scale config (use default if settings not available)
+    let wave_scale_config = render_settings
+        .as_ref()
+        .map(|s| s.wave_scale_config)
+        .unwrap_or_default();
 
     for WaterMeshUpdateEvent(chunk_pos) in ev_water_update.read() {
         // Check if chunk exists and has water
@@ -127,12 +136,14 @@ pub fn spawn_water_mesh_tasks(
 
         let chunk_pos_copy = *chunk_pos;
         let world_map_clone = world_map.clone();
+        let wave_scale_config_copy = wave_scale_config;
 
         let task = pool.spawn(async move {
             let input = WaterMeshInput {
                 chunk_pos: chunk_pos_copy,
                 water: &chunk.water,
                 world_map: &world_map_clone,
+                wave_scale_config: wave_scale_config_copy,
             };
 
             if is_lod {

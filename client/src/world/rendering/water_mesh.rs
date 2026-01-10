@@ -7,7 +7,10 @@
 //! - Each water surface cell generates vertices for a quad at the water level
 //! - Adjacent cells share edges where possible for smoother wave deformation
 //! - UV coordinates map to world position for consistent wave patterns
-//! - Vertex colors encode water volume for depth-based effects
+//! - Vertex colors encode water volume and wave scale:
+//!   - Red channel: wave scale (0.0 = flat, 1.0 = full waves)
+//!   - Green/Blue: fixed depth hint colors
+//!   - Alpha: volume/transparency
 
 #![allow(unused_variables)] // Some parameters reserved for future shader integration
 
@@ -16,7 +19,10 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, Mesh, PrimitiveTopology},
 };
-use shared::world::{BlockTransparency, ChunkWaterStorage, WorldMap, FULL_WATER_HEIGHT};
+use shared::world::{
+    calculate_wave_scale, BlockTransparency, ChunkWaterStorage, WaveScaleConfig, WorldMap,
+    FULL_WATER_HEIGHT,
+};
 use shared::CHUNK_SIZE;
 
 use crate::world::ClientWorldMap;
@@ -29,6 +35,8 @@ pub struct WaterMeshInput<'a> {
     pub water: &'a ChunkWaterStorage,
     /// Reference to the world map for neighbor lookups
     pub world_map: &'a ClientWorldMap,
+    /// Configuration for wave scale calculation
+    pub wave_scale_config: WaveScaleConfig,
 }
 
 /// Generated water mesh data ready for GPU upload.
@@ -122,6 +130,9 @@ pub fn generate_water_mesh(input: &WaterMeshInput) -> Option<WaterMeshData> {
         let volume = cell.volume();
         let surface_height = cell.surface_height();
 
+        // Calculate wave scale based on local water volume
+        let wave_scale = calculate_wave_scale(input.water, local_pos, &input.wave_scale_config);
+
         // World position for UV coordinates
         let world_x = chunk_world_x + local_pos.x;
         let world_z = chunk_world_z + local_pos.z;
@@ -137,7 +148,16 @@ pub fn generate_water_mesh(input: &WaterMeshInput) -> Option<WaterMeshData> {
 
         // Generate top face (main water surface)
         if should_render_top {
-            add_top_face(&mut data, x, y, z, world_x as f32, world_z as f32, volume);
+            add_top_face(
+                &mut data,
+                x,
+                y,
+                z,
+                world_x as f32,
+                world_z as f32,
+                volume,
+                wave_scale,
+            );
         }
 
         // Generate side faces where water meets air
@@ -151,6 +171,7 @@ pub fn generate_water_mesh(input: &WaterMeshInput) -> Option<WaterMeshData> {
                 world_x as f32,
                 world_z as f32,
                 volume,
+                wave_scale,
             );
         }
         if should_render_sides.x_neg {
@@ -163,6 +184,7 @@ pub fn generate_water_mesh(input: &WaterMeshInput) -> Option<WaterMeshData> {
                 world_x as f32,
                 world_z as f32,
                 volume,
+                wave_scale,
             );
         }
         if should_render_sides.z_pos {
@@ -175,6 +197,7 @@ pub fn generate_water_mesh(input: &WaterMeshInput) -> Option<WaterMeshData> {
                 world_x as f32,
                 world_z as f32,
                 volume,
+                wave_scale,
             );
         }
         if should_render_sides.z_neg {
@@ -187,6 +210,7 @@ pub fn generate_water_mesh(input: &WaterMeshInput) -> Option<WaterMeshData> {
                 world_x as f32,
                 world_z as f32,
                 volume,
+                wave_scale,
             );
         }
     }
@@ -286,8 +310,19 @@ fn add_top_face(
     world_x: f32,
     world_z: f32,
     volume: f32,
+    wave_scale: f32,
 ) {
-    add_top_face_tessellated(data, x, y, z, world_x, world_z, volume, WATER_TESSELLATION);
+    add_top_face_tessellated(
+        data,
+        x,
+        y,
+        z,
+        world_x,
+        world_z,
+        volume,
+        wave_scale,
+        WATER_TESSELLATION,
+    );
 }
 
 /// Adds a tessellated top face with configurable subdivision level.
@@ -299,15 +334,19 @@ fn add_top_face_tessellated(
     world_x: f32,
     world_z: f32,
     volume: f32,
+    wave_scale: f32,
     subdivisions: u32,
 ) {
     let base_idx = data.positions.len() as u32;
     let step = 1.0 / subdivisions as f32;
     let verts_per_side = subdivisions + 1;
 
-    // Colors encode volume (alpha) and depth hint (RGB)
+    // Vertex colors encode:
+    // - Red: wave scale (0.0 = flat/ripples, 1.0 = full waves)
+    // - Green/Blue: depth hint colors (fixed)
+    // - Alpha: volume/transparency
     let alpha = volume.clamp(0.5, 1.0);
-    let color = [0.2, 0.5, 0.8, alpha];
+    let color = [wave_scale, 0.5, 0.8, alpha];
 
     // Generate vertex grid
     for row in 0..verts_per_side {
@@ -350,6 +389,7 @@ fn add_side_face_x_pos(
     world_x: f32,
     world_z: f32,
     volume: f32,
+    wave_scale: f32,
 ) {
     let base_idx = data.positions.len() as u32;
     let top_y = y + height;
@@ -376,7 +416,7 @@ fn add_side_face_x_pos(
     ]);
 
     let alpha = volume.clamp(0.5, 1.0);
-    let color = [0.15, 0.4, 0.7, alpha];
+    let color = [wave_scale, 0.4, 0.7, alpha];
     data.colors.extend_from_slice(&[color, color, color, color]);
 
     data.indices
@@ -395,6 +435,7 @@ fn add_side_face_x_neg(
     world_x: f32,
     world_z: f32,
     volume: f32,
+    wave_scale: f32,
 ) {
     let base_idx = data.positions.len() as u32;
     let top_y = y + height;
@@ -421,7 +462,7 @@ fn add_side_face_x_neg(
     ]);
 
     let alpha = volume.clamp(0.5, 1.0);
-    let color = [0.15, 0.4, 0.7, alpha];
+    let color = [wave_scale, 0.4, 0.7, alpha];
     data.colors.extend_from_slice(&[color, color, color, color]);
 
     data.indices
@@ -440,6 +481,7 @@ fn add_side_face_z_pos(
     world_x: f32,
     world_z: f32,
     volume: f32,
+    wave_scale: f32,
 ) {
     let base_idx = data.positions.len() as u32;
     let top_y = y + height;
@@ -466,7 +508,7 @@ fn add_side_face_z_pos(
     ]);
 
     let alpha = volume.clamp(0.5, 1.0);
-    let color = [0.15, 0.4, 0.7, alpha];
+    let color = [wave_scale, 0.4, 0.7, alpha];
     data.colors.extend_from_slice(&[color, color, color, color]);
 
     data.indices
@@ -485,6 +527,7 @@ fn add_side_face_z_neg(
     world_x: f32,
     world_z: f32,
     volume: f32,
+    wave_scale: f32,
 ) {
     let base_idx = data.positions.len() as u32;
     let top_y = y + height;
@@ -511,7 +554,7 @@ fn add_side_face_z_neg(
     ]);
 
     let alpha = volume.clamp(0.5, 1.0);
-    let color = [0.15, 0.4, 0.7, alpha];
+    let color = [wave_scale, 0.4, 0.7, alpha];
     data.colors.extend_from_slice(&[color, color, color, color]);
 
     data.indices
@@ -546,6 +589,10 @@ pub fn generate_water_mesh_lod(input: &WaterMeshInput) -> Option<WaterMeshData> 
         let world_x = (chunk_world_x + local_pos.x) as f32;
         let world_z = (chunk_world_z + local_pos.z) as f32;
 
+        // For LOD, use full wave scale (distant water appears as ocean)
+        // This avoids the cost of local volume calculation for distant chunks
+        let wave_scale = 0.8;
+
         // Use lower tessellation for LOD meshes
         add_top_face_tessellated(
             &mut data,
@@ -555,6 +602,7 @@ pub fn generate_water_mesh_lod(input: &WaterMeshInput) -> Option<WaterMeshData> 
             world_x,
             world_z,
             1.0,
+            wave_scale,
             WATER_TESSELLATION_LOD,
         );
     }

@@ -10,6 +10,8 @@ use bevy::{
     render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
 
+use shared::world::WaveScaleConfig;
+
 /// Uniform data for the water shader.
 /// This is passed to the GPU and controls wave appearance.
 #[derive(Clone, Copy, Debug, ShaderType)]
@@ -152,6 +154,8 @@ pub struct WaterRenderSettings {
     pub wave_amplitude: f32,
     /// Wave animation speed
     pub wave_speed: f32,
+    /// Configuration for wave scale based on local water volume
+    pub wave_scale_config: WaveScaleConfig,
 }
 
 impl Default for WaterRenderSettings {
@@ -163,6 +167,7 @@ impl Default for WaterRenderSettings {
             wave_layers_far: 2,
             wave_amplitude: 0.08,
             wave_speed: 1.0,
+            wave_scale_config: WaveScaleConfig::default(),
         }
     }
 }

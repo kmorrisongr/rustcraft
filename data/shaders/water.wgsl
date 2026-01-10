@@ -160,7 +160,17 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     // Calculate time for wave animation
     let time = globals.time * water_material.wave_speed + water_material.time_offset;
     let num_layers = min(water_material.wave_layers, 4u);
-    let base_amplitude = water_material.wave_amplitude;
+    
+    // Get wave scale from vertex color red channel (0.0 = flat/ripples, 1.0 = full waves)
+    // This is calculated per-cell based on local water volume
+#ifdef VERTEX_COLORS
+    let wave_scale = vertex.color.r;
+#else
+    let wave_scale = 1.0;
+#endif
+    
+    // Apply wave scale to base amplitude
+    let base_amplitude = water_material.wave_amplitude * wave_scale;
     
     // Apply Gerstner wave displacement
     let displacement = compute_wave_displacement(world_position.xz, time, num_layers, base_amplitude);
@@ -219,7 +229,15 @@ fn fragment(
     // Calculate time for any additional fragment effects
     let time = globals.time * water_material.wave_speed + water_material.time_offset;
     let num_layers = min(water_material.wave_layers, 4u);
-    let base_amplitude = water_material.wave_amplitude;
+    
+    // Get wave scale from vertex color red channel (interpolated across triangle)
+#ifdef VERTEX_COLORS
+    let wave_scale = in.color.r;
+#else
+    let wave_scale = 1.0;
+#endif
+    
+    let base_amplitude = water_material.wave_amplitude * wave_scale;
     
     // Recalculate normal at fragment level for smoother shading
     let wave_normal = compute_wave_normal(in.world_position.xz, time, num_layers, base_amplitude);
