@@ -122,6 +122,20 @@ impl ServerChunk {
         // or if the generation counter doesn't match, surfaces may need refresh.
         !self.water.is_empty() && self.water_surfaces.cell_count() == 0
     }
+
+    /// Removes the Water block at the specified local position if present.
+    ///
+    /// This is a helper function used when water volume is removed from a cell.
+    /// If the cell contains a Water block, it's removed from the block map,
+    /// ensuring consistency between water volume storage and block representation.
+    ///
+    /// # Arguments
+    /// * `pos` - Local position within the chunk (0..CHUNK_SIZE for each axis)
+    pub fn remove_water_block_if_present(&mut self, pos: &IVec3) {
+        if self.map.get(pos).map(|b| b.id) == Some(super::BlockId::Water) {
+            self.map.remove(pos);
+        }
+    }
 }
 
 // #[derive(Resource)]
