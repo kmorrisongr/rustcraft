@@ -158,10 +158,11 @@ pub fn water_simulation_system(
 /// Surface detection is important for:
 /// 1. Efficient shallow-water wave simulation (only simulate surfaces)
 /// 2. Mesh generation (only render surfaces)
-/// 3. Future lateral flow (waves propagate on surfaces)
+/// 3. Lateral flow simulation (waves propagate on surfaces)
 pub fn water_surface_detection_system(
     mut world_map: ResMut<ServerWorldMap>,
     mut surface_queue: ResMut<WaterSurfaceUpdateQueue>,
+    mut lateral_flow_queue: ResMut<super::water_flow::LateralFlowQueue>,
 ) {
     if surface_queue.pending_chunks.is_empty() {
         return;
@@ -181,19 +182,24 @@ pub fn water_surface_detection_system(
 
     // Process each chunk
     for chunk_pos in chunks_to_process {
-        update_chunk_surfaces(&mut world_map, chunk_pos);
+        let has_surfaces = update_chunk_surfaces(&mut world_map, chunk_pos);
+        // Queue for lateral flow if surfaces were detected
+        if has_surfaces {
+            lateral_flow_queue.queue(chunk_pos);
+        }
     }
 }
 
 /// Updates water surface detection for a single chunk.
-fn update_chunk_surfaces(world_map: &mut ServerWorldMap, chunk_pos: IVec3) {
+/// Returns true if any surfaces were detected.
+fn update_chunk_surfaces(world_map: &mut ServerWorldMap, chunk_pos: IVec3) -> bool {
     use shared::CHUNK_SIZE;
 
     // First, extract the water positions we need to check
     // and gather information about which positions above have solid blocks
     let water_positions: Vec<IVec3> = {
         let Some(chunk) = world_map.chunks.map.get(&chunk_pos) else {
-            return;
+            return false;
         };
         chunk.water.iter().map(|(pos, _)| *pos).collect()
     };
@@ -203,7 +209,7 @@ fn update_chunk_surfaces(world_map: &mut ServerWorldMap, chunk_pos: IVec3) {
         if let Some(chunk) = world_map.chunks.map.get_mut(&chunk_pos) {
             chunk.water_surfaces.clear();
         }
-        return;
+        return false;
     }
 
     // Build a set of positions that have solid blocks above (for local lookups)
@@ -266,8 +272,10 @@ fn update_chunk_surfaces(world_map: &mut ServerWorldMap, chunk_pos: IVec3) {
                 stats.total_cells,
                 stats.patch_count
             );
+            return true;
         }
     }
+    false
 }
 
 /// Process water simulation at a single position
