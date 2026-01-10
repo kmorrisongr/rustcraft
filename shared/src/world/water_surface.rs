@@ -71,16 +71,16 @@ impl WaterSurfaceCell {
 /// - Efficient shallow-water simulation (waves propagate within a patch)
 /// - Mesh generation (one mesh per patch)
 /// - Sleep detection (patches can sleep when stable)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WaterSurfacePatch {
     /// Unique ID of this patch within the chunk
     pub id: SurfacePatchId,
     /// All surface cells belonging to this patch
     pub cells: Vec<IVec3>,
-    /// Bounding box minimum (local coordinates)
-    pub bounds_min: IVec3,
-    /// Bounding box maximum (local coordinates)
-    pub bounds_max: IVec3,
+    /// Bounding box minimum (local coordinates), None if patch is empty
+    pub bounds_min: Option<IVec3>,
+    /// Bounding box maximum (local coordinates), None if patch is empty
+    pub bounds_max: Option<IVec3>,
     /// Average Y level of the patch (for quick filtering)
     pub avg_y: f32,
     /// Whether this patch is stable (no recent changes)
@@ -93,8 +93,8 @@ impl WaterSurfacePatch {
         Self {
             id,
             cells: Vec::new(),
-            bounds_min: IVec3::new(CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE),
-            bounds_max: IVec3::new(0, 0, 0),
+            bounds_min: None,
+            bounds_max: None,
             avg_y: 0.0,
             is_stable: false,
         }
@@ -103,8 +103,20 @@ impl WaterSurfacePatch {
     /// Adds a cell to this patch and updates bounds.
     pub fn add_cell(&mut self, local_pos: IVec3) {
         self.cells.push(local_pos);
-        self.bounds_min = self.bounds_min.min(local_pos);
-        self.bounds_max = self.bounds_max.max(local_pos);
+        
+        // Update bounds
+        match (self.bounds_min, self.bounds_max) {
+            (Some(min), Some(max)) => {
+                self.bounds_min = Some(min.min(local_pos));
+                self.bounds_max = Some(max.max(local_pos));
+            }
+            _ => {
+                // First cell sets both bounds
+                self.bounds_min = Some(local_pos);
+                self.bounds_max = Some(local_pos);
+            }
+        }
+        
         // Recalculate average Y
         self.avg_y = self.cells.iter().map(|c| c.y as f32).sum::<f32>() / self.cells.len() as f32;
     }
@@ -128,11 +140,33 @@ impl WaterSurfacePatch {
     }
 
     /// Returns the XZ extent of this patch (for area estimation).
+    /// Returns (0, 0) if the patch is empty.
     pub fn xz_extent(&self) -> (i32, i32) {
-        (
-            self.bounds_max.x - self.bounds_min.x + 1,
-            self.bounds_max.z - self.bounds_min.z + 1,
-        )
+        match (self.bounds_min, self.bounds_max) {
+            (Some(min), Some(max)) => (
+                max.x - min.x + 1,
+                max.z - min.z + 1,
+            ),
+            _ => (0, 0),
+        }
+    }
+    
+    /// Returns the minimum bounds if the patch is non-empty.
+    #[inline]
+    pub fn bounds_min(&self) -> Option<IVec3> {
+        self.bounds_min
+    }
+    
+    /// Returns the maximum bounds if the patch is non-empty.
+    #[inline]
+    pub fn bounds_max(&self) -> Option<IVec3> {
+        self.bounds_max
+    }
+}
+
+impl Default for WaterSurfacePatch {
+    fn default() -> Self {
+        Self::new(0)
     }
 }
 
@@ -519,9 +553,16 @@ mod tests {
         surfaces.detect_surfaces(&water, |_| false);
 
         let patch = surfaces.patch(0).unwrap();
-        assert_eq!(patch.bounds_min.x, 2);
-        assert_eq!(patch.bounds_max.x, 5);
-        assert_eq!(patch.bounds_min.z, 3);
-        assert_eq!(patch.bounds_max.z, 3);
+        assert_eq!(patch.bounds_min(), Some(IVec3::new(2, 10, 3)));
+        assert_eq!(patch.bounds_max(), Some(IVec3::new(5, 10, 3)));
+    }
+    
+    #[test]
+    fn test_empty_patch_bounds() {
+        let patch = WaterSurfacePatch::new(0);
+        assert_eq!(patch.bounds_min(), None);
+        assert_eq!(patch.bounds_max(), None);
+        assert_eq!(patch.xz_extent(), (0, 0));
+        assert!(patch.is_empty());
     }
 }
