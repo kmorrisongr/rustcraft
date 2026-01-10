@@ -315,10 +315,7 @@ fn perform_immediate_lateral_inflow(
 
             if new_volume < MIN_WATER_VOLUME {
                 chunk.water.remove(&neighbor_local_pos);
-                // Remove Water block if water is gone
-                if chunk.map.get(&neighbor_local_pos).map(|b| b.id) == Some(BlockId::Water) {
-                    chunk.map.remove(&neighbor_local_pos);
-                }
+                chunk.remove_water_block_if_present(&neighbor_local_pos);
             } else {
                 chunk.water.set(neighbor_local_pos, new_volume);
             }

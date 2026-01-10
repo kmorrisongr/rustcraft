@@ -420,10 +420,7 @@ fn process_chunk_lateral_flow(
 
             if new_volume < MIN_WATER_VOLUME {
                 chunk.water.remove(&pos);
-                // Also remove Water block if present
-                if chunk.map.get(&pos).map(|b| b.id) == Some(BlockId::Water) {
-                    chunk.map.remove(&pos);
-                }
+                chunk.remove_water_block_if_present(&pos);
             } else {
                 chunk.water.set(pos, new_volume);
                 // Add Water block if not present

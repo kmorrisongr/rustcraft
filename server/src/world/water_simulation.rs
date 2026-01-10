@@ -433,10 +433,7 @@ fn process_water_at_position(
     let new_source_volume = water_volume - transfer_amount;
     if new_source_volume < MIN_WATER_VOLUME {
         chunk.water.remove(&local_pos);
-        // Also remove the Water block if water is gone
-        if chunk.map.get(&local_pos).map(|b| b.id) == Some(BlockId::Water) {
-            chunk.map.remove(&local_pos);
-        }
+        chunk.remove_water_block_if_present(&local_pos);
     } else {
         chunk.water.set(local_pos, new_source_volume);
     }
