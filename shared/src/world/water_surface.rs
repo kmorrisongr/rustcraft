@@ -26,6 +26,36 @@ use crate::CHUNK_SIZE;
 /// Patches are numbered starting from 0.
 pub type SurfacePatchId = u32;
 
+/// Bounding box for a patch, defined by minimum and maximum coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BoundingBox {
+    /// Minimum corner (local coordinates)
+    pub min: IVec3,
+    /// Maximum corner (local coordinates)
+    pub max: IVec3,
+}
+
+impl BoundingBox {
+    /// Creates a new bounding box from a single point.
+    pub fn from_point(pos: IVec3) -> Self {
+        Self { min: pos, max: pos }
+    }
+
+    /// Expands the bounding box to include the given point.
+    pub fn expand(&mut self, pos: IVec3) {
+        self.min = self.min.min(pos);
+        self.max = self.max.max(pos);
+    }
+
+    /// Returns the XZ extent of this bounding box (width, depth).
+    pub fn xz_extent(&self) -> (i32, i32) {
+        (
+            self.max.x - self.min.x + 1,
+            self.max.z - self.min.z + 1,
+        )
+    }
+}
+
 /// Represents a single water surface cell.
 ///
 /// A surface cell is a water cell where the voxel directly above is air.
@@ -77,10 +107,8 @@ pub struct WaterSurfacePatch {
     pub id: SurfacePatchId,
     /// All surface cells belonging to this patch
     pub cells: Vec<IVec3>,
-    /// Bounding box minimum (local coordinates), None if patch is empty
-    pub bounds_min: Option<IVec3>,
-    /// Bounding box maximum (local coordinates), None if patch is empty
-    pub bounds_max: Option<IVec3>,
+    /// Bounding box (local coordinates), None if patch is empty
+    pub bounds: Option<BoundingBox>,
     /// Average Y level of the patch (for quick filtering)
     pub avg_y: f32,
     /// Whether this patch is stable (no recent changes)
@@ -93,8 +121,7 @@ impl WaterSurfacePatch {
         Self {
             id,
             cells: Vec::new(),
-            bounds_min: None,
-            bounds_max: None,
+            bounds: None,
             avg_y: 0.0,
             is_stable: false,
         }
@@ -105,18 +132,9 @@ impl WaterSurfacePatch {
         self.cells.push(local_pos);
         
         // Update bounds
-        match (self.bounds_min, self.bounds_max) {
-            (Some(min), Some(max)) => {
-                self.bounds_min = Some(min.min(local_pos));
-                self.bounds_max = Some(max.max(local_pos));
-            }
-            (None, None) => {
-                // First cell sets both bounds
-                self.bounds_min = Some(local_pos);
-                self.bounds_max = Some(local_pos);
-            }
-            // Invariant: bounds_min and bounds_max are always both Some or both None
-            _ => unreachable!("bounds_min and bounds_max should always be set together"),
+        match &mut self.bounds {
+            Some(bounds) => bounds.expand(local_pos),
+            None => self.bounds = Some(BoundingBox::from_point(local_pos)),
         }
         
         // Update average Y incrementally
@@ -146,13 +164,7 @@ impl WaterSurfacePatch {
     /// Returns the XZ extent of this patch (for area estimation).
     /// Returns (0, 0) if the patch is empty.
     pub fn xz_extent(&self) -> (i32, i32) {
-        match (self.bounds_min, self.bounds_max) {
-            (Some(min), Some(max)) => (
-                max.x - min.x + 1,
-                max.z - min.z + 1,
-            ),
-            _ => (0, 0),
-        }
+        self.bounds.map_or((0, 0), |b| b.xz_extent())
     }
 }
 
@@ -545,15 +557,15 @@ mod tests {
         surfaces.detect_surfaces(&water, |_| false);
 
         let patch = surfaces.patch(0).unwrap();
-        assert_eq!(patch.bounds_min, Some(IVec3::new(2, 10, 3)));
-        assert_eq!(patch.bounds_max, Some(IVec3::new(5, 10, 3)));
+        let bounds = patch.bounds.expect("patch should have bounds");
+        assert_eq!(bounds.min, IVec3::new(2, 10, 3));
+        assert_eq!(bounds.max, IVec3::new(5, 10, 3));
     }
     
     #[test]
     fn test_empty_patch_bounds() {
         let patch = WaterSurfacePatch::new(0);
-        assert_eq!(patch.bounds_min, None);
-        assert_eq!(patch.bounds_max, None);
+        assert_eq!(patch.bounds, None);
         assert_eq!(patch.xz_extent(), (0, 0));
         assert!(patch.is_empty());
     }
