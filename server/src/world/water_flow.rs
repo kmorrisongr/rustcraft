@@ -17,6 +17,7 @@
 
 use bevy::prelude::*;
 use shared::world::{
+    water_utils::{is_valid_local_pos, LATERAL_NEIGHBORS},
     BlockData, BlockHitbox, BlockId, ServerWorldMap, FULL_WATER_HEIGHT, MAX_WATER_VOLUME,
     MIN_WATER_VOLUME,
 };
@@ -249,14 +250,8 @@ fn process_chunk_lateral_flow(
         let surface_height = pos.y as f32 + volume * FULL_WATER_HEIGHT;
 
         // Check 4 cardinal neighbors
-        let neighbors = [
-            pos + IVec3::new(1, 0, 0),
-            pos + IVec3::new(-1, 0, 0),
-            pos + IVec3::new(0, 0, 1),
-            pos + IVec3::new(0, 0, -1),
-        ];
-
-        for neighbor_pos in neighbors {
+        for offset in LATERAL_NEIGHBORS {
+            let neighbor_pos = pos + offset;
             flow_attempts += 1;
 
             // Check if neighbor is within chunk bounds
@@ -494,17 +489,6 @@ fn apply_cross_chunk_flows(
     modified_chunks
 }
 
-/// Check if a local position is within valid chunk bounds.
-#[inline]
-pub fn is_valid_local_pos(pos: &IVec3) -> bool {
-    pos.x >= 0
-        && pos.x < CHUNK_SIZE
-        && pos.y >= 0
-        && pos.y < CHUNK_SIZE
-        && pos.z >= 0
-        && pos.z < CHUNK_SIZE
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -538,12 +522,11 @@ mod tests {
     }
 
     #[test]
-    fn test_is_valid_local_pos() {
-        assert!(is_valid_local_pos(&IVec3::new(0, 0, 0)));
-        assert!(is_valid_local_pos(&IVec3::new(15, 15, 15)));
-        assert!(!is_valid_local_pos(&IVec3::new(-1, 0, 0)));
-        assert!(!is_valid_local_pos(&IVec3::new(16, 0, 0)));
-        assert!(!is_valid_local_pos(&IVec3::new(0, -1, 0)));
-        assert!(!is_valid_local_pos(&IVec3::new(0, 16, 0)));
+    fn test_lateral_neighbors_constant() {
+        // Verify the shared constant has 4 horizontal directions
+        assert_eq!(LATERAL_NEIGHBORS.len(), 4);
+        for offset in LATERAL_NEIGHBORS {
+            assert_eq!(offset.y, 0, "LATERAL_NEIGHBORS should not have vertical components");
+        }
     }
 }

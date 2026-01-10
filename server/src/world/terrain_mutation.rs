@@ -23,30 +23,13 @@
 
 use bevy::math::IVec3;
 use shared::world::{
-    global_to_chunk_local, BlockData, BlockHitbox, BlockId, ServerWorldMap, WorldMap,
-    MAX_WATER_VOLUME, MIN_WATER_VOLUME,
+    global_to_chunk_local,
+    water_utils::{ALL_NEIGHBORS, LATERAL_NEIGHBORS},
+    BlockData, BlockHitbox, BlockId, ServerWorldMap, WorldMap, MAX_WATER_VOLUME, MIN_WATER_VOLUME,
 };
 
 use super::water_flow::LateralFlowQueue;
 use super::water_simulation::{WaterSimulationQueue, WaterSurfaceUpdateQueue};
-
-/// Cardinal directions for lateral water flow (no vertical)
-const LATERAL_OFFSETS: [IVec3; 4] = [
-    IVec3::new(1, 0, 0),  // +X
-    IVec3::new(-1, 0, 0), // -X
-    IVec3::new(0, 0, 1),  // +Z
-    IVec3::new(0, 0, -1), // -Z
-];
-
-/// All 6 directions including vertical
-const ALL_NEIGHBOR_OFFSETS: [IVec3; 6] = [
-    IVec3::new(1, 0, 0),
-    IVec3::new(-1, 0, 0),
-    IVec3::new(0, 1, 0),
-    IVec3::new(0, -1, 0),
-    IVec3::new(0, 0, 1),
-    IVec3::new(0, 0, -1),
-];
 
 /// Result of a water displacement operation
 #[derive(Debug, Default)]
@@ -84,7 +67,7 @@ pub fn handle_block_removal(
 
     // Check lateral neighbors for water
     let mut lateral_water_count = 0;
-    for offset in LATERAL_OFFSETS {
+    for offset in LATERAL_NEIGHBORS {
         let neighbor_pos = removed_pos + offset;
         if has_water_at(world_map, &neighbor_pos) {
             lateral_water_count += 1;
@@ -143,7 +126,7 @@ pub fn handle_block_removal(
 
     // 4. Mark chunk and neighbors for surface update
     surface_queue.queue(chunk_pos);
-    for offset in ALL_NEIGHBOR_OFFSETS {
+    for offset in ALL_NEIGHBORS {
         let neighbor_chunk = chunk_pos + offset;
         if world_map.chunks.map.contains_key(&neighbor_chunk) {
             surface_queue.queue(neighbor_chunk);
@@ -151,7 +134,7 @@ pub fn handle_block_removal(
     }
 
     // 5. Queue chunks with water neighbors for lateral flow continuation
-    for offset in LATERAL_OFFSETS {
+    for offset in LATERAL_NEIGHBORS {
         let neighbor_pos = removed_pos + offset;
         if has_water_at(world_map, &neighbor_pos) {
             let (neighbor_chunk, _) = global_to_chunk_local(&neighbor_pos);
@@ -203,7 +186,7 @@ fn perform_immediate_lateral_inflow(
     // Gather water info from lateral neighbors
     let mut neighbor_water: Vec<(IVec3, f32)> = Vec::new();
 
-    for offset in LATERAL_OFFSETS {
+    for offset in LATERAL_NEIGHBORS {
         let neighbor_pos = freed_pos + offset;
 
         // Skip if neighbor is blocked by solid (non-water) block
@@ -461,7 +444,7 @@ pub fn handle_block_placement(
     }
 
     // Also update neighboring chunks
-    for offset in ALL_NEIGHBOR_OFFSETS {
+    for offset in ALL_NEIGHBORS {
         let neighbor_chunk = chunk_pos + offset;
         if world_map.chunks.map.contains_key(&neighbor_chunk) {
             surface_queue.queue(neighbor_chunk);
@@ -579,7 +562,7 @@ fn distribute_water_laterally(
     // Find neighbors that can accept water
     let mut accepting_neighbors: Vec<(IVec3, f32)> = Vec::new();
 
-    for offset in LATERAL_OFFSETS {
+    for offset in LATERAL_NEIGHBORS {
         let neighbor_pos = source_pos + offset;
         if can_accept_water(world_map, &neighbor_pos) {
             let existing = get_water_volume_at(world_map, &neighbor_pos);
@@ -679,7 +662,7 @@ pub fn should_update_water_at(world_map: &ServerWorldMap, pos: &IVec3) -> bool {
 
     // Check if any lateral neighbor has significantly lower water level
     let current_volume = get_water_volume_at(world_map, pos);
-    for offset in LATERAL_OFFSETS {
+    for offset in LATERAL_NEIGHBORS {
         let neighbor_pos = *pos + offset;
         if can_accept_water(world_map, &neighbor_pos) {
             let neighbor_volume = get_water_volume_at(world_map, &neighbor_pos);
@@ -700,20 +683,20 @@ mod tests {
     // These are placeholder tests for the helper functions
 
     #[test]
-    fn test_lateral_offsets() {
-        assert_eq!(LATERAL_OFFSETS.len(), 4);
+    fn test_lateral_neighbors() {
+        assert_eq!(LATERAL_NEIGHBORS.len(), 4);
         // Verify no vertical component
-        for offset in LATERAL_OFFSETS {
+        for offset in LATERAL_NEIGHBORS {
             assert_eq!(offset.y, 0);
         }
     }
 
     #[test]
-    fn test_all_neighbor_offsets() {
-        assert_eq!(ALL_NEIGHBOR_OFFSETS.len(), 6);
+    fn test_all_neighbors() {
+        assert_eq!(ALL_NEIGHBORS.len(), 6);
         // Verify we have both vertical directions
-        let has_up = ALL_NEIGHBOR_OFFSETS.iter().any(|o| o.y == 1);
-        let has_down = ALL_NEIGHBOR_OFFSETS.iter().any(|o| o.y == -1);
+        let has_up = ALL_NEIGHBORS.iter().any(|o| o.y == 1);
+        let has_down = ALL_NEIGHBORS.iter().any(|o| o.y == -1);
         assert!(has_up);
         assert!(has_down);
     }

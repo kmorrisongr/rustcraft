@@ -568,4 +568,100 @@ mod tests {
             BoundaryFace::PosX
         ));
     }
+
+    #[test]
+    fn test_wrap_corner_cases() {
+        // Corner case: position at (0, 0, 0) going negative on all axes
+        // This would only happen with vertical flow, which we handle separately
+        let (offset, wrapped) = wrap_to_neighbor_chunk(IVec3::new(-1, -1, -1));
+        assert_eq!(offset, IVec3::new(-1, -1, -1));
+        assert_eq!(
+            wrapped,
+            IVec3::new(CHUNK_SIZE - 1, CHUNK_SIZE - 1, CHUNK_SIZE - 1)
+        );
+
+        // Edge case: exactly at CHUNK_SIZE on multiple axes
+        let (offset, wrapped) = wrap_to_neighbor_chunk(IVec3::new(CHUNK_SIZE, 5, CHUNK_SIZE));
+        assert_eq!(offset, IVec3::new(1, 0, 1));
+        assert_eq!(wrapped, IVec3::new(0, 5, 0));
+    }
+
+    #[test]
+    fn test_boundary_face_symmetry() {
+        // Verify that opposite faces are truly opposite
+        for face in BoundaryFace::ALL {
+            let opposite = face.opposite();
+            assert_eq!(
+                face.neighbor_chunk_offset(),
+                -opposite.neighbor_chunk_offset(),
+                "Face {:?} and its opposite {:?} should have negated offsets",
+                face,
+                opposite
+            );
+            assert_eq!(
+                face,
+                opposite.opposite(),
+                "Double opposite should return original face"
+            );
+        }
+    }
+
+    #[test]
+    fn test_local_to_face_pos_consistency() {
+        // For X faces, face_pos should be (y, z)
+        let pos = IVec3::new(0, 7, 11);
+        let face_pos = local_to_face_pos(&pos, BoundaryFace::NegX);
+        assert_eq!(face_pos, IVec2::new(7, 11));
+
+        let pos = IVec3::new(CHUNK_SIZE - 1, 3, 9);
+        let face_pos = local_to_face_pos(&pos, BoundaryFace::PosX);
+        assert_eq!(face_pos, IVec2::new(3, 9));
+
+        // For Y faces, face_pos should be (x, z)
+        let pos = IVec3::new(5, 0, 8);
+        let face_pos = local_to_face_pos(&pos, BoundaryFace::NegY);
+        assert_eq!(face_pos, IVec2::new(5, 8));
+
+        // For Z faces, face_pos should be (x, y)
+        let pos = IVec3::new(4, 6, CHUNK_SIZE - 1);
+        let face_pos = local_to_face_pos(&pos, BoundaryFace::PosZ);
+        assert_eq!(face_pos, IVec2::new(4, 6));
+    }
+
+    #[test]
+    fn test_cross_chunk_flow_volume_limits() {
+        use super::*;
+
+        // Test that CrossChunkFlow can represent edge cases
+        let flow = CrossChunkFlow {
+            source_chunk: IVec3::new(0, 0, 0),
+            source_local_pos: IVec3::new(CHUNK_SIZE - 1, 5, 5),
+            neighbor_chunk: IVec3::new(1, 0, 0),
+            neighbor_local_pos: IVec3::new(0, 5, 5),
+            flow_amount: MIN_WATER_VOLUME,
+        };
+
+        // Verify the flow crosses the +X boundary correctly
+        assert_eq!(
+            flow.source_chunk + IVec3::new(1, 0, 0),
+            flow.neighbor_chunk
+        );
+        assert_eq!(flow.source_local_pos.x, CHUNK_SIZE - 1);
+        assert_eq!(flow.neighbor_local_pos.x, 0);
+    }
+
+    #[test]
+    fn test_chunk_boundary_water_generation_tracking() {
+        let mut boundary = ChunkBoundaryWater::new();
+        let initial_gen = boundary.generation;
+
+        // Adding water should not change generation (only clear does)
+        boundary.face_mut(BoundaryFace::PosX).set(IVec2::new(5, 5), 0.5, true);
+        assert_eq!(boundary.generation, initial_gen);
+
+        // Clear should increment generation
+        boundary.clear();
+        assert_eq!(boundary.generation, initial_gen + 1);
+        assert!(!boundary.has_boundary_water());
+    }
 }

@@ -240,6 +240,26 @@ pub mod water_utils {
     use super::*;
     use crate::CHUNK_SIZE;
 
+    /// Cardinal directions for lateral water flow (no vertical).
+    /// Used for horizontal spreading and pressure equalization.
+    pub const LATERAL_NEIGHBORS: [IVec3; 4] = [
+        IVec3::new(1, 0, 0),  // +X
+        IVec3::new(-1, 0, 0), // -X
+        IVec3::new(0, 0, 1),  // +Z
+        IVec3::new(0, 0, -1), // -Z
+    ];
+
+    /// All 6 neighbor directions including vertical.
+    /// Used for full neighbor checks including gravity flow.
+    pub const ALL_NEIGHBORS: [IVec3; 6] = [
+        IVec3::new(1, 0, 0),  // +X
+        IVec3::new(-1, 0, 0), // -X
+        IVec3::new(0, 1, 0),  // +Y (up)
+        IVec3::new(0, -1, 0), // -Y (down)
+        IVec3::new(0, 0, 1),  // +Z
+        IVec3::new(0, 0, -1), // -Z
+    ];
+
     /// Converts global block coordinates to chunk-local water storage coordinates
     pub fn global_to_local(global_pos: IVec3, chunk_pos: IVec3) -> IVec3 {
         IVec3::new(
@@ -357,5 +377,132 @@ mod tests {
 
         let half = WaterCell::new(0.5).unwrap();
         assert!((half.surface_height() - FULL_WATER_HEIGHT * 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_water_utils_neighbor_constants() {
+        use water_utils::{ALL_NEIGHBORS, LATERAL_NEIGHBORS};
+
+        // LATERAL_NEIGHBORS should have 4 horizontal directions
+        assert_eq!(LATERAL_NEIGHBORS.len(), 4);
+        for offset in LATERAL_NEIGHBORS {
+            assert_eq!(offset.y, 0, "Lateral neighbors must be horizontal");
+            // Each offset should have exactly one non-zero component
+            let non_zero_count = (offset.x != 0) as i32 + (offset.z != 0) as i32;
+            assert_eq!(
+                non_zero_count, 1,
+                "Each lateral offset should be along one axis"
+            );
+        }
+
+        // ALL_NEIGHBORS should have 6 directions (cardinal + up/down)
+        assert_eq!(ALL_NEIGHBORS.len(), 6);
+        let has_up = ALL_NEIGHBORS.iter().any(|o| *o == IVec3::new(0, 1, 0));
+        let has_down = ALL_NEIGHBORS.iter().any(|o| *o == IVec3::new(0, -1, 0));
+        assert!(has_up, "ALL_NEIGHBORS should include +Y");
+        assert!(has_down, "ALL_NEIGHBORS should include -Y");
+    }
+
+    #[test]
+    fn test_is_valid_local_pos() {
+        use crate::CHUNK_SIZE;
+        use water_utils::is_valid_local_pos;
+
+        // Valid positions (inside chunk)
+        assert!(is_valid_local_pos(&IVec3::new(0, 0, 0)));
+        assert!(is_valid_local_pos(&IVec3::new(
+            CHUNK_SIZE - 1,
+            CHUNK_SIZE - 1,
+            CHUNK_SIZE - 1
+        )));
+        assert!(is_valid_local_pos(&IVec3::new(8, 8, 8)));
+
+        // Invalid positions (outside chunk bounds)
+        assert!(!is_valid_local_pos(&IVec3::new(-1, 0, 0)));
+        assert!(!is_valid_local_pos(&IVec3::new(0, -1, 0)));
+        assert!(!is_valid_local_pos(&IVec3::new(0, 0, -1)));
+        assert!(!is_valid_local_pos(&IVec3::new(CHUNK_SIZE, 0, 0)));
+        assert!(!is_valid_local_pos(&IVec3::new(0, CHUNK_SIZE, 0)));
+        assert!(!is_valid_local_pos(&IVec3::new(0, 0, CHUNK_SIZE)));
+    }
+
+    #[test]
+    fn test_global_to_local_conversion() {
+        use crate::CHUNK_SIZE;
+        use water_utils::global_to_local;
+
+        // Position in chunk (0,0,0)
+        let global = IVec3::new(5, 10, 3);
+        let chunk = IVec3::new(0, 0, 0);
+        let local = global_to_local(global, chunk);
+        assert_eq!(local, IVec3::new(5, 10, 3));
+
+        // Position in chunk (1,0,0)
+        let global = IVec3::new(CHUNK_SIZE + 5, 10, 3);
+        let chunk = IVec3::new(1, 0, 0);
+        let local = global_to_local(global, chunk);
+        assert_eq!(local, IVec3::new(5, 10, 3));
+
+        // Position at chunk boundary
+        let global = IVec3::new(CHUNK_SIZE, 0, 0);
+        let chunk = IVec3::new(1, 0, 0);
+        let local = global_to_local(global, chunk);
+        assert_eq!(local, IVec3::new(0, 0, 0));
+
+        // Negative chunk coordinates
+        let global = IVec3::new(-5, 10, 3);
+        let chunk = IVec3::new(-1, 0, 0);
+        let local = global_to_local(global, chunk);
+        assert_eq!(local, IVec3::new(CHUNK_SIZE - 5, 10, 3));
+    }
+
+    #[test]
+    fn test_boundary_positions_cross_chunk() {
+        use crate::CHUNK_SIZE;
+        use water_utils::{is_valid_local_pos, LATERAL_NEIGHBORS};
+
+        // Test that boundary positions + lateral offset go outside chunk
+        let boundary_x_max = IVec3::new(CHUNK_SIZE - 1, 8, 8);
+        let boundary_x_min = IVec3::new(0, 8, 8);
+        let boundary_z_max = IVec3::new(8, 8, CHUNK_SIZE - 1);
+        let boundary_z_min = IVec3::new(8, 8, 0);
+
+        // +X neighbor of x_max boundary should be outside chunk
+        let neighbor = boundary_x_max + IVec3::new(1, 0, 0);
+        assert!(
+            !is_valid_local_pos(&neighbor),
+            "Should be outside chunk (cross +X boundary)"
+        );
+
+        // -X neighbor of x_min boundary should be outside chunk
+        let neighbor = boundary_x_min + IVec3::new(-1, 0, 0);
+        assert!(
+            !is_valid_local_pos(&neighbor),
+            "Should be outside chunk (cross -X boundary)"
+        );
+
+        // +Z neighbor of z_max boundary should be outside chunk
+        let neighbor = boundary_z_max + IVec3::new(0, 0, 1);
+        assert!(
+            !is_valid_local_pos(&neighbor),
+            "Should be outside chunk (cross +Z boundary)"
+        );
+
+        // -Z neighbor of z_min boundary should be outside chunk
+        let neighbor = boundary_z_min + IVec3::new(0, 0, -1);
+        assert!(
+            !is_valid_local_pos(&neighbor),
+            "Should be outside chunk (cross -Z boundary)"
+        );
+
+        // Interior positions should have all lateral neighbors inside chunk
+        let interior = IVec3::new(8, 8, 8);
+        for offset in LATERAL_NEIGHBORS {
+            let neighbor = interior + offset;
+            assert!(
+                is_valid_local_pos(&neighbor),
+                "Interior neighbors should be inside chunk"
+            );
+        }
     }
 }
