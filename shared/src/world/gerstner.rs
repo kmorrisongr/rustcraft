@@ -15,10 +15,9 @@
 //!
 //! ## Synchronization
 //!
-//! **IMPORTANT**: The wave parameters in this file MUST match those in the shader:
-//! - `WAVE_PARAMS` array values
-//! - `AMPLITUDE_FALLOFF` constant
-//! - Mathematical formulas for displacement
+//! Wave parameters defined in `DEFAULT_WAVE_LAYERS` are automatically passed
+//! to the shader at runtime via the `WaterMaterialUniform`, ensuring perfect
+//! synchronization between physics and rendering.
 
 use bevy::math::{Vec2, Vec3};
 use std::f32::consts::PI;
@@ -50,7 +49,8 @@ impl WaveLayer {
     }
 }
 
-/// Default wave layers - MUST match shader WAVE_PARAMS!
+/// Default wave layers used for water rendering and physics.
+/// These values are automatically passed to the shader at runtime.
 pub const DEFAULT_WAVE_LAYERS: [WaveLayer; 4] = [
     WaveLayer::new(1.0, 0.0, 0.5, 8.0),  // Primary wave - long, gentle
     WaveLayer::new(0.7, 0.7, 0.35, 4.0), // Secondary wave - medium

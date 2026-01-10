@@ -10,7 +10,7 @@ use bevy::{
     render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
 
-use shared::world::WaveScaleConfig;
+use shared::world::{WaveScaleConfig, gerstner::DEFAULT_WAVE_LAYERS};
 
 /// Uniform data for the water shader.
 /// This is passed to the GPU and controls wave appearance.
@@ -28,6 +28,14 @@ pub struct WaterMaterialUniform {
     pub wave_speed: f32,
     /// Number of wave layers to compute (1-4, default: 3)
     pub wave_layers: u32,
+    /// Wave layer 0: direction (x, z), steepness, wavelength
+    pub wave_params_0: Vec4,
+    /// Wave layer 1: direction (x, z), steepness, wavelength
+    pub wave_params_1: Vec4,
+    /// Wave layer 2: direction (x, z), steepness, wavelength
+    pub wave_params_2: Vec4,
+    /// Wave layer 3: direction (x, z), steepness, wavelength
+    pub wave_params_3: Vec4,
 }
 
 impl Default for WaterMaterialUniform {
@@ -39,6 +47,31 @@ impl Default for WaterMaterialUniform {
             wave_amplitude: 0.08,
             wave_speed: 1.0,
             wave_layers: 3,
+            // Initialize wave parameters from DEFAULT_WAVE_LAYERS
+            wave_params_0: Vec4::new(
+                DEFAULT_WAVE_LAYERS[0].direction.x,
+                DEFAULT_WAVE_LAYERS[0].direction.y,
+                DEFAULT_WAVE_LAYERS[0].steepness,
+                DEFAULT_WAVE_LAYERS[0].wavelength,
+            ),
+            wave_params_1: Vec4::new(
+                DEFAULT_WAVE_LAYERS[1].direction.x,
+                DEFAULT_WAVE_LAYERS[1].direction.y,
+                DEFAULT_WAVE_LAYERS[1].steepness,
+                DEFAULT_WAVE_LAYERS[1].wavelength,
+            ),
+            wave_params_2: Vec4::new(
+                DEFAULT_WAVE_LAYERS[2].direction.x,
+                DEFAULT_WAVE_LAYERS[2].direction.y,
+                DEFAULT_WAVE_LAYERS[2].steepness,
+                DEFAULT_WAVE_LAYERS[2].wavelength,
+            ),
+            wave_params_3: Vec4::new(
+                DEFAULT_WAVE_LAYERS[3].direction.x,
+                DEFAULT_WAVE_LAYERS[3].direction.y,
+                DEFAULT_WAVE_LAYERS[3].steepness,
+                DEFAULT_WAVE_LAYERS[3].wavelength,
+            ),
         }
     }
 }
