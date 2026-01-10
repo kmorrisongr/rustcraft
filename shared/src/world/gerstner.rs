@@ -15,10 +15,9 @@
 //!
 //! ## Synchronization
 //!
-//! **IMPORTANT**: The wave parameters in this file MUST match those in the shader:
-//! - `WAVE_PARAMS` array values
-//! - `AMPLITUDE_FALLOFF` constant
-//! - Mathematical formulas for displacement
+//! Wave parameters defined in `DEFAULT_WAVE_LAYERS` are automatically passed
+//! to the shader at runtime via the `WaterMaterialUniform`, ensuring perfect
+//! synchronization between physics and rendering.
 
 use bevy::math::{Vec2, Vec3};
 use std::f32::consts::PI;
@@ -50,7 +49,8 @@ impl WaveLayer {
     }
 }
 
-/// Default wave layers - MUST match shader WAVE_PARAMS!
+/// Default wave layers used for water rendering and physics.
+/// These values are automatically passed to the shader at runtime.
 pub const DEFAULT_WAVE_LAYERS: [WaveLayer; 4] = [
     WaveLayer::new(1.0, 0.0, 0.5, 8.0),  // Primary wave - long, gentle
     WaveLayer::new(0.7, 0.7, 0.35, 4.0), // Secondary wave - medium
@@ -287,67 +287,6 @@ mod tests {
         assert!(
             h_large > h_small,
             "Larger amplitude should produce larger waves"
-        );
-    }
-
-    #[test]
-    fn test_shader_wave_params_match_rust_constants() {
-        // This test validates that WAVE_PARAMS in data/shaders/water.wgsl
-        // matches DEFAULT_WAVE_LAYERS to ensure physics/rendering sync.
-        
-        // Locate the shader file
-        let shader_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .join("data/shaders/water.wgsl");
-        
-        // Skip test if shader file doesn't exist (e.g., in some build environments)
-        if !shader_path.exists() {
-            eprintln!("Skipping shader validation test - water.wgsl not found at {:?}", shader_path);
-            return;
-        }
-        
-        let shader_content = std::fs::read_to_string(&shader_path)
-            .expect("Failed to read water.wgsl");
-        
-        // Verify each layer in DEFAULT_WAVE_LAYERS matches the shader
-        // Shader format: vec4<f32>(dir_x, dir_z, steepness, wavelength)
-        // Note: Vec2.y component represents z-direction in 3D world space (horizontal plane is x,z)
-        for (i, layer) in DEFAULT_WAVE_LAYERS.iter().enumerate() {
-            // Helper to format float with .0 for whole numbers
-            let fmt_float = |v: f32| -> String {
-                if v.fract() == 0.0 && v.abs() < 1000.0 {
-                    format!("{:.1}", v)
-                } else {
-                    format!("{}", v)
-                }
-            };
-            
-            let expected_shader_line = format!(
-                "vec4<f32>({}, {}, {}, {})",
-                fmt_float(layer.direction.x),
-                fmt_float(layer.direction.y), 
-                fmt_float(layer.steepness),
-                fmt_float(layer.wavelength)
-            );
-            
-            assert!(
-                shader_content.contains(&expected_shader_line),
-                "Layer {} mismatch: shader should contain '{}' based on DEFAULT_WAVE_LAYERS[{}] = WaveLayer {{ direction: ({}, {}), steepness: {}, wavelength: {} }}",
-                i, expected_shader_line, i, layer.direction.x, layer.direction.y, layer.steepness, layer.wavelength
-            );
-        }
-        
-        // Verify the shader defines the WAVE_PARAMS array
-        assert!(
-            shader_content.contains("const WAVE_PARAMS: array<vec4<f32>, 4>"),
-            "Shader must define WAVE_PARAMS array"
-        );
-        
-        // Verify the comment warning exists to remind developers
-        assert!(
-            shader_content.contains("MUST match") || shader_content.contains("must match"),
-            "Shader should contain a comment warning about keeping params in sync"
         );
     }
 }

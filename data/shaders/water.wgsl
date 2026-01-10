@@ -43,20 +43,27 @@ struct WaterMaterialUniform {
     wave_speed: f32,
     // Number of wave layers (1-4)
     wave_layers: u32,
+    // Wave layer parameters: vec4(dir_x, dir_z, steepness, wavelength)
+    wave_params_0: vec4<f32>,
+    wave_params_1: vec4<f32>,
+    wave_params_2: vec4<f32>,
+    wave_params_3: vec4<f32>,
 };
 
 @group(2) @binding(100)
 var<uniform> water_material: WaterMaterialUniform;
 
-// Gerstner wave parameters for each layer
-// Direction (x,z), Steepness (Q), Wavelength (L)
-// These MUST match the values in shared/src/world/gerstner.rs for physics sync!
-const WAVE_PARAMS: array<vec4<f32>, 4> = array<vec4<f32>, 4>(
-    vec4<f32>(1.0, 0.0, 0.5, 8.0),     // Primary wave - long, gentle
-    vec4<f32>(0.7, 0.7, 0.35, 4.0),    // Secondary wave - medium
-    vec4<f32>(-0.3, 0.9, 0.25, 2.5),   // Tertiary wave - shorter
-    vec4<f32>(0.9, -0.4, 0.15, 1.5),   // Detail wave - small ripples
-);
+// Helper function to get wave parameters for a given layer index
+// Returns vec4<f32>(dir_x, dir_z, steepness, wavelength)
+fn get_wave_params(layer_index: u32) -> vec4<f32> {
+    switch layer_index {
+        case 0u: { return water_material.wave_params_0; }
+        case 1u: { return water_material.wave_params_1; }
+        case 2u: { return water_material.wave_params_2; }
+        case 3u: { return water_material.wave_params_3; }
+        default: { return vec4<f32>(1.0, 0.0, 0.5, 8.0); }
+    }
+}
 
 const PI: f32 = 3.14159265;
 const GRAVITY: f32 = 9.8;
@@ -111,7 +118,7 @@ fn compute_wave_displacement(world_pos: vec2<f32>, time: f32, num_layers: u32, b
     var displacement = vec3<f32>(0.0, 0.0, 0.0);
     
     for (var i = 0u; i < num_layers; i = i + 1u) {
-        let params = WAVE_PARAMS[i];
+        let params = get_wave_params(i);
         let dir = vec2<f32>(params.x, params.y);
         let steepness = params.z;
         let wavelength = params.w;
@@ -128,7 +135,7 @@ fn compute_wave_normal(world_pos: vec2<f32>, time: f32, num_layers: u32, base_am
     var accumulated_normal = vec3<f32>(0.0, 1.0, 0.0);
     
     for (var i = 0u; i < num_layers; i = i + 1u) {
-        let params = WAVE_PARAMS[i];
+        let params = get_wave_params(i);
         let dir = vec2<f32>(params.x, params.y);
         let steepness = params.z;
         let wavelength = params.w;
