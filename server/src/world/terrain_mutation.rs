@@ -63,10 +63,10 @@ pub struct DisplacementResult {
 ///
 /// When a solid block is removed:
 /// 1. Water above it should flow down (gravity)
-/// 2. Water from lateral neighbors may flow into the new space
+/// 2. Water from lateral neighbors should flow into the new space (pressure equalization)
 /// 3. Water surfaces need to be recalculated
 ///
-/// This function queues the necessary positions for simulation.
+/// This function performs immediate lateral inflow and queues further simulation.
 pub fn handle_block_removal(
     world_map: &mut ServerWorldMap,
     removed_pos: IVec3,
@@ -76,35 +76,69 @@ pub fn handle_block_removal(
 ) {
     let (chunk_pos, _local_pos) = global_to_chunk_local(&removed_pos);
 
-    // 1. Check for water above - it should flow down
+    log::info!(
+        "[TERRAIN MUT] Block removed at {:?}, chunk {:?}",
+        removed_pos,
+        chunk_pos
+    );
+
+    // Check lateral neighbors for water
+    let mut lateral_water_count = 0;
+    for offset in LATERAL_OFFSETS {
+        let neighbor_pos = removed_pos + offset;
+        if has_water_at(world_map, &neighbor_pos) {
+            lateral_water_count += 1;
+            let vol = get_water_volume_at(world_map, &neighbor_pos);
+            log::info!(
+                "[TERRAIN MUT] Lateral neighbor {:?} has water, volume={:.3}",
+                neighbor_pos,
+                vol
+            );
+        }
+    }
+    log::info!(
+        "[TERRAIN MUT] Found {} lateral neighbors with water",
+        lateral_water_count
+    );
+
+    // 1. Check for water above - it should flow down (handled by simulation queue)
     let above_pos = removed_pos + IVec3::new(0, 1, 0);
     if has_water_at(world_map, &above_pos) {
-        // Queue the position above for downward flow
         simulation_queue.queue(above_pos);
-        log::debug!(
-            "Block removed at {:?}: queuing water above at {:?} for downward flow",
+        log::info!(
+            "[TERRAIN MUT] Block removed at {:?}: queuing water above at {:?} for downward flow",
             removed_pos,
             above_pos
         );
     }
 
-    // 2. Check lateral neighbors for water that might flow in
-    for offset in LATERAL_OFFSETS {
-        let neighbor_pos = removed_pos + offset;
-        if has_water_at(world_map, &neighbor_pos) {
-            // Queue the neighbor for lateral flow recalculation
-            simulation_queue.queue(neighbor_pos);
-            let (neighbor_chunk, _) = global_to_chunk_local(&neighbor_pos);
-            lateral_queue.queue(neighbor_chunk);
-            log::debug!(
-                "Block removed at {:?}: queuing water neighbor at {:?} for lateral flow",
-                removed_pos,
-                neighbor_pos
-            );
+    // 2. Perform IMMEDIATE lateral inflow from neighbors
+    // This is crucial - water needs to flow into the freed space right away,
+    // not wait for surface-based wave propagation
+    let inflow_result = perform_immediate_lateral_inflow(world_map, removed_pos);
+
+    if inflow_result.total_inflow > MIN_WATER_VOLUME {
+        log::debug!(
+            "Block removed at {:?}: immediate lateral inflow of {:.3} from {} neighbors",
+            removed_pos,
+            inflow_result.total_inflow,
+            inflow_result.neighbors_with_water
+        );
+
+        // Queue the position and neighbors for continued simulation
+        simulation_queue.queue(removed_pos);
+        for neighbor_pos in &inflow_result.contributing_positions {
+            simulation_queue.queue(*neighbor_pos);
+        }
+
+        // Mark modified chunks for surface update and lateral flow
+        for chunk in &inflow_result.modified_chunks {
+            surface_queue.queue(*chunk);
+            lateral_queue.queue(*chunk);
         }
     }
 
-    // 3. Also queue the removed position itself - water from above or sides might flow here
+    // 3. Even if no immediate inflow, queue the position for potential future flow
     simulation_queue.queue(removed_pos);
 
     // 4. Mark chunk and neighbors for surface update
@@ -116,11 +150,206 @@ pub fn handle_block_removal(
         }
     }
 
+    // 5. Queue chunks with water neighbors for lateral flow continuation
+    for offset in LATERAL_OFFSETS {
+        let neighbor_pos = removed_pos + offset;
+        if has_water_at(world_map, &neighbor_pos) {
+            let (neighbor_chunk, _) = global_to_chunk_local(&neighbor_pos);
+            lateral_queue.queue(neighbor_chunk);
+        }
+    }
+
     log::debug!(
-        "Block removal at {:?}: queued {} positions for simulation",
+        "Block removal at {:?}: processing complete, inflow={:.3}",
         removed_pos,
-        1 + LATERAL_OFFSETS.len()
+        inflow_result.total_inflow
     );
+}
+
+/// Result of immediate lateral inflow calculation
+#[derive(Debug, Default)]
+struct LateralInflowResult {
+    /// Total water volume that flowed into the freed space
+    total_inflow: f32,
+    /// Number of neighbors that had water
+    neighbors_with_water: u32,
+    /// Positions that contributed water
+    contributing_positions: Vec<IVec3>,
+    /// Chunks that were modified
+    modified_chunks: Vec<IVec3>,
+}
+
+/// Performs immediate lateral water inflow when a block is removed.
+///
+/// This is different from the surface-based lateral flow system:
+/// - Surface flow: gradual wave propagation between surface cells
+/// - This: immediate pressure equalization when space opens up
+///
+/// Algorithm:
+/// 1. Find all lateral neighbors with water
+/// 2. Calculate how much each neighbor can contribute (based on height difference)
+/// 3. Transfer water immediately to equalize levels
+fn perform_immediate_lateral_inflow(
+    world_map: &mut ServerWorldMap,
+    freed_pos: IVec3,
+) -> LateralInflowResult {
+    let mut result = LateralInflowResult::default();
+
+    log::info!(
+        "[TERRAIN MUT] perform_immediate_lateral_inflow at {:?}",
+        freed_pos
+    );
+
+    // Gather water info from lateral neighbors
+    let mut neighbor_water: Vec<(IVec3, f32)> = Vec::new();
+
+    for offset in LATERAL_OFFSETS {
+        let neighbor_pos = freed_pos + offset;
+
+        // Skip if neighbor is blocked by solid (non-water) block
+        if let Some(block) = world_map.chunks.get_block_by_coordinates(&neighbor_pos) {
+            if block.id != BlockId::Water {
+                let is_solid = matches!(
+                    block.id.get_hitbox(),
+                    BlockHitbox::FullBlock | BlockHitbox::Aabb(_)
+                );
+                if is_solid {
+                    log::info!(
+                        "[TERRAIN MUT] Neighbor {:?} blocked by {:?}",
+                        neighbor_pos,
+                        block.id
+                    );
+                    continue;
+                }
+            }
+        }
+
+        let volume = get_water_volume_at(world_map, &neighbor_pos);
+        log::info!(
+            "[TERRAIN MUT] Neighbor {:?} water volume: {:.3}",
+            neighbor_pos,
+            volume
+        );
+        if volume > MIN_WATER_VOLUME {
+            neighbor_water.push((neighbor_pos, volume));
+            result.neighbors_with_water += 1;
+        }
+    }
+
+    if neighbor_water.is_empty() {
+        log::info!("[TERRAIN MUT] No neighbors with water, returning early");
+        return result;
+    }
+
+    // Calculate total available water and target equalization level
+    // The freed position starts at 0, neighbors have their volumes
+    // We want to equalize: total_water / (num_neighbors + 1)
+    let total_water: f32 = neighbor_water.iter().map(|(_, v)| *v).sum();
+    let num_cells = neighbor_water.len() as f32 + 1.0; // +1 for freed position
+    let target_level = (total_water / num_cells).min(MAX_WATER_VOLUME);
+
+    log::info!(
+        "[TERRAIN MUT] Lateral inflow at {:?}: {} neighbors with total {:.3} water, target level {:.3}",
+        freed_pos,
+        neighbor_water.len(),
+        total_water,
+        target_level
+    );
+
+    // Calculate how much each neighbor contributes
+    // Neighbors with more water than target give to the freed space
+    let mut total_contribution = 0.0_f32;
+    let mut contributions: Vec<(IVec3, f32)> = Vec::new();
+
+    for (neighbor_pos, volume) in &neighbor_water {
+        if *volume > target_level {
+            let contribution = *volume - target_level;
+            contributions.push((*neighbor_pos, contribution));
+            total_contribution += contribution;
+        }
+    }
+
+    if total_contribution < MIN_WATER_VOLUME {
+        return result;
+    }
+
+    // The freed position can accept up to MAX_WATER_VOLUME
+    // Limit inflow to what the freed space can hold
+    let actual_inflow = total_contribution.min(MAX_WATER_VOLUME);
+    let scale_factor = if total_contribution > actual_inflow {
+        actual_inflow / total_contribution
+    } else {
+        1.0
+    };
+
+    // Apply the water transfers
+    let (freed_chunk_pos, freed_local_pos) = global_to_chunk_local(&freed_pos);
+
+    // Add water to freed position
+    if actual_inflow > MIN_WATER_VOLUME {
+        if let Some(chunk) = world_map.chunks.map.get_mut(&freed_chunk_pos) {
+            chunk.water.set(freed_local_pos, actual_inflow);
+
+            // Add Water block
+            chunk.map.insert(
+                freed_local_pos,
+                BlockData::new(BlockId::Water, shared::world::BlockDirection::Front),
+            );
+
+            if !result.modified_chunks.contains(&freed_chunk_pos) {
+                result.modified_chunks.push(freed_chunk_pos);
+            }
+
+            // Mark chunk for update
+            if !world_map.chunks.chunks_to_update.contains(&freed_chunk_pos) {
+                world_map.chunks.chunks_to_update.push(freed_chunk_pos);
+            }
+        }
+
+        result.total_inflow = actual_inflow;
+    }
+
+    // Remove water from contributing neighbors
+    for (neighbor_pos, contribution) in contributions {
+        let scaled_contribution = contribution * scale_factor;
+        if scaled_contribution < MIN_WATER_VOLUME {
+            continue;
+        }
+
+        let (neighbor_chunk_pos, neighbor_local_pos) = global_to_chunk_local(&neighbor_pos);
+
+        if let Some(chunk) = world_map.chunks.map.get_mut(&neighbor_chunk_pos) {
+            let current_volume = chunk.water.volume_at(&neighbor_local_pos);
+            let new_volume = current_volume - scaled_contribution;
+
+            if new_volume < MIN_WATER_VOLUME {
+                chunk.water.remove(&neighbor_local_pos);
+                // Remove Water block if water is gone
+                if chunk.map.get(&neighbor_local_pos).map(|b| b.id) == Some(BlockId::Water) {
+                    chunk.map.remove(&neighbor_local_pos);
+                }
+            } else {
+                chunk.water.set(neighbor_local_pos, new_volume);
+            }
+
+            result.contributing_positions.push(neighbor_pos);
+
+            if !result.modified_chunks.contains(&neighbor_chunk_pos) {
+                result.modified_chunks.push(neighbor_chunk_pos);
+            }
+
+            // Mark chunk for update
+            if !world_map
+                .chunks
+                .chunks_to_update
+                .contains(&neighbor_chunk_pos)
+            {
+                world_map.chunks.chunks_to_update.push(neighbor_chunk_pos);
+            }
+        }
+    }
+
+    result
 }
 
 /// Handles water displacement when a block is placed in the world.

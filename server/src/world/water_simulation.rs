@@ -102,6 +102,61 @@ const MAX_UPDATES_PER_TICK: usize = 256;
 /// Maximum number of chunks to update surfaces for per tick
 const MAX_SURFACE_UPDATES_PER_TICK: usize = 8;
 
+/// System to process blocks that were recently removed or placed.
+/// This runs after player inputs and triggers water simulation for affected areas.
+///
+/// This is the main integration point between block changes (which happen through
+/// the shared WorldMap trait) and the water simulation systems.
+pub fn process_block_changes_for_water(
+    mut world_map: ResMut<ServerWorldMap>,
+    mut simulation_queue: ResMut<WaterSimulationQueue>,
+    mut surface_queue: ResMut<WaterSurfaceUpdateQueue>,
+    mut lateral_queue: ResMut<super::water_flow::LateralFlowQueue>,
+) {
+    // Process removed blocks
+    let removed_blocks: Vec<IVec3> = world_map.chunks.recently_removed_blocks.drain(..).collect();
+
+    for pos in removed_blocks {
+        log::info!(
+            "[WATER SIM] Processing removed block at {:?} for water flow",
+            pos
+        );
+        super::terrain_mutation::handle_block_removal(
+            &mut world_map,
+            pos,
+            &mut simulation_queue,
+            &mut surface_queue,
+            &mut lateral_queue,
+        );
+    }
+
+    // Process placed blocks
+    let placed_blocks: Vec<IVec3> = world_map.chunks.recently_placed_blocks.drain(..).collect();
+
+    for pos in placed_blocks {
+        log::info!(
+            "[WATER SIM] Processing placed block at {:?} for water displacement",
+            pos
+        );
+        let result = super::terrain_mutation::handle_block_placement(
+            &mut world_map,
+            pos,
+            &mut simulation_queue,
+            &mut surface_queue,
+            &mut lateral_queue,
+        );
+
+        if result.displaced > 0.0 {
+            log::info!(
+                "[WATER SIM] Block placement at {:?}: displaced {:.3}, overflow {:.3}",
+                pos,
+                result.displaced,
+                result.overflow
+            );
+        }
+    }
+}
+
 /// System to handle water update events and queue them for simulation
 pub fn handle_water_update_events(
     mut events: EventReader<WaterUpdateEvent>,
@@ -168,6 +223,11 @@ pub fn water_surface_detection_system(
         return;
     }
 
+    log::debug!(
+        "[SURFACE DETECT] Starting with {} chunks queued",
+        surface_queue.pending_chunks.len()
+    );
+
     // Take up to MAX_SURFACE_UPDATES_PER_TICK chunks to process
     let chunks_to_process: Vec<IVec3> = surface_queue
         .pending_chunks
@@ -183,6 +243,11 @@ pub fn water_surface_detection_system(
     // Process each chunk
     for chunk_pos in chunks_to_process {
         let has_surfaces = update_chunk_surfaces(&mut world_map, chunk_pos);
+        log::debug!(
+            "[SURFACE DETECT] Chunk {:?}: has_surfaces={}",
+            chunk_pos,
+            has_surfaces
+        );
         // Queue for lateral flow if surfaces were detected
         if has_surfaces {
             lateral_flow_queue.queue(chunk_pos);

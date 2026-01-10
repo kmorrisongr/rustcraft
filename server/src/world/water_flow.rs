@@ -108,6 +108,12 @@ pub fn lateral_flow_system(
         return;
     }
 
+    let queue_size = flow_queue.pending_chunks.len();
+    log::debug!(
+        "[LATERAL FLOW] Starting lateral_flow_system with {} chunks queued",
+        queue_size
+    );
+
     // Take chunks to process this tick
     let chunks_to_process: Vec<IVec3> = flow_queue.pending_chunks.iter().copied().collect();
 
@@ -117,14 +123,26 @@ pub fn lateral_flow_system(
 
     for chunk_pos in chunks_to_process {
         if total_updates >= MAX_LATERAL_UPDATES_PER_TICK {
+            log::debug!(
+                "[LATERAL FLOW] Hit max updates limit ({})",
+                MAX_LATERAL_UPDATES_PER_TICK
+            );
             break;
         }
 
         flow_queue.remove(&chunk_pos);
 
+        log::debug!("[LATERAL FLOW] Processing chunk {:?}", chunk_pos);
+
         if let Some((updates, neighbor_flows)) =
             process_chunk_lateral_flow(&mut world_map, chunk_pos, &boundary_cache)
         {
+            log::debug!(
+                "[LATERAL FLOW] Chunk {:?}: {} cell updates, {} cross-chunk flows",
+                chunk_pos,
+                updates,
+                neighbor_flows.len()
+            );
             total_updates += updates;
             if updates > 0 {
                 chunks_modified.insert(chunk_pos);
@@ -143,6 +161,12 @@ pub fn lateral_flow_system(
         // Queue neighbor for continued simulation
         flow_queue.queue(neighbor_chunk);
     }
+
+    log::debug!(
+        "[LATERAL FLOW] Finished: {} total updates, {} chunks modified",
+        total_updates,
+        chunks_modified.len()
+    );
 
     // Mark modified chunks for broadcast
     for chunk_pos in chunks_modified {
@@ -164,7 +188,17 @@ fn process_chunk_lateral_flow(
     let (surface_cells, water_volumes): (Vec<IVec3>, HashMap<IVec3, f32>) = {
         let chunk = world_map.chunks.map.get(&chunk_pos)?;
 
-        if chunk.water_surfaces.cell_count() == 0 {
+        let surface_count = chunk.water_surfaces.cell_count();
+        let water_count = chunk.water.len();
+
+        log::debug!(
+            "[LATERAL FLOW] Chunk {:?}: {} surface cells, {} total water cells",
+            chunk_pos,
+            surface_count,
+            water_count
+        );
+
+        if surface_count == 0 {
             return Some((0, Vec::new()));
         }
 
@@ -182,12 +216,22 @@ fn process_chunk_lateral_flow(
         return Some((0, Vec::new()));
     }
 
+    log::debug!(
+        "[LATERAL FLOW] Processing {} surface cells in chunk {:?}",
+        surface_cells.len(),
+        chunk_pos
+    );
+
     // Build set of surface positions for quick neighbor lookup
     let surface_set: HashSet<IVec3> = surface_cells.iter().copied().collect();
 
     // Compute flows for all cells
     let mut accumulator = FlowAccumulator::new();
     let mut cross_chunk_flows: Vec<super::water_boundary::CrossChunkFlow> = Vec::new();
+    let mut flow_attempts = 0;
+    let mut flow_blocked = 0;
+    let mut flow_height_rejected = 0;
+    let mut flow_recorded = 0;
 
     for &pos in &surface_cells {
         let volume = water_volumes.get(&pos).copied().unwrap_or(0.0);
@@ -207,6 +251,8 @@ fn process_chunk_lateral_flow(
         ];
 
         for neighbor_pos in neighbors {
+            flow_attempts += 1;
+
             // Check if neighbor is within chunk bounds
             if !is_valid_local_pos(&neighbor_pos) {
                 // Cross-chunk flow: calculate using boundary cache
@@ -243,6 +289,7 @@ fn process_chunk_lateral_flow(
             };
 
             if neighbor_blocked {
+                flow_blocked += 1;
                 continue;
             }
 
@@ -257,6 +304,7 @@ fn process_chunk_lateral_flow(
                 neighbor_pos.y as f32
             } else {
                 // Empty neighbor above us - can't flow upward
+                flow_height_rejected += 1;
                 continue;
             };
 
@@ -265,6 +313,7 @@ fn process_chunk_lateral_flow(
 
             // Only flow downhill (or to same level if we have more volume)
             if height_diff < MIN_HEIGHT_DIFF {
+                flow_height_rejected += 1;
                 continue;
             }
 
@@ -284,12 +333,31 @@ fn process_chunk_lateral_flow(
 
             // Minimum threshold check
             if flow_amount < MIN_WATER_VOLUME {
+                flow_height_rejected += 1;
                 continue;
             }
 
+            log::trace!(
+                "[LATERAL FLOW] Flow: {:?} -> {:?}, height_diff={:.3}, amount={:.3}",
+                pos,
+                neighbor_pos,
+                height_diff,
+                flow_amount
+            );
+
+            flow_recorded += 1;
             accumulator.record_flow(pos, neighbor_pos, flow_amount);
         }
     }
+
+    log::debug!(
+        "[LATERAL FLOW] Chunk {:?}: {} attempts, {} blocked, {} height-rejected, {} flows recorded",
+        chunk_pos,
+        flow_attempts,
+        flow_blocked,
+        flow_height_rejected,
+        flow_recorded
+    );
 
     // Apply accumulated flows
     if !accumulator.has_changes() && cross_chunk_flows.is_empty() {
@@ -350,7 +418,9 @@ fn apply_cross_chunk_flows(
         let new_volume = (current_volume + flow.flow_amount).min(MAX_WATER_VOLUME);
 
         if (new_volume - current_volume).abs() > MIN_WATER_VOLUME {
-            neighbor_chunk.water.set(flow.neighbor_local_pos, new_volume);
+            neighbor_chunk
+                .water
+                .set(flow.neighbor_local_pos, new_volume);
 
             // Add Water block if not present
             if neighbor_chunk.map.get(&flow.neighbor_local_pos).is_none() {

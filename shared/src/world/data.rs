@@ -145,6 +145,16 @@ pub struct ServerChunkWorldMap {
     /// When a chunk is generated, it checks this map for any pending requests
     /// and processes them before generating its own flora.
     pub generation_requests: HashMap<IVec3, Vec<FloraRequest>>,
+    /// Blocks that were recently removed (global positions).
+    /// Server systems can process this to trigger water flow, etc.
+    /// Should be cleared after processing.
+    #[serde(skip)]
+    pub recently_removed_blocks: Vec<IVec3>,
+    /// Blocks that were recently placed (global positions).
+    /// Server systems can process this to trigger water displacement, etc.
+    /// Should be cleared after processing.
+    #[serde(skip)]
+    pub recently_placed_blocks: Vec<IVec3>,
 }
 
 #[derive(Resource, Clone, Copy, Serialize, Deserialize, Default)]
@@ -543,6 +553,9 @@ impl WorldMap for ServerChunkWorldMap {
         chunk_map.map.remove(&local_block_pos);
         self.chunks_to_update.push(chunk_pos);
 
+        // Track for water simulation and other systems
+        self.recently_removed_blocks.push(*global_block_pos);
+
         Some(kind)
     }
 
@@ -552,6 +565,9 @@ impl WorldMap for ServerChunkWorldMap {
 
         chunk.map.insert(local_pos, block);
         self.chunks_to_update.push(chunk_pos);
+
+        // Track for water simulation and other systems
+        self.recently_placed_blocks.push(*position);
     }
 
     fn mark_block_for_update(&mut self, position: &IVec3) {

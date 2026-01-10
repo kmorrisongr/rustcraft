@@ -159,6 +159,8 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
             map: world_data.map,
             chunks_to_update: Vec::new(),
             generation_requests: HashMap::new(),
+            recently_removed_blocks: Vec::new(),
+            recently_placed_blocks: Vec::new(),
         },
         players: HashMap::new(),
         mobs: world_data.mobs,

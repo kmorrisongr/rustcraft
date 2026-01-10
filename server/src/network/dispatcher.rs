@@ -13,8 +13,9 @@ use crate::world::simulation::{handle_player_inputs_system, PlayerInputsEvent};
 use crate::world::water_boundary::{update_water_boundaries_system, WaterBoundaryCache};
 use crate::world::water_flow::{lateral_flow_system, LateralFlowQueue};
 use crate::world::water_simulation::{
-    handle_water_update_events, water_simulation_system, water_surface_detection_system,
-    WaterSimulationQueue, WaterSurfaceUpdateQueue, WaterUpdateEvent,
+    handle_water_update_events, process_block_changes_for_water, water_simulation_system,
+    water_surface_detection_system, WaterSimulationQueue, WaterSurfaceUpdateQueue,
+    WaterUpdateEvent,
 };
 use crate::world::BlockInteractionEvent;
 use bevy::prelude::*;
@@ -61,6 +62,7 @@ pub fn register_systems(app: &mut App) {
     app.add_systems(Update, background_chunk_generation_system);
 
     // Water simulation systems - ordered pipeline:
+    // 0. Process block changes for water (terrain mutation handling)
     // 1. Handle events that trigger water updates
     // 2. Vertical (downward) flow simulation
     // 3. Surface detection to identify which cells are at the surface
@@ -69,7 +71,11 @@ pub fn register_systems(app: &mut App) {
     app.add_systems(Update, handle_water_update_events);
     app.add_systems(
         FixedUpdate,
-        water_simulation_system.after(handle_player_inputs_system),
+        process_block_changes_for_water.after(handle_player_inputs_system),
+    );
+    app.add_systems(
+        FixedUpdate,
+        water_simulation_system.after(process_block_changes_for_water),
     );
     app.add_systems(
         FixedUpdate,
