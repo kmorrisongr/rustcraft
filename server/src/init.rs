@@ -10,6 +10,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_app::ScheduleRunnerPlugin;
+use bevy_log::{error, info, LogPlugin};
 use bevy_renet::{netcode::NetcodeServerTransport, RenetServerPlugin};
 use bevy_renet::{
     netcode::{NetcodeServerPlugin, ServerAuthentication, ServerConfig},
@@ -123,7 +124,7 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
     app.add_plugins(RenetServerPlugin);
     app.add_plugins(FrameTimeDiagnosticsPlugin::default());
     app.add_plugins(LogDiagnosticsPlugin::default());
-    app.add_plugins(bevy::log::LogPlugin::default());
+    app.add_plugins(LogPlugin::default());
     app.add_plugins(RustcraftPhysicsPlugin);
 
     app.insert_resource(ServerLobby::default());
