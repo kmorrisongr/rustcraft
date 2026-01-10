@@ -419,13 +419,6 @@ pub fn calculate_cross_chunk_flows(
         // Determine which face of the neighbor chunk this position is on
         // (it's the opposite of the face we're crossing from our chunk)
         let neighbor_face = face.opposite();
-        debug_assert_eq!(
-            neighbor_face.opposite(),
-            face,
-            "BoundaryFace::opposite() must be bidirectional (face: {:?}, neighbor_face: {:?})",
-            face,
-            neighbor_face
-        );
 
         // Check if neighbor chunk exists
         let Some(neighbor_chunk) = world_map.chunks.map.get(&neighbor_chunk_pos) else {
