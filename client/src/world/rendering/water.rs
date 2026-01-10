@@ -112,20 +112,22 @@ pub fn spawn_water_mesh_tasks(
     let lod_distance_sq = render_distance.lod0_distance_sq() as f32;
 
     // Get wave scale config and tessellation settings (use defaults if settings not available)
+    let default_settings = WaterRenderSettings::default();
+    
     let wave_scale_config = render_settings
         .as_ref()
         .map(|s| s.wave_scale_config)
-        .unwrap_or_default();
+        .unwrap_or(default_settings.wave_scale_config);
     
     let tessellation = render_settings
         .as_ref()
         .map(|s| s.tessellation)
-        .unwrap_or(4);
+        .unwrap_or(default_settings.tessellation);
     
     let tessellation_lod = render_settings
         .as_ref()
         .map(|s| s.tessellation_lod)
-        .unwrap_or(2);
+        .unwrap_or(default_settings.tessellation_lod);
 
     for WaterMeshUpdateEvent(chunk_pos) in ev_water_update.read() {
         // Check if chunk exists and has water

@@ -177,7 +177,7 @@ impl Default for WaterRenderSettings {
             wave_amplitude: 0.08,
             wave_speed: 1.0,
             wave_scale_config: WaveScaleConfig::default(),
-            tessellation: 4,
+            tessellation: 2,
             tessellation_lod: 2,
         }
     }
