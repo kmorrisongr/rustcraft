@@ -67,18 +67,24 @@ Vertical Flow (Waterfalls / Drains)
 
 6. Terrain Interaction
 
+> **Implementation**: `server/src/world/terrain_mutation.rs`
+
 Removing Blocks
 	•	Water volume becomes unstable.
-	•	Attempt downward flow first.
-	•	Otherwise spread laterally within the region.
-	•	Recompute affected surface patches.
+	•	Attempt downward flow first (water from above flows into vacated space).
+	•	Lateral neighbors are queued for potential inflow.
+	•	Recompute affected surface patches and queue for simulation.
 
 Adding Blocks
-	•	Displace overlapping water volume.
-	•	Push volume to neighbors.
-	•	Potentially split a water region.
+	•	Displace overlapping water volume using a 3-tier strategy:
+		1.	Push water upward first (if air above) - most natural behavior
+		2.	Distribute remaining water to lateral neighbors proportionally
+		3.	Force overflow upward under pressure if needed
+	•	Volume is conserved - only lost in extreme edge cases with no available space
+	•	Surface patches are automatically recomputed
 
-All updates are local and incremental.
+All updates are local and incremental. The `handle_block_removal` and `handle_block_placement` 
+functions queue positions for the simulation system rather than processing immediately.
 
 ⸻
 
@@ -116,7 +122,7 @@ Rendering never affects simulation state.
 	3.	✅ Surface detection (`shared/src/world/water_surface.rs`)
 	4.	✅ Lateral shallow-water simulation (`server/src/world/water_flow.rs`)
 	5.	✅ Chunk boundary exchange (`server/src/world/water_boundary.rs`)
-	6.	Terrain mutation handling
+	6.	✅ Terrain mutation handling (`server/src/world/terrain_mutation.rs`)
 	7.	Visual wave rendering
 	8.	Optimization & sleeping
 
