@@ -27,7 +27,8 @@ use super::ChunkWaterStorage;
 /// A radius of 3 means sampling a 7x7 area horizontally (3 blocks in each direction).
 pub const DEFAULT_SAMPLE_RADIUS_XZ: i32 = 3;
 
-/// Default vertical sampling depth (how many blocks below surface to check).
+/// Default vertical sampling depth (number of blocks below surface to check).
+/// With a value of 4, this samples 5 blocks total: the surface block plus 4 blocks below.
 /// This allows deeper water to contribute more volume.
 pub const DEFAULT_SAMPLE_DEPTH: i32 = 4;
 
@@ -63,7 +64,8 @@ pub const VOLUME_THRESHOLD_OCEAN: f32 = 50.0;
 pub struct WaveScaleConfig {
     /// Horizontal sampling radius in blocks (samples (2*r+1)² area)
     pub sample_radius_xz: i32,
-    /// Vertical sampling depth (how many blocks below to check)
+    /// Vertical sampling depth (number of blocks below surface to check).
+    /// Total blocks sampled vertically is sample_depth + 1 (includes surface block).
     pub sample_depth: i32,
     /// Minimum wave scale (0.0 - 1.0)
     pub min_scale: f32,
