@@ -137,10 +137,11 @@ impl WaterSurfacePatch {
             None => self.bounds = Some(BoundingBox::from_point(local_pos)),
         }
         
-        // Update average Y incrementally
+        // Recompute average Y from all cells to avoid cumulative floating-point error
         let len = self.cells.len();
         debug_assert!(len > 0, "cells should not be empty after push");
-        self.avg_y = (self.avg_y * (len - 1) as f32 + local_pos.y as f32) / len as f32;
+        let sum_y: i64 = self.cells.iter().map(|p| p.y as i64).sum();
+        self.avg_y = sum_y as f32 / len as f32;
     }
 
     /// Returns true if this patch contains the given position.
