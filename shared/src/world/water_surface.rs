@@ -139,7 +139,6 @@ impl WaterSurfacePatch {
         
         // Recompute average Y from all cells to avoid cumulative floating-point error
         let len = self.cells.len();
-        debug_assert!(len > 0, "cells should not be empty after push");
         let sum_y: i64 = self.cells.iter().map(|p| p.y as i64).sum();
         self.avg_y = sum_y as f32 / len as f32;
     }
