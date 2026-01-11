@@ -115,7 +115,7 @@ impl ChunkWaterSleepState {
 
     /// Updates sleep state based on recent activity.
     /// Call this once per tick after simulation.
-    /// 
+    ///
     /// # Arguments
     /// * `chunk_pos` - Optional chunk position for debug logging. If None, position is omitted from logs.
     pub fn update(&mut self, chunk_pos: Option<IVec3>) {
@@ -129,11 +129,8 @@ impl ChunkWaterSleepState {
                     self.stable_ticks += 1;
                     if self.stable_ticks >= MIN_STABLE_TICKS_TO_SLEEP {
                         self.state = WaterSleepState::Asleep;
-                        if let Some(pos) = chunk_pos {
-                            log::debug!("Water sleeping at chunk {:?} after {} stable ticks", pos, self.stable_ticks);
-                        } else {
-                            log::debug!("Water sleeping after {} stable ticks", self.stable_ticks);
-                        }
+                        let pos_str = chunk_pos.map_or_else(String::new, |pos| format!(" at chunk {:?}", pos));
+                        log::debug!("Water sleeping{} after {} stable ticks", pos_str, self.stable_ticks);
                     }
                 } else {
                     // Reset stability counter on activity
