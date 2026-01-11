@@ -151,9 +151,9 @@ impl ChunkWaterSleepState {
     }
 
     /// Wakes the chunk from sleep.
-    pub fn wake(&mut self, reason: &str) {
+    pub fn wake(&mut self, chunk_pos: IVec3, reason: &str) {
         if self.state == WaterSleepState::Asleep {
-            log::debug!("Water waking: {}", reason);
+            log::debug!("Water waking at chunk {:?}: {}", chunk_pos, reason);
             self.state = WaterSleepState::Waking;
             self.ticks_since_wake = 0;
             self.stable_ticks = 0;
@@ -250,7 +250,7 @@ impl WaterSleepManager {
             if state.is_asleep() {
                 self.recently_woken.insert(chunk_pos);
             }
-            state.wake(reason);
+            state.wake(chunk_pos, reason);
         }
 
         // Optionally wake neighbors
@@ -266,7 +266,7 @@ impl WaterSleepManager {
                             if state.is_asleep() {
                                 self.recently_woken.insert(neighbor);
                             }
-                            state.wake("neighbor terrain change");
+                            state.wake(neighbor, "neighbor terrain change");
                         }
                     }
                 }
@@ -471,7 +471,8 @@ mod tests {
         assert!(state.is_asleep());
 
         // Wake it
-        state.wake("test");
+        let test_chunk_pos = IVec3::new(0, 0, 0);
+        state.wake(test_chunk_pos, "test");
         assert_eq!(state.state, WaterSleepState::Waking);
         assert!(!state.is_asleep());
         assert!(state.should_simulate());
