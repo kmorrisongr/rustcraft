@@ -6,6 +6,11 @@ pub mod load_from_file;
 pub mod save;
 pub mod simulation;
 pub mod stacks;
+pub mod terrain_mutation;
+pub mod water_boundary;
+pub mod water_flow;
+pub mod water_simulation;
+pub mod water_sleep;
 
 use bevy::prelude::Event;
 use bevy::prelude::EventReader;
@@ -15,6 +20,8 @@ use bevy::prelude::*;
 use bevy_log::{debug, info};
 use shared::world::{BlockData, ItemStack, ServerItemStack, ServerWorldMap, WorldMap};
 use ulid::Ulid;
+use water_flow::LateralFlowQueue;
+use water_simulation::{WaterSimulationQueue, WaterSurfaceUpdateQueue};
 
 #[derive(Event, Debug)]
 pub struct BlockInteractionEvent {
@@ -25,10 +32,29 @@ pub struct BlockInteractionEvent {
 pub fn handle_block_interactions(
     mut world_map: ResMut<ServerWorldMap>,
     mut events: EventReader<BlockInteractionEvent>,
+    mut water_queue: ResMut<WaterSimulationQueue>,
+    mut surface_queue: ResMut<WaterSurfaceUpdateQueue>,
+    mut lateral_queue: ResMut<LateralFlowQueue>,
 ) {
     for event in events.read() {
         match &event.block_type {
             Some(block) => {
+                // Block placement - trigger water displacement using the new terrain mutation system
+                let result = terrain_mutation::handle_block_placement(
+                    &mut world_map,
+                    event.position,
+                    &mut water_queue,
+                    &mut surface_queue,
+                    &mut lateral_queue,
+                );
+
+                if result.displaced > 0.0 {
+                    debug!(
+                        "Block placement at {:?}: displaced {:.3} water, overflow {:.3}",
+                        event.position, result.displaced, result.overflow
+                    );
+                }
+
                 world_map.chunks.set_block(&event.position, *block);
                 debug!("Block added at {:?}: {:?}", event.position, block);
             }
@@ -61,6 +87,16 @@ pub fn handle_block_interactions(
                 world_map
                     .chunks
                     .remove_block_by_coordinates(&event.position);
+
+                // Trigger water flow check after block removal using the new terrain mutation system
+                terrain_mutation::handle_block_removal(
+                    &mut world_map,
+                    event.position,
+                    &mut water_queue,
+                    &mut surface_queue,
+                    &mut lateral_queue,
+                );
+
                 info!("Block removed at {:?}", event.position);
             }
         }

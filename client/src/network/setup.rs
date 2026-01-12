@@ -132,6 +132,7 @@ pub fn launch_local_server_system(
 
         let world_name_clone = world_name.clone();
         let cloned_paths = paths.clone();
+        let debug_water_world = selected_world.mode == crate::menus::solo::WorldMode::Debug;
 
         thread::spawn(move || {
             server::init(
@@ -140,6 +141,7 @@ pub fn launch_local_server_system(
                     world_name: world_name_clone,
                     is_solo: true,
                     broadcast_render_distance: DEFAULT_RENDER_DISTANCE,
+                    debug_water_world,
                 },
                 cloned_paths,
             );

@@ -4,9 +4,13 @@ pub mod render;
 pub mod render_distance;
 pub mod voxel;
 pub mod water;
+pub mod water_debug;
+pub mod water_material;
+pub mod water_mesh;
 
 pub use materials::*;
 pub use render::*;
 pub use render_distance::*;
-// Note: water module types are imported directly where needed (game.rs)
-// to avoid polluting the rendering namespace
+pub use water::*;
+pub use water_debug::*;
+pub use water_material::*;

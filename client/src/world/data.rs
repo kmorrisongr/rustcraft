@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use shared::world::BlockData;
+use shared::world::ChunkWaterStorage;
 use shared::world::LodLevel;
+use shared::world::WaterWorldMap;
 use shared::world::WorldMap;
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -23,18 +25,23 @@ pub enum GlobalMaterial {
 #[derive(Clone, Debug)]
 pub struct ClientChunk {
     pub map: HashMap<IVec3, BlockData>, // Maps block positions within a chunk to block IDs
+    /// Water storage for this chunk (sparse, volume-based)
+    pub water: ChunkWaterStorage,
     pub entity: Option<Entity>,
     pub last_mesh_ts: Instant, // When was the last time a mesh was created for this chunk ?
     pub current_lod: LodLevel, // Current LOD level of this chunk's mesh
+    pub needs_remesh: bool,    // Flag to force mesh regeneration due to block changes
 }
 
 impl Default for ClientChunk {
     fn default() -> Self {
         Self {
             map: HashMap::new(),
+            water: ChunkWaterStorage::new(),
             entity: None,
             last_mesh_ts: Instant::now(),
             current_lod: LodLevel::default(),
+            needs_remesh: false,
         }
     }
 }
@@ -80,7 +87,11 @@ impl WorldMap for ClientWorldMap {
 
     fn get_block_mut_by_coordinates(&mut self, position: &IVec3) -> Option<&mut BlockData> {
         let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        // Mark dirty first to avoid borrow conflict
+        self.mark_dirty();
         let chunk = Arc::make_mut(self.map.get_mut(&chunk_pos)?);
+        // Flag chunk for remesh when block data is modified
+        chunk.needs_remesh = true;
         chunk.map.get_mut(&local_pos)
     }
 
@@ -93,6 +104,8 @@ impl WorldMap for ClientWorldMap {
         let chunk_map: &mut ClientChunk = Arc::make_mut(chunk_arc);
 
         chunk_map.map.remove(&local_block_pos);
+        // Flag chunk for remesh when block is removed
+        chunk_map.needs_remesh = true;
         self.mark_dirty();
 
         Some(kind)
@@ -107,11 +120,34 @@ impl WorldMap for ClientWorldMap {
         );
 
         chunk.map.insert(local_pos, block);
+        // Flag chunk for remesh when block is placed
+        chunk.needs_remesh = true;
         self.mark_dirty();
     }
 
     fn mark_block_for_update(&mut self, _block_pos: &IVec3) {
         // Useless in client
+    }
+
+    fn as_water_world_map(&self) -> Option<&dyn WaterWorldMap> {
+        Some(self)
+    }
+}
+
+impl WaterWorldMap for ClientWorldMap {
+    fn get_water_volume(&self, position: &IVec3) -> Option<f32> {
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk = self.map.get(&chunk_pos)?;
+        chunk.water.get(&local_pos).map(|cell| cell.volume())
+    }
+
+    fn get_water_surface_height(&self, position: &IVec3) -> Option<f32> {
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk = self.map.get(&chunk_pos)?;
+        chunk
+            .water
+            .get(&local_pos)
+            .map(|cell| position.y as f32 + cell.surface_height())
     }
 }
 

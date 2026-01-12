@@ -1,342 +1,347 @@
-//! Dedicated water rendering system.
+//! Water rendering system for Rustcraft.
 //!
-//! This module handles water rendering independently from chunk meshing.
-//! Water entities are top-level (not chunk children), making it easier to
-//! transition to physics-based water in the future.
+//! This module manages water mesh entities, handles chunk updates,
+//! and applies LOD-based rendering for water surfaces.
 //!
-//! ## Performance Optimizations
-//! - Mesh handles are reused and updated in-place to avoid GPU resource churn
-//! - HashMap allocations are pooled using `Local<>` to avoid per-frame heap allocations
-//! - Early returns prevent work when no updates are pending
+//! ## System Overview
+//! - Water meshes are generated separately from solid block meshes
+//! - Each chunk with water gets its own water mesh entity
+//! - Water uses a custom Gerstner wave shader for realistic animation
+//! - LOD reduces wave detail at distance for performance
 //!
-//! ## Future Migration Path
-//! When implementing physics-based water:
-//! 1. Replace `WaterSurface` mesh generation with physics simulation output
-//! 2. Add `WaterVolume` component for physics interactions (bucket, player effects)
-//! 3. Water blocks (`BlockId::Water`) can remain for placement/removal via bucket
+//! ## Integration
+//! The water rendering system runs in PostUpdate after chunk updates
+//! but before final rendering, ensuring water meshes stay synchronized
+//! with the world state.
 
 use bevy::{
     prelude::*,
-    render::mesh::{Indices, PrimitiveTopology},
+    tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
 };
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use crate::shaders::water::{StandardWaterMaterial, WaterMaterial, WaterMesh};
+use crate::player::CurrentPlayerMarker;
 use crate::world::{ClientWorldMap, WorldRenderRequestUpdateEvent};
 use crate::GameState;
-use bevy::pbr::{ExtendedMaterial, NotShadowCaster, NotShadowReceiver};
-use shared::world::{to_global_pos, BlockId, WorldMap};
 use shared::CHUNK_SIZE;
 
-/// Marker component for water surface entities.
-/// Each water surface corresponds to water within a specific chunk.
-///
-/// ## Future Use
-/// When implementing physics-based water, this component can be extended with:
-/// - `chunk_pos`: For cleanup when chunks unload (currently tracked in WaterEntities)
-/// - Flow direction vectors for river currents
-/// - Volume data for player interactions (swimming, bucket filling)
+use super::render_distance::RenderDistance;
+use super::water_material::{WaterMaterialResource, WaterRenderSettings};
+use super::water_mesh::{
+    generate_water_mesh, generate_water_mesh_lod, WaterMeshData, WaterMeshInput,
+};
+
+/// Marker component for water mesh entities.
 #[derive(Component)]
-pub struct WaterSurface;
+pub struct WaterMesh {
+    /// Chunk position this water mesh belongs to
+    pub chunk_pos: IVec3,
+    /// Whether this mesh uses LOD (reduced detail)
+    pub is_lod: bool,
+}
 
-/// Resource tracking which chunks have water entities spawned.
-/// Used to avoid duplicate spawning and to clean up when chunks change.
+/// Resource tracking water mesh entities per chunk.
 #[derive(Resource, Default)]
-pub struct WaterEntities {
-    /// Maps chunk position to the water entity and its mesh handle for that chunk
-    pub entities: HashMap<IVec3, WaterEntityData>,
+pub struct WaterMeshEntities {
+    /// Maps chunk position to water mesh entity
+    pub entities: HashMap<IVec3, Entity>,
 }
 
-/// Data stored for each water entity, enabling in-place mesh updates.
-pub struct WaterEntityData {
-    pub entity: Entity,
-    pub mesh_handle: Handle<Mesh>,
+/// Async task for generating water meshes.
+#[derive(Debug)]
+pub struct WaterMeshTask {
+    pub chunk_pos: IVec3,
+    pub task: Task<Option<WaterMeshData>>,
+    pub is_lod: bool,
 }
 
-/// Resource to store water material handle.
-/// Using a single material with ocean amplitude for seamless cross-chunk rendering.
+/// Resource for queued water mesh generation tasks.
 #[derive(Resource, Default)]
-pub struct WaterMaterialHandle {
-    pub handle: Option<Handle<StandardWaterMaterial>>,
+pub struct WaterMeshTasks {
+    pub tasks: Vec<WaterMeshTask>,
 }
 
-impl WaterMaterialHandle {
-    pub fn get(&self) -> Handle<StandardWaterMaterial> {
-        self.handle
-            .clone()
-            .expect("Water material should be initialized before use")
-    }
+/// Event to request water mesh regeneration for a chunk.
+#[derive(Event, Debug, Clone, Copy)]
+pub struct WaterMeshUpdateEvent(pub IVec3);
 
-    pub fn is_initialized(&self) -> bool {
-        self.handle.is_some()
-    }
-}
-
-/// Create the water material with ocean-level amplitude.
-/// Using consistent amplitude across all water for seamless chunk boundaries.
-fn create_water_material(
-    materials: &mut Assets<StandardWaterMaterial>,
-) -> Handle<StandardWaterMaterial> {
-    materials.add(ExtendedMaterial {
-        base: StandardMaterial {
-            base_color: Color::srgba(0.1, 0.3, 0.5, 0.8),
-            alpha_mode: AlphaMode::Blend,
-            ..default()
-        },
-        extension: WaterMaterial {
-            amplitude: 0.5, // Ocean amplitude for consistent cross-chunk waves
-            clarity: 0.3,
-            deep_color: Color::srgba(0.05, 0.15, 0.25, 0.9),
-            shallow_color: Color::srgba(0.15, 0.35, 0.45, 0.75),
-            edge_color: Color::srgba(0.8, 0.9, 1.0, 0.5),
-            edge_scale: 0.1,
-            coord_scale: Vec2::new(1.0, 1.0),
-            coord_offset: Vec2::ZERO,
-            ..default()
-        },
-    })
-}
-
-/// Pooled allocations for water mesh generation to avoid per-frame heap allocations.
-#[derive(Default)]
-pub struct WaterMeshGenPool {
-    /// Reusable storage for water surface positions grouped by Y level
-    water_surfaces: HashMap<i32, HashSet<(i32, i32)>>,
-    /// Reusable storage for vertex index mapping
-    vertex_index_map: HashMap<(i32, i32), u32>,
-}
-
-/// Generates a continuous water surface mesh for a chunk.
-/// Vertices are shared between adjacent water blocks to prevent gaps during wave animation.
-/// Uses pooled allocations to avoid per-call heap allocations.
-fn generate_water_mesh_for_chunk(
-    world_map: &ClientWorldMap,
-    chunk_pos: &IVec3,
-    pool: &mut WaterMeshGenPool,
-) -> Option<Mesh> {
-    let chunk = world_map.map.get(chunk_pos)?;
-
-    // Clear and reuse pooled water_surfaces
-    pool.water_surfaces.clear();
-
-    for (local_block_pos, block) in chunk.map.iter() {
-        if block.id != BlockId::Water {
-            continue;
-        }
-
-        let global_block_pos = to_global_pos(chunk_pos, local_block_pos);
-
-        // Check if there's air above (this is a surface water block)
-        let above_pos = global_block_pos + IVec3::new(0, 1, 0);
-        if world_map.get_block_by_coordinates(&above_pos).is_some() {
-            continue;
-        }
-
-        pool.water_surfaces
-            .entry(local_block_pos.y)
-            .or_default()
-            .insert((local_block_pos.x, local_block_pos.z));
-    }
-
-    if pool.water_surfaces.is_empty() {
-        return None;
-    }
-
-    let total_blocks: usize = pool.water_surfaces.values().map(|s| s.len()).sum();
-
-    // Pre-allocate vectors (these are consumed by the mesh, so can't be pooled)
-    // Note: We don't use vertex colors - the water material/shader handles coloring
-    let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(total_blocks * 2);
-    let mut indices: Vec<u32> = Vec::with_capacity(total_blocks * 6);
-    let mut normals: Vec<[f32; 3]> = Vec::with_capacity(total_blocks * 2);
-    let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(total_blocks * 2);
-
-    let water_surface_offset = 0.875; // 14/16 of a block
-
-    for (y_level, xz_positions) in pool.water_surfaces.iter() {
-        let y = *y_level as f32 + water_surface_offset;
-
-        // Clear and reuse pooled vertex_index_map
-        pool.vertex_index_map.clear();
-
-        for (block_x, block_z) in xz_positions.iter() {
-            let corners = [
-                (*block_x, *block_z),
-                (*block_x + 1, *block_z),
-                (*block_x, *block_z + 1),
-                (*block_x + 1, *block_z + 1),
-            ];
-
-            for &(cx, cz) in corners.iter() {
-                // Use Entry API to avoid double HashMap lookup
-                if let Entry::Vacant(entry) = pool.vertex_index_map.entry((cx, cz)) {
-                    let vertex_idx = vertices.len() as u32;
-                    entry.insert(vertex_idx);
-
-                    vertices.push([cx as f32, y, cz as f32]);
-                    normals.push([0.0, 1.0, 0.0]);
-
-                    let world_x = (chunk_pos.x * CHUNK_SIZE + cx) as f32;
-                    let world_z = (chunk_pos.z * CHUNK_SIZE + cz) as f32;
-                    uvs.push([world_x, world_z]);
-                }
-            }
-
-            let bl = pool.vertex_index_map[&(*block_x, *block_z)];
-            let br = pool.vertex_index_map[&(*block_x + 1, *block_z)];
-            let tl = pool.vertex_index_map[&(*block_x, *block_z + 1)];
-            let tr = pool.vertex_index_map[&(*block_x + 1, *block_z + 1)];
-
-            indices.extend_from_slice(&[bl, tl, tr, bl, tr, br]);
-        }
-    }
-
-    if vertices.is_empty() {
-        return None;
-    }
-
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, Default::default());
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-    mesh.insert_indices(Indices::U32(indices));
-
-    if let Err(e) = mesh.generate_tangents() {
-        warn!("Error generating tangents for water mesh: {:?}", e);
-    }
-
-    Some(mesh)
-}
-
-/// System that listens for chunk updates and regenerates water meshes.
-/// Water entities are independent from chunk entities.
+/// System to queue water mesh generation when chunks update.
 ///
-/// Performance optimizations:
-/// - Uses `Local<WaterMeshGenPool>` to avoid per-frame HashMap allocations
-/// - Reuses mesh handles by updating existing Assets instead of creating new ones
-/// - Early return when no events to process
-pub fn water_render_system(
-    mut commands: Commands,
+/// This listens for chunk update events and queues water mesh regeneration
+/// for chunks that contain water.
+pub fn queue_water_mesh_updates(
     world_map: Res<ClientWorldMap>,
-    mut water_entities: ResMut<WaterEntities>,
-    mut water_material: ResMut<WaterMaterialHandle>,
-    mut materials: ResMut<Assets<StandardWaterMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut ev_chunk_update: EventReader<WorldRenderRequestUpdateEvent>,
-    mut mesh_pool: Local<WaterMeshGenPool>,
-    mut chunks_to_update: Local<Vec<IVec3>>,
+    mut ev_water_update: EventWriter<WaterMeshUpdateEvent>,
 ) {
-    // Initialize water material if needed
-    if !water_material.is_initialized() {
-        water_material.handle = Some(create_water_material(&mut materials));
-    }
+    for event in ev_chunk_update.read() {
+        let WorldRenderRequestUpdateEvent::ChunkToReload(chunk_pos) = event;
 
-    // Early return if no events - avoid any allocations
-    if ev_chunk_update.is_empty() {
-        return;
-    }
-
-    // Collect and deduplicate chunks that need water updates
-    chunks_to_update.clear();
-    chunks_to_update.extend(ev_chunk_update.read().map(|ev| {
-        let WorldRenderRequestUpdateEvent::ChunkToReload(pos) = ev;
-        *pos
-    }));
-    // Deduplicate using sort + dedup (IVec3 doesn't impl Ord, so convert to tuples)
-    chunks_to_update.sort_by_key(|v| (v.x, v.y, v.z));
-    chunks_to_update.dedup();
-
-    for chunk_pos in chunks_to_update.iter().copied() {
-        // Check if we have an existing entity for this chunk
-        if let Some(existing_data) = water_entities.entities.get(&chunk_pos) {
-            // Try to update existing mesh in-place
-            if let Some(water_mesh) =
-                generate_water_mesh_for_chunk(&world_map, &chunk_pos, &mut mesh_pool)
-            {
-                // Update existing mesh asset in-place (avoids GPU resource churn)
-                if let Some(mesh_asset) = meshes.get_mut(&existing_data.mesh_handle) {
-                    *mesh_asset = water_mesh;
-                    continue;
-                }
-            } else {
-                // No water in this chunk anymore, despawn the entity
-                commands.entity(existing_data.entity).despawn();
-                water_entities.entities.remove(&chunk_pos);
-                continue;
+        // Check if chunk has water
+        if let Some(chunk) = world_map.map.get(chunk_pos) {
+            if !chunk.water.is_empty() {
+                ev_water_update.write(WaterMeshUpdateEvent(*chunk_pos));
             }
-        }
-
-        // Remove stale entry if entity update failed
-        if let Some(existing_data) = water_entities.entities.remove(&chunk_pos) {
-            commands.entity(existing_data.entity).despawn();
-        }
-
-        // Generate new water mesh
-        if let Some(water_mesh) =
-            generate_water_mesh_for_chunk(&world_map, &chunk_pos, &mut mesh_pool)
-        {
-            let transform = Transform::from_xyz(
-                (chunk_pos.x * CHUNK_SIZE) as f32,
-                (chunk_pos.y * CHUNK_SIZE) as f32,
-                (chunk_pos.z * CHUNK_SIZE) as f32,
-            );
-
-            // Create a new mesh handle that we can track for future updates
-            let mesh_handle = meshes.add(water_mesh);
-
-            let entity = commands
-                .spawn((
-                    StateScoped(GameState::Game),
-                    transform,
-                    Visibility::Visible,
-                    Mesh3d(mesh_handle.clone()),
-                    MeshMaterial3d(water_material.get()),
-                    WaterMesh,
-                    WaterSurface,
-                    NotShadowCaster,
-                    NotShadowReceiver,
-                ))
-                .id();
-
-            water_entities.entities.insert(
-                chunk_pos,
-                WaterEntityData {
-                    entity,
-                    mesh_handle,
-                },
-            );
         }
     }
 }
 
-/// System to clean up water entities when their chunks are unloaded.
-/// Only runs when ClientWorldMap has changed, avoiding unnecessary iteration.
-pub fn water_cleanup_system(
+/// System to spawn water mesh generation tasks.
+///
+/// This processes water mesh update events and spawns async tasks
+/// to generate water meshes without blocking the main thread.
+pub fn spawn_water_mesh_tasks(
+    world_map: Res<ClientWorldMap>,
+    render_distance: Res<RenderDistance>,
+    render_settings: Option<Res<WaterRenderSettings>>,
+    player_query: Query<&Transform, With<CurrentPlayerMarker>>,
+    mut ev_water_update: EventReader<WaterMeshUpdateEvent>,
+    mut tasks: ResMut<WaterMeshTasks>,
+) {
+    use shared::world::WaveScaleConfig;
+
+    let pool = AsyncComputeTaskPool::get();
+
+    // Get player position for LOD determination
+    let Ok(player_transform) = player_query.single() else {
+        return;
+    };
+    let player_pos = player_transform.translation;
+
+    let lod_distance_sq = render_distance.lod0_distance_sq() as f32;
+
+    // Get wave scale config and tessellation settings (use defaults if settings not available)
+    let default_settings = WaterRenderSettings::default();
+    
+    let wave_scale_config = render_settings
+        .as_ref()
+        .map(|s| s.wave_scale_config)
+        .unwrap_or(default_settings.wave_scale_config);
+    
+    let tessellation = render_settings
+        .as_ref()
+        .map(|s| s.tessellation)
+        .unwrap_or(default_settings.tessellation);
+    
+    let tessellation_lod = render_settings
+        .as_ref()
+        .map(|s| s.tessellation_lod)
+        .unwrap_or(default_settings.tessellation_lod);
+
+    for WaterMeshUpdateEvent(chunk_pos) in ev_water_update.read() {
+        // Check if chunk exists and has water
+        let chunk = match world_map.map.get(chunk_pos) {
+            Some(c) if !c.water.is_empty() => Arc::clone(c),
+            _ => continue,
+        };
+
+        // Calculate chunk center for LOD determination
+        let chunk_center = Vec3::new(
+            (chunk_pos.x * CHUNK_SIZE + CHUNK_SIZE / 2) as f32,
+            (chunk_pos.y * CHUNK_SIZE + CHUNK_SIZE / 2) as f32,
+            (chunk_pos.z * CHUNK_SIZE + CHUNK_SIZE / 2) as f32,
+        );
+
+        let distance_sq = player_pos.distance_squared(chunk_center);
+        let is_lod = distance_sq > lod_distance_sq;
+
+        let chunk_pos_copy = *chunk_pos;
+        let world_map_clone = world_map.clone();
+        let wave_scale_config_copy = wave_scale_config;
+        let tessellation_copy = tessellation;
+        let tessellation_lod_copy = tessellation_lod;
+
+        let task = pool.spawn(async move {
+            let input = WaterMeshInput {
+                chunk_pos: chunk_pos_copy,
+                water: &chunk.water,
+                world_map: &world_map_clone,
+                wave_scale_config: wave_scale_config_copy,
+                tessellation: tessellation_copy,
+                tessellation_lod: tessellation_lod_copy,
+            };
+
+            if is_lod {
+                generate_water_mesh_lod(&input)
+            } else {
+                generate_water_mesh(&input)
+            }
+        });
+
+        tasks.tasks.push(WaterMeshTask {
+            chunk_pos: *chunk_pos,
+            task,
+            is_lod,
+        });
+    }
+}
+
+/// System to process completed water mesh tasks and spawn entities.
+///
+/// This polls async mesh generation tasks and creates/updates
+/// water mesh entities when tasks complete.
+pub fn process_water_mesh_tasks(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut tasks: ResMut<WaterMeshTasks>,
+    mut water_entities: ResMut<WaterMeshEntities>,
+    material_resource: Option<Res<WaterMaterialResource>>,
+) {
+    // Get water material handle if available
+    let Some(material_res) = material_resource else {
+        // Water material not yet initialized, skip processing
+        return;
+    };
+    let material_handle = material_res.handle.clone();
+
+    // Process completed tasks
+    tasks.tasks.retain_mut(|mesh_task| {
+        if let Some(result) = block_on(future::poll_once(&mut mesh_task.task)) {
+            // Remove existing entity for this chunk
+            if let Some(entity) = water_entities.entities.remove(&mesh_task.chunk_pos) {
+                commands.entity(entity).despawn();
+            }
+
+            // Spawn new entity if mesh was generated
+            if let Some(mesh_data) = result {
+                if let Some(mesh) = mesh_data.into_mesh() {
+                    let transform = Transform::from_xyz(
+                        (mesh_task.chunk_pos.x * CHUNK_SIZE) as f32,
+                        (mesh_task.chunk_pos.y * CHUNK_SIZE) as f32,
+                        (mesh_task.chunk_pos.z * CHUNK_SIZE) as f32,
+                    );
+
+                    let entity = commands
+                        .spawn((
+                            StateScoped(GameState::Game),
+                            transform,
+                            Visibility::Visible,
+                            Mesh3d(meshes.add(mesh)),
+                            MeshMaterial3d(material_handle.clone()),
+                            WaterMesh {
+                                chunk_pos: mesh_task.chunk_pos,
+                                is_lod: mesh_task.is_lod,
+                            },
+                        ))
+                        .id();
+
+                    water_entities.entities.insert(mesh_task.chunk_pos, entity);
+                }
+            }
+
+            false // Remove completed task
+        } else {
+            true // Keep pending task
+        }
+    });
+}
+
+/// System to clean up water meshes when chunks are unloaded.
+pub fn cleanup_water_meshes(
     mut commands: Commands,
     world_map: Res<ClientWorldMap>,
-    mut water_entities: ResMut<WaterEntities>,
-    mut chunks_to_remove: Local<Vec<IVec3>>,
+    mut water_entities: ResMut<WaterMeshEntities>,
 ) {
-    // Only check for cleanup when the world map has actually changed
     if !world_map.is_changed() {
         return;
     }
 
-    // Clear and reuse pooled Vec
-    chunks_to_remove.clear();
+    // Find chunks that no longer exist
+    let chunks_to_remove: Vec<IVec3> = water_entities
+        .entities
+        .keys()
+        .filter(|pos| !world_map.map.contains_key(pos))
+        .copied()
+        .collect();
 
-    // Find water entities whose chunks no longer exist
-    chunks_to_remove.extend(
-        water_entities
-            .entities
-            .keys()
-            .filter(|pos| !world_map.map.contains_key(pos))
-            .copied(),
+    // Despawn entities for removed chunks
+    for chunk_pos in chunks_to_remove {
+        if let Some(entity) = water_entities.entities.remove(&chunk_pos) {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+/// System to rebuild water meshes when entering the game state.
+///
+/// This ensures all existing water in the world gets rendered
+/// when the player joins or respawns.
+pub fn rebuild_all_water_meshes(
+    world_map: Res<ClientWorldMap>,
+    mut ev_water_update: EventWriter<WaterMeshUpdateEvent>,
+) {
+    for (chunk_pos, chunk) in world_map.map.iter() {
+        if !chunk.water.is_empty() {
+            ev_water_update.write(WaterMeshUpdateEvent(*chunk_pos));
+        }
+    }
+
+    info!(
+        "Queued water mesh rebuild for {} chunks",
+        world_map.map.len()
     );
+}
 
-    for chunk_pos in chunks_to_remove.iter() {
-        if let Some(data) = water_entities.entities.remove(chunk_pos) {
-            commands.entity(data.entity).despawn();
+/// System to update water mesh LOD based on player distance.
+///
+/// This periodically checks if water meshes need to switch between
+/// full detail and LOD versions based on player position.
+pub fn update_water_lod(
+    water_query: Query<(&WaterMesh, &Transform)>,
+    player_query: Query<&Transform, With<CurrentPlayerMarker>>,
+    render_distance: Res<RenderDistance>,
+    mut ev_water_update: EventWriter<WaterMeshUpdateEvent>,
+    time: Res<Time>,
+    mut last_update: Local<f32>,
+) {
+    // Only check every 2 seconds to avoid constant rebuilding
+    *last_update += time.delta_secs();
+    if *last_update < 2.0 {
+        return;
+    }
+    *last_update = 0.0;
+
+    let Ok(player_transform) = player_query.single() else {
+        return;
+    };
+    let player_pos = player_transform.translation;
+
+    let lod_distance_sq = render_distance.lod0_distance_sq() as f32;
+
+    for (water_mesh, transform) in water_query.iter() {
+        let distance_sq = player_pos.distance_squared(transform.translation);
+        let should_be_lod = distance_sq > lod_distance_sq;
+
+        // If LOD state doesn't match, queue rebuild
+        if water_mesh.is_lod != should_be_lod {
+            ev_water_update.write(WaterMeshUpdateEvent(water_mesh.chunk_pos));
+        }
+    }
+}
+
+/// System to toggle water rendering on/off (F9).
+pub fn toggle_water_rendering(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut settings: ResMut<WaterRenderSettings>,
+    mut water_query: Query<&mut Visibility, With<WaterMesh>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F9) {
+        settings.enabled = !settings.enabled;
+        info!(
+            "Water rendering: {}",
+            if settings.enabled { "ON" } else { "OFF" }
+        );
+
+        // Update visibility of all water meshes
+        let visibility = if settings.enabled {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+
+        for mut vis in water_query.iter_mut() {
+            *vis = visibility;
         }
     }
 }

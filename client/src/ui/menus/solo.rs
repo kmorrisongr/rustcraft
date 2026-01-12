@@ -51,10 +51,39 @@ pub enum MultiplayerButtonAction {
 #[derive(Component)]
 pub struct WorldNameInput;
 
+/// World generation mode
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WorldMode {
+    #[default]
+    Normal,
+    Debug,
+}
+
+impl WorldMode {
+    pub fn toggle(&self) -> Self {
+        match self {
+            WorldMode::Normal => WorldMode::Debug,
+            WorldMode::Debug => WorldMode::Normal,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            WorldMode::Normal => "Mode: Normal",
+            WorldMode::Debug => "Mode: Debug (Water Test)",
+        }
+    }
+}
+
 #[derive(Resource, Default, Debug, Clone)]
 pub struct SelectedWorld {
     pub name: Option<String>,
+    pub mode: WorldMode,
 }
+
+/// Marker component for the world mode toggle button
+#[derive(Component)]
+pub struct WorldModeToggle;
 
 pub fn solo_menu_setup(
     mut commands: Commands,
@@ -163,6 +192,30 @@ pub fn solo_menu_setup(
                             TextInputValue("".to_string()),
                         ),
                     ));
+
+                    // World mode toggle button
+                    wrapper
+                        .spawn((
+                            (
+                                Button,
+                                BorderColor(Color::BLACK),
+                                BackgroundColor(BACKGROUND_COLOR),
+                                {
+                                    let mut style = btn_style.clone();
+                                    style.grid_column = GridPlacement::span(2);
+                                    style
+                                },
+                                ImageNode::new(button_background_image.clone()),
+                            ),
+                            WorldModeToggle,
+                        ))
+                        .with_children(|btn| {
+                            btn.spawn((
+                                Text::new(WorldMode::default().label()),
+                                txt_font.clone(),
+                                txt_color,
+                            ));
+                        });
 
                     wrapper
                         .spawn((
@@ -381,6 +434,32 @@ pub fn solo_action(
                     commands.entity(world_entity).despawn();
                 }
             }
+        }
+    }
+}
+
+/// System to handle world mode toggle button
+pub fn world_mode_toggle_system(
+    mut interaction_query: Query<
+        (&Interaction, &Children),
+        (Changed<Interaction>, With<WorldModeToggle>),
+    >,
+    mut text_query: Query<&mut Text>,
+    mut selected_world: ResMut<SelectedWorld>,
+) {
+    for (interaction, children) in &mut interaction_query {
+        if *interaction == Interaction::Pressed {
+            // Toggle the mode
+            selected_world.mode = selected_world.mode.toggle();
+
+            // Update the button text
+            for child in children.iter() {
+                if let Ok(mut text) = text_query.get_mut(child) {
+                    **text = selected_world.mode.label().to_string();
+                }
+            }
+
+            info!("World mode changed to: {:?}", selected_world.mode);
         }
     }
 }

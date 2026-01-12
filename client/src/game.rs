@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use crate::entities::stack::stack_update_system;
 use crate::mob::*;
 use crate::network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime};
-use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::hud::chat::{render_chat, setup_chat};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
+use bevy::pbr::MaterialPlugin;
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
 use shared::messages::mob::MobUpdateEvent;
@@ -28,9 +28,6 @@ use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 
 use crate::ui::hud::debug::targeted_block::block_text_update_system;
 use crate::world::celestial::setup_main_lighting;
-use crate::world::rendering::water::{
-    water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle,
-};
 
 use crate::ui::hud::debug::*;
 use crate::ui::hud::hotbar::*;
@@ -77,13 +74,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
         .add_plugins(RustcraftPhysicsPlugin)
-        .insert_resource(WaterSettings {
-            height: 0.0,       // Sea level for voxel world
-            amplitude: 0.2,    // Gentle waves for block-based water
-            spawn_tiles: None, // Don't spawn automatic water tiles (we use chunk meshes)
-            ..default()
-        })
-        .add_plugins(WaterPlugin)
+        .add_plugins(MaterialPlugin::<rendering::WaterMaterial>::default())
         .insert_resource(WorldSeed(0))
         .insert_resource(ClientTime(0))
         .insert_resource(FirstChunkReceived(false))
@@ -108,9 +99,6 @@ pub fn game_plugin(app: &mut App) {
             default_color: WHITE.into(),
         })
         .insert_resource(MaterialResource { ..default() })
-        // Water rendering resources (decoupled from chunk system)
-        .init_resource::<WaterEntities>()
-        .init_resource::<WaterMaterialHandle>()
         .insert_resource(AtlasHandles::<BlockId>::default())
         .insert_resource(AtlasHandles::<ItemId>::default())
         .insert_resource(RenderDistance { ..default() })
@@ -119,6 +107,14 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(DebugOptions::default())
         .insert_resource(Inventory::new())
+        // Water debug resources
+        .init_resource::<rendering::WaterDebugSettings>()
+        .init_resource::<rendering::WaterDebugEntities>()
+        .init_resource::<rendering::WaterDebugMaterial>()
+        // Water rendering resources
+        .init_resource::<rendering::WaterRenderSettings>()
+        .init_resource::<rendering::WaterMeshEntities>()
+        .init_resource::<rendering::WaterMeshTasks>()
         .init_resource::<CurrentPlayerProfile>()
         .init_resource::<ParticleAssets>()
         .init_resource::<FoxFeetTargets>()
@@ -135,6 +131,7 @@ pub fn game_plugin(app: &mut App) {
         .add_event::<PlayerUpdateEvent>()
         .add_event::<MobUpdateEvent>()
         .add_event::<ItemStackUpdateEvent>()
+        .add_event::<rendering::WaterMeshUpdateEvent>()
         .add_systems(
             OnEnter(GameState::PreGameLoading),
             (
@@ -142,6 +139,7 @@ pub fn game_plugin(app: &mut App) {
                 launch_local_server_system,
                 init_server_connection,
                 setup_materials,
+                rendering::setup_water_material,
                 setup_server_connect_loading_screen,
             )
                 .chain(),
@@ -230,11 +228,45 @@ pub fn game_plugin(app: &mut App) {
         .add_observer(observe_on_step)
         .add_systems(
             PostUpdate,
+            world_render_system.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
             (
-                world_render_system,
-                // Water rendering runs after chunk meshing, listening to the same events
-                water_render_system,
-                water_cleanup_system,
+                rendering::toggle_water_debug_system,
+                rendering::water_debug_rebuild_on_enable_system,
+            )
+                .run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            PostUpdate,
+            (
+                rendering::water_debug_render_system,
+                rendering::water_debug_cleanup_system,
+            )
+                .run_if(in_state(GameState::Game)),
+        )
+        // Water rendering systems
+        .add_systems(
+            OnEnter(GameState::Game),
+            rendering::rebuild_all_water_meshes,
+        )
+        .add_systems(
+            Update,
+            (
+                rendering::queue_water_mesh_updates,
+                rendering::spawn_water_mesh_tasks,
+                rendering::toggle_water_rendering,
+                rendering::update_water_lod,
+            )
+                .chain()
+                .run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            PostUpdate,
+            (
+                rendering::process_water_mesh_tasks,
+                rendering::cleanup_water_meshes,
             )
                 .run_if(in_state(GameState::Game)),
         )

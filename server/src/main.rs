@@ -24,6 +24,10 @@ struct Args {
 
     #[arg(short, long, default_value_t = DEFAULT_RENDER_DISTANCE)]
     render_distance: i32,
+
+    /// Generate a debug water world for testing wave scale thresholds
+    #[arg(long, default_value_t = false)]
+    debug_water: bool,
 }
 
 fn main() {
@@ -52,6 +56,7 @@ fn main() {
             world_name: args.world,
             is_solo: false,
             broadcast_render_distance: args.render_distance,
+            debug_water_world: args.debug_water,
         },
         get_game_folder_paths(args.game_folder_path, None),
     );

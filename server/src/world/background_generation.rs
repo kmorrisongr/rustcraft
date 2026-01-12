@@ -6,7 +6,10 @@ use shared::world::{FloraRequest, ServerWorldMap, WorldSeed};
 use shared::LOD1_MULTIPLIER;
 use std::collections::HashSet;
 
-use crate::world::generation::{generate_chunk, ChunkGenerationResult};
+use crate::world::generation::{
+    generate_chunk, generate_debug_water_chunk, ChunkGenerationResult, DebugWaterWorld,
+};
+use crate::world::water_simulation::WaterSurfaceUpdateQueue;
 
 use super::broadcast_world::get_all_active_chunks;
 use shared::GameServerConfig;
@@ -37,6 +40,7 @@ pub fn background_chunk_generation_system(
     seed: Res<WorldSeed>,
     config: Res<GameServerConfig>,
     mut generation_tasks: ResMut<ChunkGenerationTasks>,
+    mut surface_queue: ResMut<WaterSurfaceUpdateQueue>,
 ) {
     // === Phase 1: Collect completed tasks ===
     let mut completed: Vec<(usize, IVec3, ChunkGenerationResult)> = Vec::new();
@@ -53,6 +57,11 @@ pub fn background_chunk_generation_system(
     // Process completed results
     for (index, chunk_pos, result) in completed {
         info!("Generated chunk: {:?}", chunk_pos);
+
+        // Queue for surface detection if the chunk has water
+        if !result.chunk.water.is_empty() {
+            surface_queue.queue(chunk_pos);
+        }
 
         world_map.chunks.map.insert(chunk_pos, result.chunk);
 
@@ -86,6 +95,7 @@ pub fn background_chunk_generation_system(
 
     let task_pool = AsyncComputeTaskPool::get();
     let seed_value = seed.0;
+    let is_debug_water = config.debug_water_world;
 
     for chunk_pos in all_chunks {
         if generation_tasks.tasks.len() >= MAX_CONCURRENT_GENERATION_TASKS {
@@ -101,8 +111,20 @@ pub fn background_chunk_generation_system(
         let pending_requests: Option<Vec<FloraRequest>> =
             world_map.chunks.generation_requests.remove(&chunk_pos);
 
-        let task =
-            task_pool.spawn(async move { generate_chunk(chunk_pos, seed_value, pending_requests) });
+        let task = if is_debug_water {
+            // In debug mode, generate flat terrain with water test pools
+            task_pool.spawn(async move {
+                let config = DebugWaterWorld::default();
+                let chunk = generate_debug_water_chunk(chunk_pos, &config);
+                ChunkGenerationResult {
+                    chunk,
+                    requests_for_chunk_above: Vec::new(),
+                }
+            })
+        } else {
+            // Normal world generation
+            task_pool.spawn(async move { generate_chunk(chunk_pos, seed_value, pending_requests) })
+        };
 
         generation_tasks.tasks.push((chunk_pos, task));
         generation_tasks.in_progress.insert(chunk_pos);

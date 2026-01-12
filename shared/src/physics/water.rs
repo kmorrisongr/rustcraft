@@ -5,11 +5,11 @@
 //! - Water drag
 //! - Swimming mechanics
 //!
-//! Note: Wave motion is handled by bevy_water on the client side.
-//! This module focuses on gameplay physics (buoyancy, drag, swimming).
+//! This module works with the volume-based water system in `shared::world::water`.
+//! Water submersion is calculated based on water volumes, not just block presence.
 
 use crate::players::Player;
-use crate::world::{BlockId, WorldMap};
+use crate::world::{BlockId, WorldMap, FULL_WATER_HEIGHT};
 
 /// Constants for water physics
 pub mod constants {
@@ -29,9 +29,12 @@ pub mod constants {
     pub const MAX_WATER_SEARCH_HEIGHT: i32 = 256;
 }
 
-/// Calculate how submerged a player is in water
-/// Returns a value from 0.0 (not in water) to 1.0 (fully submerged)
-pub fn calculate_water_submersion(player: &Player, world_map: &impl WorldMap) -> f32 {
+/// Calculate how submerged a player is in water.
+/// Returns a value from 0.0 (not in water) to 1.0 (fully submerged).
+///
+/// This function supports both the new volume-based water system (via WaterWorldMap)
+/// and the legacy block-based water detection for backward compatibility.
+pub fn calculate_water_submersion<T: WorldMap>(player: &Player, world_map: &T) -> f32 {
     let player_bottom = player.position.y - player.height / 2.0;
     let player_top = player.position.y + player.height / 2.0;
 
@@ -59,7 +62,7 @@ pub fn calculate_water_submersion(player: &Player, world_map: &impl WorldMap) ->
     let mut max_submersion: f32 = 0.0;
 
     for (sample_x, sample_z) in &sample_positions {
-        // Find the highest water block at this position
+        // Find the highest water surface at this position
         let water_height = find_water_surface_height(world_map, *sample_x, *sample_z);
 
         if water_height > player_bottom {
@@ -75,25 +78,42 @@ pub fn calculate_water_submersion(player: &Player, world_map: &impl WorldMap) ->
     max_submersion.clamp(0.0, 1.0)
 }
 
-/// Find the water surface height at a given XZ position
-fn find_water_surface_height(world_map: &impl WorldMap, x: i32, z: i32) -> f32 {
-    // Search downward from maximum height
+/// Find the water surface height at a given XZ position.
+///
+/// This function checks for water volumes first (new system), then falls back
+/// to block-based detection (legacy BlockId::Water blocks).
+fn find_water_surface_height<T: WorldMap>(world_map: &T, x: i32, z: i32) -> f32 {
+    // Search downward from maximum height for water
     for y in (0..constants::MAX_WATER_SEARCH_HEIGHT).rev() {
-        if let Some(block) = world_map.get_block_by_coordinates(&bevy::math::IVec3::new(x, y, z)) {
+        let pos = bevy::math::IVec3::new(x, y, z);
+
+        // Check for water volume first (new volume-based system)
+        if let Some(water_map) = world_map.as_water_world_map() {
+            if let Some(volume) = water_map.get_water_volume(&pos) {
+                if volume > 0.0 {
+                    // Found water volume, calculate surface height
+                    let surface_height = y as f32 + (volume * FULL_WATER_HEIGHT);
+                    return surface_height;
+                }
+            }
+        }
+
+        // Fallback: Check for BlockId::Water (legacy compatibility)
+        if let Some(block) = world_map.get_block_by_coordinates(&pos) {
             if block.id == BlockId::Water {
-                // Found water, now find the surface (first air block above water)
+                // Found water block, search for surface
                 for surface_y in y..constants::MAX_WATER_SEARCH_HEIGHT {
-                    if let Some(above_block) =
-                        world_map.get_block_by_coordinates(&bevy::math::IVec3::new(x, surface_y, z))
-                    {
+                    let surface_pos = bevy::math::IVec3::new(x, surface_y, z);
+                    if let Some(above_block) = world_map.get_block_by_coordinates(&surface_pos) {
                         if above_block.id != BlockId::Water {
+                            // Return surface with default full water height
                             return surface_y as f32;
                         }
                     } else {
                         return surface_y as f32;
                     }
                 }
-                return y as f32 + 1.0; // Default to one block above water
+                return y as f32 + FULL_WATER_HEIGHT;
             }
         }
     }
@@ -101,7 +121,7 @@ fn find_water_surface_height(world_map: &impl WorldMap, x: i32, z: i32) -> f32 {
 }
 
 /// Apply water physics to player movement
-pub fn apply_water_physics(player: &mut Player, world_map: &impl WorldMap, delta: f32) {
+pub fn apply_water_physics<T: WorldMap>(player: &mut Player, world_map: &T, delta: f32) {
     // Calculate water submersion
     let submersion = calculate_water_submersion(player, world_map);
 

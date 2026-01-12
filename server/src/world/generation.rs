@@ -378,6 +378,8 @@ pub fn generate_chunk(
 
     let mut chunk = ServerChunk {
         map: HashMap::new(),
+        water: shared::world::ChunkWaterStorage::new(),
+        water_surfaces: shared::world::ChunkWaterSurfaces::new(),
         ts: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -427,6 +429,8 @@ pub fn generate_chunk(
                 } else if y == terrain_height {
                     biome.surface_block
                 } else if y <= SEA_LEVEL {
+                    // Add water to volume storage as well as block
+                    chunk.water.set_full(IVec3::new(dx, dy, dz));
                     BlockId::Water
                 } else {
                     panic!();
@@ -578,4 +582,243 @@ pub fn generate_chunk(
         chunk,
         requests_for_chunk_above,
     }
+}
+
+// ============================================================================
+// DEBUG WORLD GENERATION
+// ============================================================================
+
+/// Debug world configuration for testing wave scale thresholds.
+///
+/// Creates a flat world with water bodies of increasing size to visualize
+/// how wave scaling responds to different local volumes.
+pub struct DebugWaterWorld {
+    /// Base Y level for the ground
+    pub ground_level: i32,
+    /// Water depth (blocks below surface)
+    pub water_depth: i32,
+}
+
+impl Default for DebugWaterWorld {
+    fn default() -> Self {
+        Self {
+            ground_level: 60,
+            water_depth: 3,
+        }
+    }
+}
+
+/// Generates a debug chunk for wave scale testing.
+///
+/// The world layout (all positions relative to spawn at 0,0):
+/// - Spawn on a stone platform at (0, ground_level, 0)
+/// - Puddle (1x1) at X=5, Z=5  -> ~1.0 volume (below puddle threshold)
+/// - Pond (3x3) at X=15, Z=5   -> ~9.0 volume (pond threshold)  
+/// - Lake (5x5) at X=30, Z=5   -> ~25.0 volume (lake threshold)
+/// - Ocean (10x10+) at X=50, Z=5 -> 50+ volume (ocean threshold)
+///
+/// Each water body is surrounded by stone walls and has configurable depth.
+pub fn generate_debug_water_chunk(chunk_pos: IVec3, config: &DebugWaterWorld) -> ServerChunk {
+    let mut chunk = ServerChunk {
+        map: HashMap::new(),
+        water: shared::world::ChunkWaterStorage::new(),
+        water_surfaces: shared::world::ChunkWaterSurfaces::new(),
+        ts: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64,
+        sent_to_clients: HashSet::new(),
+    };
+
+    let cx = chunk_pos.x;
+    let cy = chunk_pos.y;
+    let cz = chunk_pos.z;
+
+    // Generate flat ground and water bodies
+    for dx in 0..CHUNK_SIZE {
+        for dz in 0..CHUNK_SIZE {
+            let world_x = cx * CHUNK_SIZE + dx;
+            let world_z = cz * CHUNK_SIZE + dz;
+
+            for dy in 0..CHUNK_SIZE {
+                let world_y = cy * CHUNK_SIZE + dy;
+                let local_pos = IVec3::new(dx, dy, dz);
+
+                // Check if this position is in a water body
+                let water_info = get_debug_water_body(world_x, world_z, config);
+
+                let block = if world_y == 0 {
+                    // Bedrock at bottom
+                    Some(BlockId::Bedrock)
+                } else if let Some((pool_depth, is_edge)) = water_info {
+                    // We're inside or at the edge of a water body
+                    let water_surface = config.ground_level;
+                    let water_bottom = water_surface - pool_depth;
+
+                    if is_edge {
+                        // Edge wall
+                        if world_y <= config.ground_level {
+                            Some(BlockId::Stone)
+                        } else {
+                            None
+                        }
+                    } else if world_y < water_bottom {
+                        // Below the pool
+                        Some(BlockId::Stone)
+                    } else if world_y == water_bottom {
+                        // Pool floor
+                        Some(BlockId::Sand)
+                    } else if world_y < water_surface {
+                        // Water
+                        chunk.water.set_full(local_pos);
+                        Some(BlockId::Water)
+                    } else if world_y == water_surface {
+                        // Water surface
+                        chunk.water.set_full(local_pos);
+                        Some(BlockId::Water)
+                    } else {
+                        None
+                    }
+                } else if world_y < config.ground_level {
+                    // Underground
+                    Some(BlockId::Stone)
+                } else if world_y == config.ground_level {
+                    // Ground surface
+                    Some(BlockId::Grass)
+                } else {
+                    // Air above ground
+                    None
+                };
+
+                if let Some(block_id) = block {
+                    chunk
+                        .map
+                        .insert(local_pos, BlockData::new(block_id, BlockDirection::Front));
+                }
+            }
+        }
+    }
+
+    chunk
+}
+
+/// Returns water body info for a world position: Some((depth, is_edge)) or None.
+/// The depth is how deep the pool is, is_edge indicates if this is a wall block.
+fn get_debug_water_body(
+    world_x: i32,
+    world_z: i32,
+    config: &DebugWaterWorld,
+) -> Option<(i32, bool)> {
+    // Define water bodies: (center_x, center_z, half_size, depth, name)
+    // Using the wave scale categories as reference; exact volume thresholds
+    // are defined in `water_wave_scale.rs`. The examples below illustrate
+    // typical sizes for:
+    // - puddle-like pools (e.g. 1x1 with varying depth)
+    // - pond-like pools (e.g. around 3x3)
+    // - lake-like pools (e.g. around 5x5)
+    // - ocean-like bodies (e.g. larger areas or smaller areas with more depth)
+
+    let pools = [
+        // (center_x, center_z, half_size, depth, name)
+        (8, 8, 0, 2, "Tiny (1x1x2)"), // 1x1, 2 deep = ~2 volume (puddle)
+        (20, 8, 1, 2, "Small (3x3x2)"), // 3x3, 2 deep = ~18 volume (pond+)
+        (35, 8, 2, 3, "Medium (5x5x3)"), // 5x5, 3 deep = ~75 volume (lake+)
+        (55, 8, 5, 4, "Large (11x11x4)"), // 11x11, 4 deep = ~484 volume (ocean)
+    ];
+
+    // Also add a row at Z=20 with shallower versions
+    let shallow_pools = [
+        (8, 25, 0, 1, "Puddle (1x1x1)"),   // 1x1, 1 deep = ~1 volume
+        (20, 25, 1, 1, "Pond (3x3x1)"),    // 3x3, 1 deep = ~9 volume
+        (35, 25, 2, 1, "Lake (5x5x1)"),    // 5x5, 1 deep = ~25 volume
+        (55, 25, 5, 1, "Ocean (11x11x1)"), // 11x11, 1 deep = ~121 volume
+    ];
+
+    // Check deep pools
+    for (cx, cz, half_size, depth, _name) in pools.iter() {
+        let result = check_pool_bounds(world_x, world_z, *cx, *cz, *half_size, *depth, config);
+        if result.is_some() {
+            return result;
+        }
+    }
+
+    // Check shallow pools
+    for (cx, cz, half_size, depth, _name) in shallow_pools.iter() {
+        let result = check_pool_bounds(world_x, world_z, *cx, *cz, *half_size, *depth, config);
+        if result.is_some() {
+            return result;
+        }
+    }
+
+    None
+}
+
+/// Check if a position is within a pool's bounds.
+/// Returns Some((depth, is_edge)) if in pool area, None otherwise.
+fn check_pool_bounds(
+    world_x: i32,
+    world_z: i32,
+    center_x: i32,
+    center_z: i32,
+    half_size: i32,
+    depth: i32,
+    _config: &DebugWaterWorld,
+) -> Option<(i32, bool)> {
+    let dx = (world_x - center_x).abs();
+    let dz = (world_z - center_z).abs();
+
+    // Edge is one block wider than the pool itself
+    let edge_half = half_size + 1;
+
+    if dx <= edge_half && dz <= edge_half {
+        // We're in the pool area (including edge)
+        let is_edge = dx == edge_half || dz == edge_half;
+        Some((depth, is_edge))
+    } else {
+        None
+    }
+}
+
+/// Generates the complete debug world map for all chunks that contain water bodies.
+///
+/// Returns a HashMap of chunk positions to chunks that can be merged with an existing world.
+pub fn generate_debug_water_world() -> HashMap<IVec3, ServerChunk> {
+    let config = DebugWaterWorld::default();
+    let mut chunks = HashMap::new();
+
+    // We need to generate chunks that cover:
+    // 1. All water bodies (X=0 to X=70, Z=0 to Z=35)
+    // 2. Enough area around spawn for the client to load (render distance = 8 chunks)
+    // Spawn is at (0, 61, 0), so we need chunks around chunk (0, 3, 0)
+
+    let min_chunk_x = -10;
+    let max_chunk_x = 10; // Covers spawn area + water bodies
+    let min_chunk_z = -10;
+    let max_chunk_z = 10; // Covers spawn area + water bodies
+    let min_chunk_y = 0;
+    let max_chunk_y = 5; // Covers ground level and above
+
+    for cx in min_chunk_x..=max_chunk_x {
+        for cz in min_chunk_z..=max_chunk_z {
+            for cy in min_chunk_y..=max_chunk_y {
+                let chunk_pos = IVec3::new(cx, cy, cz);
+                let chunk = generate_debug_water_chunk(chunk_pos, &config);
+
+                // Only add chunk if it has content
+                if !chunk.map.is_empty() {
+                    chunks.insert(chunk_pos, chunk);
+                }
+            }
+        }
+    }
+
+    info!("Generated debug water world with {} chunks", chunks.len());
+    info!("Water bodies at ground level {}:", config.ground_level);
+    info!("  Row 1 (Z=8): Deep pools - Tiny(1x1x2), Small(3x3x2), Medium(5x5x3), Large(11x11x4)");
+    info!(
+        "  Row 2 (Z=25): Shallow pools - Puddle(1x1x1), Pond(3x3x1), Lake(5x5x1), Ocean(11x11x1)"
+    );
+    info!("Spawn at (0, {}, 0)", config.ground_level + 1);
+
+    chunks
 }

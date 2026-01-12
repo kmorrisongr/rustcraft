@@ -32,7 +32,10 @@ pub fn menu_plugin(app: &mut App) {
             OnEnter(MenuState::Solo),
             (solo::solo_menu_setup, solo::list_worlds).chain(),
         )
-        .add_systems(Update, solo::solo_action.run_if(in_state(MenuState::Solo)))
+        .add_systems(
+            Update,
+            (solo::solo_action, solo::world_mode_toggle_system).run_if(in_state(MenuState::Solo)),
+        )
         // Systems to handle the settings menu screen
         .add_systems(OnEnter(MenuState::Settings), settings::settings_menu_setup)
         // Systems to handle the display settings screen

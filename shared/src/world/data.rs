@@ -63,9 +63,79 @@ pub struct ServerItemStack {
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct ServerChunk {
     pub map: HashMap<IVec3, BlockData>,
+    /// Water storage for this chunk (sparse, volume-based)
+    /// Only stores voxels that contain water
+    pub water: super::water::ChunkWaterStorage,
+    /// Cached water surface detection results
+    /// Rebuilt when water or terrain changes
+    #[serde(skip)]
+    pub water_surfaces: super::water_surface::ChunkWaterSurfaces,
     /// Timestamp marking the last update this chunk has received
     pub ts: u64,
     pub sent_to_clients: HashSet<PlayerId>,
+}
+
+impl ServerChunk {
+    /// Detects water surfaces in this chunk.
+    ///
+    /// A surface cell is a water cell with air (not solid, not water) above it.
+    /// Connected surface cells are grouped into patches for efficient simulation.
+    ///
+    /// # Arguments
+    /// * `is_solid_at_global` - Callback to check if a block at a global position is solid.
+    ///                          This is needed for cross-chunk boundary lookups.
+    pub fn detect_water_surfaces<F>(&mut self, chunk_pos: IVec3, is_solid_at_global: F)
+    where
+        F: Fn(IVec3) -> bool,
+    {
+        use crate::CHUNK_SIZE;
+
+        let is_solid_above = |local_above: IVec3| {
+            // Check if it's within this chunk first
+            if local_above.y < CHUNK_SIZE {
+                // Check if there's a solid block in this chunk
+                if let Some(block) = self.map.get(&local_above) {
+                    return matches!(
+                        block.id.get_hitbox(),
+                        super::BlockHitbox::FullBlock | super::BlockHitbox::Aabb(_)
+                    ) && block.id != super::BlockId::Water;
+                }
+                false
+            } else {
+                // Need cross-chunk lookup
+                let global_pos = IVec3::new(
+                    chunk_pos.x * CHUNK_SIZE + local_above.x,
+                    chunk_pos.y * CHUNK_SIZE + local_above.y,
+                    chunk_pos.z * CHUNK_SIZE + local_above.z,
+                );
+                is_solid_at_global(global_pos)
+            }
+        };
+
+        self.water_surfaces
+            .detect_surfaces(&self.water, is_solid_above);
+    }
+
+    /// Returns true if surface detection data may be stale and needs refresh.
+    pub fn surfaces_need_refresh(&self) -> bool {
+        // Simple heuristic: if water storage is non-empty but no surfaces detected,
+        // or if the generation counter doesn't match, surfaces may need refresh.
+        !self.water.is_empty() && self.water_surfaces.cell_count() == 0
+    }
+
+    /// Removes the Water block at the specified local position if present.
+    ///
+    /// This is a helper function used when water volume is removed from a cell.
+    /// If the cell contains a Water block, it's removed from the block map,
+    /// ensuring consistency between water volume storage and block representation.
+    ///
+    /// # Arguments
+    /// * `pos` - Local position within the chunk (0..CHUNK_SIZE for each axis)
+    pub fn remove_water_block_if_present(&mut self, pos: &IVec3) {
+        if self.map.get(pos).map(|b| b.id) == Some(BlockId::Water) {
+            self.map.remove(pos);
+        }
+    }
 }
 
 // #[derive(Resource)]
@@ -89,6 +159,16 @@ pub struct ServerChunkWorldMap {
     /// When a chunk is generated, it checks this map for any pending requests
     /// and processes them before generating its own flora.
     pub generation_requests: HashMap<IVec3, Vec<FloraRequest>>,
+    /// Blocks that were recently removed (global positions).
+    /// Server systems can process this to trigger water flow, etc.
+    /// Should be cleared after processing.
+    #[serde(skip)]
+    pub recently_removed_blocks: Vec<IVec3>,
+    /// Blocks that were recently placed (global positions).
+    /// Server systems can process this to trigger water displacement, etc.
+    /// Should be cleared after processing.
+    #[serde(skip)]
+    pub recently_placed_blocks: Vec<IVec3>,
 }
 
 #[derive(Resource, Clone, Copy, Serialize, Deserialize, Default)]
@@ -333,6 +413,23 @@ pub fn calculate_biome_at_position(x: i32, z: i32, seed: u32) -> BiomeType {
     BiomeType::from_climate(climate)
 }
 
+/// Trait for world maps that support the volume-based water system.
+/// This allows physics and rendering systems to query water volumes at specific positions.
+pub trait WaterWorldMap {
+    /// Get the water volume at a global position (0.0 to 1.0, or None if no water data)
+    fn get_water_volume(&self, position: &IVec3) -> Option<f32>;
+
+    /// Get the water surface height at a global position (Y coordinate + surface offset)
+    fn get_water_surface_height(&self, position: &IVec3) -> Option<f32>;
+
+    /// Check if there is water at a global position
+    fn has_water_at(&self, position: &IVec3) -> bool {
+        self.get_water_volume(position)
+            .map(|v| v > 0.0)
+            .unwrap_or(false)
+    }
+}
+
 pub trait WorldMap {
     fn get_block_mut_by_coordinates(&mut self, position: &IVec3) -> Option<&mut BlockData>;
     fn get_block_by_coordinates(&self, position: &IVec3) -> Option<&BlockData>;
@@ -341,6 +438,12 @@ pub trait WorldMap {
 
     /// Check if a chunk at the given chunk position is loaded
     fn has_chunk(&self, chunk_pos: &IVec3) -> bool;
+
+    /// Returns this map as a WaterWorldMap if it supports volume-based water queries.
+    /// Default implementation returns None (no water support).
+    fn as_water_world_map(&self) -> Option<&dyn WaterWorldMap> {
+        None
+    }
 
     fn get_height_ground(&self, position: Vec3) -> i32 {
         for y in (0..256).rev() {
@@ -464,6 +567,9 @@ impl WorldMap for ServerChunkWorldMap {
         chunk_map.map.remove(&local_block_pos);
         self.chunks_to_update.push(chunk_pos);
 
+        // Track for water simulation and other systems
+        self.recently_removed_blocks.push(*global_block_pos);
+
         Some(kind)
     }
 
@@ -473,6 +579,9 @@ impl WorldMap for ServerChunkWorldMap {
 
         chunk.map.insert(local_pos, block);
         self.chunks_to_update.push(chunk_pos);
+
+        // Track for water simulation and other systems
+        self.recently_placed_blocks.push(*position);
     }
 
     fn mark_block_for_update(&mut self, position: &IVec3) {
@@ -483,6 +592,27 @@ impl WorldMap for ServerChunkWorldMap {
         let cy: i32 = block_to_chunk_coord(y);
         let cz: i32 = block_to_chunk_coord(z);
         self.chunks_to_update.push(IVec3::new(cx, cy, cz));
+    }
+
+    fn as_water_world_map(&self) -> Option<&dyn WaterWorldMap> {
+        Some(self)
+    }
+}
+
+impl WaterWorldMap for ServerChunkWorldMap {
+    fn get_water_volume(&self, position: &IVec3) -> Option<f32> {
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk = self.map.get(&chunk_pos)?;
+        chunk.water.get(&local_pos).map(|cell| cell.volume())
+    }
+
+    fn get_water_surface_height(&self, position: &IVec3) -> Option<f32> {
+        let (chunk_pos, local_pos) = global_to_chunk_local(position);
+        let chunk = self.map.get(&chunk_pos)?;
+        chunk
+            .water
+            .get(&local_pos)
+            .map(|cell| position.y as f32 + cell.surface_height())
     }
 }
 
