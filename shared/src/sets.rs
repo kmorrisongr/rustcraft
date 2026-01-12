@@ -1,0 +1,39 @@
+use bevy::prelude::*;
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GameOnEnterSet {
+    Initialize,
+    Ui,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GameUpdateSet {
+    PlayerInput,
+    PlayerPhysics,
+    WorldInput,
+    WorldPhysics,
+    Networking,
+    Rendering,
+    Ui,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GameFixedPreUpdateSet {
+    Networking,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GameFixedUpdateSet {
+    Networking,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GamePostUpdateSet {
+    Rendering,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GameOnExitSet {
+    World,
+    Networking,
+}

@@ -9,6 +9,7 @@ pub mod constants;
 pub mod messages;
 pub mod physics;
 pub mod players;
+pub mod sets;
 pub mod utils;
 pub mod world;
 
