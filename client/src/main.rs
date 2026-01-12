@@ -10,7 +10,7 @@ mod shaders;
 mod ui;
 mod world;
 
-use crate::world::ClientWorldMap;
+use crate::{ui::menus::MenusPlugin, world::ClientWorldMap};
 use bevy::{
     prelude::*,
     render::{
@@ -183,6 +183,6 @@ fn main() {
         .init_state::<GameState>()
         .enable_state_scoped_entities::<GameState>()
         // Adds the plugins for each state
-        .add_plugins((splash::splash_plugin, menus::menu_plugin, game::game_plugin))
+        .add_plugins((splash::splash_plugin, MenusPlugin, game::game_plugin))
         .run();
 }

@@ -21,45 +21,48 @@ use crate::{GameState, MenuCamera};
 
 use super::button::*;
 
-pub fn menu_plugin(app: &mut App) {
-    app.init_state::<MenuState>()
-        .enable_state_scoped_entities::<MenuState>()
-        .add_systems(OnEnter(GameState::Menu), menu_setup)
-        // Systems to handle the main menu screen
-        .add_systems(OnEnter(MenuState::Main), home_setup)
-        // Systems to handle the play menu screen
-        .add_systems(
-            OnEnter(MenuState::Solo),
-            (solo::solo_menu_setup, solo::list_worlds).chain(),
-        )
-        .add_systems(Update, solo::solo_action.run_if(in_state(MenuState::Solo)))
-        // Systems to handle the settings menu screen
-        .add_systems(OnEnter(MenuState::Settings), settings::settings_menu_setup)
-        // Systems to handle the display settings screen
-        // Systems to handle the sound settings screen
-        // save the keybings when lauching the game, and when exiting settings
-        .add_systems(OnEnter(GameState::Menu), save_keybindings)
-        .add_systems(OnExit(MenuState::SettingsControls), save_keybindings)
-        .add_systems(
-            OnEnter(MenuState::Multi),
-            (multi::multiplayer_menu_setup, multi::load_server_list).chain(),
-        )
-        .add_systems(
-            Update,
-            (multiplayer_action).run_if(in_state(MenuState::Multi)),
-        )
-        .add_systems(OnExit(MenuState::Multi), multi::save_server_list)
-        .add_systems(
-            Update,
-            controls_update_system.run_if(in_state(MenuState::SettingsControls)),
-        )
-        // Common systems to all screens that handles buttons behavior
-        .add_systems(
-            Update,
-            (menu_action, escape_button, button_system, mouse_scroll)
-                .run_if(in_state(GameState::Menu)),
-        )
-        .add_systems(OnEnter(MenuState::SettingsControls), controls_menu_setup);
+pub struct MenusPlugin;
+impl Plugin for MenusPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_state::<MenuState>()
+            .enable_state_scoped_entities::<MenuState>()
+            .add_systems(OnEnter(GameState::Menu), menu_setup)
+            // Systems to handle the main menu screen
+            .add_systems(OnEnter(MenuState::Main), home_setup)
+            // Systems to handle the play menu screen
+            .add_systems(
+                OnEnter(MenuState::Solo),
+                (solo::solo_menu_setup, solo::list_worlds).chain(),
+            )
+            .add_systems(Update, solo::solo_action.run_if(in_state(MenuState::Solo)))
+            // Systems to handle the settings menu screen
+            .add_systems(OnEnter(MenuState::Settings), settings::settings_menu_setup)
+            // Systems to handle the display settings screen
+            // Systems to handle the sound settings screen
+            // save the keybings when lauching the game, and when exiting settings
+            .add_systems(OnEnter(GameState::Menu), save_keybindings)
+            .add_systems(OnExit(MenuState::SettingsControls), save_keybindings)
+            .add_systems(
+                OnEnter(MenuState::Multi),
+                (multi::multiplayer_menu_setup, multi::load_server_list).chain(),
+            )
+            .add_systems(
+                Update,
+                (multiplayer_action).run_if(in_state(MenuState::Multi)),
+            )
+            .add_systems(OnExit(MenuState::Multi), multi::save_server_list)
+            .add_systems(
+                Update,
+                controls_update_system.run_if(in_state(MenuState::SettingsControls)),
+            )
+            // Common systems to all screens that handles buttons behavior
+            .add_systems(
+                Update,
+                (menu_action, escape_button, button_system, mouse_scroll)
+                    .run_if(in_state(GameState::Menu)),
+            )
+            .add_systems(OnEnter(MenuState::SettingsControls), controls_menu_setup);
+    }
 }
 
 /// Tag component for scrolling UI lists
