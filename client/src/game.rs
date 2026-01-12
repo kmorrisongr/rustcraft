@@ -12,6 +12,7 @@ use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerSpawnEvent, PlayerUpdateEvent};
 use shared::physics::RustcraftPhysicsPlugin;
 use shared::players::{Inventory, ViewMode};
+use shared::sets::GameSet;
 use shared::TICKS_PER_SECOND;
 use time::time_update_system;
 
@@ -72,6 +73,20 @@ pub enum PreloadSignal {
 }
 
 pub fn game_plugin(app: &mut App) {
+    app.configure_sets(
+        Update,
+        (
+            GameSet::PlayerInput,
+            GameSet::PlayerPhysics.after(GameSet::PlayerInput),
+            GameSet::WorldInput.after(GameSet::PlayerPhysics),
+            GameSet::WorldPhysics.after(GameSet::WorldInput),
+            GameSet::Networking.after(GameSet::WorldPhysics),
+            GameSet::Rendering.after(GameSet::Networking),
+            GameSet::Ui.after(GameSet::Rendering),
+        )
+            .run_if(in_state(GameState::Game)),
+    );
+
     app.add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_plugins(WireframePlugin::default())
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
