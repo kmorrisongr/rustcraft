@@ -14,9 +14,12 @@ pub use inputs::*;
 pub use setup::*;
 
 use bevy::prelude::*;
-use shared::sets::{GameFixedPreUpdateSet, GameFixedUpdateSet, GameUpdateSet};
+use shared::sets::{GameFixedPreUpdateSet, GameFixedUpdateSet, GameOnExitSet, GameUpdateSet};
 
-use crate::network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime};
+use crate::{
+    network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime},
+    GameState,
+};
 
 pub struct NetworkPlugin;
 impl Plugin for NetworkPlugin {
@@ -37,6 +40,10 @@ impl Plugin for NetworkPlugin {
             .add_systems(
                 FixedUpdate,
                 (upload_player_inputs_system).in_set(GameFixedUpdateSet::Networking),
+            )
+            .add_systems(
+                OnExit(GameState::Game),
+                (terminate_server_connection).in_set(GameOnExitSet::Networking),
             );
     }
 }

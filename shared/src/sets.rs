@@ -31,3 +31,9 @@ pub enum GameFixedUpdateSet {
 pub enum GamePostUpdateSet {
     Rendering,
 }
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GameOnExitSet {
+    World,
+    Networking,
+}

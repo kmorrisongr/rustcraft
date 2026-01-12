@@ -12,7 +12,8 @@ use shared::messages::{ItemStackUpdateEvent, PlayerSpawnEvent, PlayerUpdateEvent
 use shared::physics::RustcraftPhysicsPlugin;
 use shared::players::{Inventory, ViewMode};
 use shared::sets::{
-    GameFixedPreUpdateSet, GameFixedUpdateSet, GameOnEnterSet, GamePostUpdateSet, GameUpdateSet,
+    GameFixedPreUpdateSet, GameFixedUpdateSet, GameOnEnterSet, GameOnExitSet, GamePostUpdateSet,
+    GameUpdateSet,
 };
 use shared::TICKS_PER_SECOND;
 use time::time_update_system;
@@ -25,10 +26,7 @@ use bevy::color::palettes::basic::WHITE;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 
-use crate::ui::hud::debug::targeted_block::block_text_update_system;
-
 use crate::ui::hud::debug::*;
-use crate::ui::hud::hotbar::*;
 use crate::world::celestial::*;
 use crate::world::*;
 
@@ -40,8 +38,7 @@ use shared::world::WorldSeed;
 
 use crate::network::{
     establish_authenticated_connection_to_server, init_server_connection,
-    launch_local_server_system, terminate_server_connection, NetworkPlugin, TargetServer,
-    TargetServerState,
+    launch_local_server_system, NetworkPlugin, TargetServer, TargetServerState,
 };
 
 use crate::GameState;
@@ -96,6 +93,13 @@ pub fn game_plugin(app: &mut App) {
     .configure_sets(
         PostUpdate,
         (GamePostUpdateSet::Rendering).run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        OnExit(GameState::Game),
+        (
+            GameOnExitSet::World,
+            GameOnExitSet::Networking.after(GameOnExitSet::World),
+        ),
     );
 
     app.add_plugins(PlayerUiPlugin)
@@ -223,7 +227,7 @@ pub fn game_plugin(app: &mut App) {
         )
         .add_systems(
             OnExit(GameState::Game),
-            (clear_resources, terminate_server_connection).chain(),
+            (clear_resources).in_set(GameOnExitSet::World),
         );
 }
 
