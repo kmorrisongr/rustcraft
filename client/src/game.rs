@@ -3,15 +3,17 @@ use std::collections::HashMap;
 use crate::entities::stack::stack_update_system;
 use crate::mob::*;
 use crate::shaders::{WaterPlugin, WaterSettings};
-use crate::ui::hud::chat::{render_chat, setup_chat};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
+use crate::ui::PlayerUiPlugin;
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
 use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerSpawnEvent, PlayerUpdateEvent};
 use shared::physics::RustcraftPhysicsPlugin;
 use shared::players::{Inventory, ViewMode};
-use shared::sets::GameUpdateSet;
+use shared::sets::{
+    GameFixedPreUpdateSet, GameFixedUpdateSet, GameOnEnterSet, GamePostUpdateSet, GameUpdateSet,
+};
 use shared::TICKS_PER_SECOND;
 use time::time_update_system;
 
@@ -19,22 +21,14 @@ use crate::world::time::ClientTime;
 use crate::world::ClientWorldMap;
 
 use crate::ui::hud::debug::BlockDebugWireframeSettings;
-use crate::ui::hud::loading_overlay::{setup_loading_overlay, update_loading_overlay};
-use crate::ui::hud::reticle::spawn_reticle;
-use crate::ui::menus::pause::{render_pause_menu, setup_pause_menu};
 use bevy::color::palettes::basic::WHITE;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 
 use crate::ui::hud::debug::targeted_block::block_text_update_system;
-use crate::world::celestial::setup_main_lighting;
-use crate::world::rendering::water::{
-    water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle,
-};
 
 use crate::ui::hud::debug::*;
 use crate::ui::hud::hotbar::*;
-use crate::ui::hud::set_ui_mode;
 use crate::world::celestial::*;
 use crate::world::*;
 
@@ -47,7 +41,7 @@ use shared::world::{BlockId, ItemId, WorldSeed};
 use crate::network::{
     establish_authenticated_connection_to_server, init_server_connection,
     launch_local_server_system, terminate_server_connection, NetworkPlugin, TargetServer,
-    TargetServerState, UnacknowledgedInputs,
+    TargetServerState,
 };
 
 use crate::GameState;
@@ -72,6 +66,13 @@ pub enum PreloadSignal {
 
 pub fn game_plugin(app: &mut App) {
     app.configure_sets(
+        OnEnter(GameState::Game),
+        (
+            GameOnEnterSet::Initialize,
+            GameOnEnterSet::Ui.after(GameOnEnterSet::Initialize),
+        ),
+    )
+    .configure_sets(
         Update,
         (
             GameUpdateSet::PlayerInput,
@@ -83,9 +84,24 @@ pub fn game_plugin(app: &mut App) {
             GameUpdateSet::Ui.after(GameUpdateSet::Rendering),
         )
             .run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        FixedPreUpdate,
+        (GameFixedPreUpdateSet::Networking).run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        FixedUpdate,
+        (GameFixedUpdateSet::Networking).run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        PostUpdate,
+        (GamePostUpdateSet::Rendering).run_if(in_state(GameState::Game)),
     );
 
-    app.add_plugins(FrameTimeDiagnosticsPlugin::default())
+    app.add_plugins(PlayerUiPlugin)
+        .add_plugins(WorldPlugin)
+        .add_plugins(RenderingPlugin)
+        .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_plugins(WireframePlugin::default())
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
@@ -122,9 +138,6 @@ pub fn game_plugin(app: &mut App) {
             default_color: WHITE.into(),
         })
         .insert_resource(MaterialResource { ..default() })
-        // Water rendering resources (decoupled from chunk system)
-        .init_resource::<WaterEntities>()
-        .init_resource::<WaterMaterialHandle>()
         .insert_resource(AtlasHandles::<BlockId>::default())
         .insert_resource(AtlasHandles::<ItemId>::default())
         .insert_resource(RenderDistance { ..default() })
@@ -169,38 +182,12 @@ pub fn game_plugin(app: &mut App) {
         )
         .add_systems(
             OnEnter(GameState::Game),
-            (
-                spawn_camera,
-                setup_main_lighting,
-                spawn_reticle,
-                setup_loading_overlay,
-                setup_hud,
-                setup_chat,
-                setup_pause_menu,
-            )
-                .chain(),
-        )
-        .add_systems(
-            OnEnter(GameState::Game),
             (setup_hotbar, setup_inventory).chain(),
         )
         .add_systems(OnEnter(GameState::Game), setup_chunk_ghost)
         .add_systems(
             Update,
             (
-                render_pause_menu,
-                render_chat,
-                render_inventory_hotbar,
-                set_ui_mode,
-                update_loading_overlay,
-            )
-                .run_if(in_state(GameState::Game)),
-        )
-        .add_systems(
-            Update,
-            (
-                render_distance_update_system,
-                lod_transition_system,
                 first_and_third_person_view_system,
                 toggle_debug_system,
                 chunk_force_reload_system,
@@ -237,16 +224,6 @@ pub fn game_plugin(app: &mut App) {
                 .run_if(in_state(GameState::Game)),
         )
         .add_observer(observe_on_step)
-        .add_systems(
-            PostUpdate,
-            (
-                world_render_system,
-                // Water rendering runs after chunk meshing, listening to the same events
-                water_render_system,
-                water_cleanup_system,
-            )
-                .run_if(in_state(GameState::Game)),
-        )
         .add_systems(
             Update,
             (
