@@ -6,7 +6,7 @@ use crate::KeyMap;
 use bevy::pbr::wireframe::WireframeConfig;
 use bevy::prelude::*;
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct BlockDebugWireframeSettings {
     pub is_enabled: bool,
 }

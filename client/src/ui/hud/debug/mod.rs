@@ -18,9 +18,9 @@ pub use fps::*;
 pub use loaded_stats::*;
 pub use raycast::*;
 pub use setup::*;
-use shared::sets::GameUpdateSet;
+use shared::sets::{GameOnEnterSet, GameUpdateSet};
 
-use crate::ui::hud::debug::targeted_block::block_text_update_system;
+use crate::{ui::hud::debug::targeted_block::block_text_update_system, GameState};
 
 #[derive(Resource, Default)]
 pub struct DebugOptions {
@@ -45,21 +45,27 @@ impl DebugOptions {
 pub struct DebugHudPlugin;
 impl Plugin for DebugHudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (
-                fps_text_update_system,
-                coords_text_update_system,
-                biome_text_update_system,
-                total_blocks_text_update_system,
-                block_text_update_system,
-                time_text_update_system,
-                toggle_hud_system,
-                chunk_ghost_update_system,
-                raycast_debug_update_system,
-                toggle_wireframe_system,
+        app.init_resource::<DebugOptions>()
+            .init_resource::<BlockDebugWireframeSettings>()
+            .add_systems(
+                OnEnter(GameState::Game),
+                (setup_chunk_ghost).in_set(GameOnEnterSet::Ui),
             )
-                .in_set(GameUpdateSet::Ui),
-        );
+            .add_systems(
+                Update,
+                (
+                    fps_text_update_system,
+                    coords_text_update_system,
+                    biome_text_update_system,
+                    total_blocks_text_update_system,
+                    block_text_update_system,
+                    time_text_update_system,
+                    toggle_hud_system,
+                    chunk_ghost_update_system,
+                    raycast_debug_update_system,
+                    toggle_wireframe_system,
+                )
+                    .in_set(GameUpdateSet::Ui),
+            );
     }
 }

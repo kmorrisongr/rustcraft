@@ -21,12 +21,10 @@ use time::time_update_system;
 use crate::world::time::ClientTime;
 use crate::world::ClientWorldMap;
 
-use crate::ui::hud::debug::BlockDebugWireframeSettings;
 use bevy::color::palettes::basic::WHITE;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 
-use crate::ui::hud::debug::*;
 use crate::world::celestial::*;
 use crate::world::*;
 
@@ -130,7 +128,6 @@ pub fn game_plugin(app: &mut App) {
             empty_handles_warning_emitted: false,
         })
         .insert_resource(PreloadGate::default())
-        .insert_resource(BlockDebugWireframeSettings { is_enabled: false })
         .insert_resource(WireframeConfig {
             // The global wireframe config enables drawing of wireframes on every mesh,
             // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
@@ -142,7 +139,6 @@ pub fn game_plugin(app: &mut App) {
         })
         .insert_resource(UIMode::Closed)
         .insert_resource(ViewMode::FirstPerson)
-        .insert_resource(DebugOptions::default())
         .insert_resource(Inventory::new())
         .init_resource::<ParticleAssets>()
         .init_resource::<FoxFeetTargets>()
@@ -177,7 +173,6 @@ pub fn game_plugin(app: &mut App) {
             )
                 .run_if(in_state(GameState::PreGameLoading)),
         )
-        .add_systems(OnEnter(GameState::Game), setup_chunk_ghost)
         .add_systems(
             Update,
             (
