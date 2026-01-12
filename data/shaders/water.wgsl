@@ -171,7 +171,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     // Get wave scale from vertex color red channel (0.0 = flat/ripples, 1.0 = full waves)
     // This is calculated per-cell based on local water volume
 #ifdef VERTEX_COLORS
-    let wave_scale = vertex.color.r;
+    let wave_scale = clamp(vertex.color.r, 0.0, 1.0);
 #else
     let wave_scale = 1.0;
 #endif
@@ -239,7 +239,7 @@ fn fragment(
     
     // Get wave scale from vertex color red channel (interpolated across triangle)
 #ifdef VERTEX_COLORS
-    let wave_scale = in.color.r;
+    let wave_scale = clamp(in.color.r, 0.0, 1.0);
 #else
     let wave_scale = 1.0;
 #endif
