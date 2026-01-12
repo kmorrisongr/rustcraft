@@ -173,10 +173,6 @@ pub fn game_plugin(app: &mut App) {
             )
                 .run_if(in_state(GameState::PreGameLoading)),
         )
-        .add_systems(
-            OnEnter(GameState::Game),
-            (setup_hotbar, setup_inventory).chain(),
-        )
         .add_systems(OnEnter(GameState::Game), setup_chunk_ghost)
         .add_systems(
             Update,
@@ -191,16 +187,6 @@ pub fn game_plugin(app: &mut App) {
                     camera_control_system,
                 )
                     .chain(),
-                fps_text_update_system,
-                coords_text_update_system,
-                biome_text_update_system,
-                total_blocks_text_update_system,
-                block_text_update_system,
-                time_text_update_system,
-                toggle_hud_system,
-                chunk_ghost_update_system,
-                raycast_debug_update_system,
-                toggle_wireframe_system,
                 handle_mouse_system,
                 update_celestial_bodies,
             )
