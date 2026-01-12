@@ -29,12 +29,31 @@ use shared::world::{
 };
 
 /// Maximum vertical distance to search when forcing water overflow upward.
-/// Limits computational cost when water is trapped in deep columns.
+///
+/// Set to 10 blocks to balance computational cost against typical gameplay scenarios:
+/// - Most player structures are 3-8 blocks tall (single-story houses, simple towers)
+/// - 10 blocks allows water to escape from most player-created structures
+/// - Prevents excessive CPU usage when water is trapped in very deep columns
+///
+/// This limit applies when queuing follow-up simulation steps after forced overflow.
+/// Consider increasing this value if players frequently build structures taller than 10 blocks.
 const MAX_UPWARD_FLOW_SEARCH: i32 = 10;
 
 /// Maximum vertical distance for forced water displacement under pressure.
-/// Allows water to find more escape routes when displaced by block placement.
-/// Higher than MAX_UPWARD_FLOW_SEARCH to handle tall columns.
+///
+/// Set to 16 blocks (one chunk height) to handle exceptional cases:
+/// - Matches CHUNK_SIZE, simplifying chunk boundary logic
+/// - Handles tall player structures like towers or multi-story buildings
+/// - Provides escape routes for water displaced by blocks placed deep underwater
+///
+/// Higher than MAX_UPWARD_FLOW_SEARCH because the actual displacement logic is more
+/// expensive than follow-up queue operations, so we limit it less aggressively.
+/// The value of 16 represents a reasonable maximum structure height before water physics
+/// should realistically "give up" and overflow.
+///
+/// Consider adjusting if:
+/// - Players routinely build structures taller than 16 blocks near water
+/// - Performance profiling shows this causes lag in specific scenarios
 const MAX_FORCED_OVERFLOW_HEIGHT: i32 = 16;
 
 use super::water_flow::LateralFlowQueue;
