@@ -115,7 +115,10 @@ impl ChunkWaterSleepState {
 
     /// Updates sleep state based on recent activity.
     /// Call this once per tick after simulation.
-    pub fn update(&mut self) {
+    ///
+    /// # Arguments
+    /// * `chunk_pos` - Optional chunk position for debug logging. If None, position is omitted from logs.
+    pub fn update(&mut self, chunk_pos: Option<IVec3>) {
         match self.state {
             WaterSleepState::Awake => {
                 // Check if chunk is stable this tick
@@ -126,7 +129,8 @@ impl ChunkWaterSleepState {
                     self.stable_ticks += 1;
                     if self.stable_ticks >= MIN_STABLE_TICKS_TO_SLEEP {
                         self.state = WaterSleepState::Asleep;
-                        log::debug!("Water sleeping after {} stable ticks", self.stable_ticks);
+                        let pos_str = chunk_pos.map_or_else(String::new, |pos| format!(" at chunk {:?}", pos));
+                        log::debug!("Water sleeping{} after {} stable ticks", pos_str, self.stable_ticks);
                     }
                 } else {
                     // Reset stability counter on activity
@@ -298,7 +302,7 @@ impl WaterSleepManager {
 
         for (chunk_pos, state) in &mut self.chunk_states {
             let was_asleep = state.is_asleep();
-            state.update();
+            state.update(Some(*chunk_pos));
             let is_asleep = state.is_asleep();
 
             // Track state transitions
@@ -439,7 +443,7 @@ mod tests {
         // Record no activity for enough ticks to sleep
         for _ in 0..MIN_STABLE_TICKS_TO_SLEEP {
             state.record_activity(0.0, 0);
-            state.update();
+            state.update(None);
         }
 
         assert_eq!(state.state, WaterSleepState::Asleep);
@@ -452,7 +456,7 @@ mod tests {
         // Record activity (volume changes)
         for _ in 0..MIN_STABLE_TICKS_TO_SLEEP {
             state.record_activity(0.5, 5);
-            state.update();
+            state.update(None);
         }
 
         // Should still be awake due to activity
@@ -466,7 +470,7 @@ mod tests {
         // Sleep the chunk
         for _ in 0..MIN_STABLE_TICKS_TO_SLEEP {
             state.record_activity(0.0, 0);
-            state.update();
+            state.update(None);
         }
         assert!(state.is_asleep());
 
@@ -487,7 +491,7 @@ mod tests {
         // Should stay waking until cooldown expires
         for _ in 0..MIN_AWAKE_TICKS_AFTER_WAKE {
             assert_eq!(state.state, WaterSleepState::Waking);
-            state.update();
+            state.update(None);
         }
 
         // After cooldown, should be awake
