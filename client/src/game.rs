@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::entities::stack::stack_update_system;
 use crate::mob::*;
-use crate::network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime};
 use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::hud::chat::{render_chat, setup_chat};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
@@ -12,7 +11,7 @@ use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerSpawnEvent, PlayerUpdateEvent};
 use shared::physics::RustcraftPhysicsPlugin;
 use shared::players::{Inventory, ViewMode};
-use shared::sets::GameSet;
+use shared::sets::GameUpdateSet;
 use shared::TICKS_PER_SECOND;
 use time::time_update_system;
 
@@ -47,8 +46,7 @@ use shared::world::{BlockId, ItemId, WorldSeed};
 
 use crate::network::{
     establish_authenticated_connection_to_server, init_server_connection,
-    launch_local_server_system, network_failure_handler, poll_network_messages,
-    terminate_server_connection, upload_player_inputs_system, CurrentPlayerProfile, TargetServer,
+    launch_local_server_system, terminate_server_connection, NetworkPlugin, TargetServer,
     TargetServerState, UnacknowledgedInputs,
 };
 
@@ -76,13 +74,13 @@ pub fn game_plugin(app: &mut App) {
     app.configure_sets(
         Update,
         (
-            GameSet::PlayerInput,
-            GameSet::PlayerPhysics.after(GameSet::PlayerInput),
-            GameSet::WorldInput.after(GameSet::PlayerPhysics),
-            GameSet::WorldPhysics.after(GameSet::WorldInput),
-            GameSet::Networking.after(GameSet::WorldPhysics),
-            GameSet::Rendering.after(GameSet::Networking),
-            GameSet::Ui.after(GameSet::Rendering),
+            GameUpdateSet::PlayerInput,
+            GameUpdateSet::PlayerPhysics.after(GameUpdateSet::PlayerInput),
+            GameUpdateSet::WorldInput.after(GameUpdateSet::PlayerPhysics),
+            GameUpdateSet::WorldPhysics.after(GameUpdateSet::WorldInput),
+            GameUpdateSet::Networking.after(GameUpdateSet::WorldPhysics),
+            GameUpdateSet::Rendering.after(GameUpdateSet::Networking),
+            GameUpdateSet::Ui.after(GameUpdateSet::Rendering),
         )
             .run_if(in_state(GameState::Game)),
     );
@@ -92,6 +90,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
         .add_plugins(RustcraftPhysicsPlugin)
+        .add_plugins(NetworkPlugin)
         .insert_resource(WaterSettings {
             height: 0.0,       // Sea level for voxel world
             amplitude: 0.2,    // Gentle waves for block-based water
@@ -134,15 +133,10 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(DebugOptions::default())
         .insert_resource(Inventory::new())
-        .init_resource::<CurrentPlayerProfile>()
         .init_resource::<ParticleAssets>()
         .init_resource::<FoxFeetTargets>()
         .init_resource::<Animations>()
         .init_resource::<TargetedMob>()
-        .init_resource::<PlayerTickInputsBuffer>()
-        .init_resource::<CurrentFrameInputs>()
-        .init_resource::<SyncTime>()
-        .init_resource::<UnacknowledgedInputs>()
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .add_event::<PreloadSignal>()
         .add_event::<WorldRenderRequestUpdateEvent>()
@@ -256,7 +250,6 @@ pub fn game_plugin(app: &mut App) {
         .add_systems(
             Update,
             (
-                network_failure_handler,
                 spawn_players_system,
                 update_players_system,
                 spawn_mobs_system,
@@ -267,14 +260,6 @@ pub fn game_plugin(app: &mut App) {
         .add_systems(
             PreUpdate,
             pre_input_update_system.run_if(in_state(GameState::Game)),
-        )
-        .add_systems(
-            FixedPreUpdate,
-            poll_network_messages.run_if(in_state(GameState::Game)),
-        )
-        .add_systems(
-            FixedUpdate,
-            (upload_player_inputs_system).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             FixedPostUpdate,
