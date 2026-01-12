@@ -36,7 +36,7 @@ use crate::camera::*;
 use crate::input::*;
 use crate::player::*;
 use crate::ui::hud::inventory::*;
-use shared::world::{BlockId, ItemId, WorldSeed};
+use shared::world::WorldSeed;
 
 use crate::network::{
     establish_authenticated_connection_to_server, init_server_connection,
@@ -116,7 +116,6 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(WaterPlugin)
         .insert_resource(WorldSeed(0))
         .insert_resource(ClientTime(0))
-        .insert_resource(FirstChunkReceived(false))
         .insert_resource(AmbientLight {
             color: Color::WHITE,
             brightness: 400.0,
@@ -137,11 +136,6 @@ pub fn game_plugin(app: &mut App) {
             // Can be changed per mesh using the `WireframeColor` component.
             default_color: WHITE.into(),
         })
-        .insert_resource(MaterialResource { ..default() })
-        .insert_resource(AtlasHandles::<BlockId>::default())
-        .insert_resource(AtlasHandles::<ItemId>::default())
-        .insert_resource(RenderDistance { ..default() })
-        .init_resource::<LodTransitionTimer>()
         .insert_resource(UIMode::Closed)
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(DebugOptions::default())
@@ -152,7 +146,6 @@ pub fn game_plugin(app: &mut App) {
         .init_resource::<TargetedMob>()
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .add_event::<PreloadSignal>()
-        .add_event::<WorldRenderRequestUpdateEvent>()
         .add_event::<PlayerSpawnEvent>()
         .add_event::<PlayerUpdateEvent>()
         .add_event::<MobUpdateEvent>()

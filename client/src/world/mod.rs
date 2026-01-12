@@ -17,11 +17,13 @@ pub struct FirstChunkReceived(pub bool);
 pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(GameState::Game),
-            (spawn_camera, setup_main_lighting)
-                .chain()
-                .in_set(GameOnEnterSet::Initialize),
-        );
+        app.insert_resource(FirstChunkReceived(false))
+            .add_systems(
+                OnEnter(GameState::Game),
+                (spawn_camera, setup_main_lighting)
+                    .chain()
+                    .in_set(GameOnEnterSet::Initialize),
+            )
+            .add_event::<WorldRenderRequestUpdateEvent>();
     }
 }
