@@ -1,5 +1,5 @@
 use crate::constants::{BASE_ROUGHNESS, BASE_SPECULAR_HIGHLIGHT};
-use crate::game::TextureLoadingState;
+use crate::game::{PreLoadingCompletion, PreloadSignal};
 use crate::world::GlobalMaterial;
 use crate::TexturePath;
 use bevy::asset::LoadState;
@@ -144,11 +144,14 @@ pub fn create_all_atlases(
     mut atlases: (ResMut<AtlasHandles<BlockId>>, ResMut<AtlasHandles<ItemId>>),
     mut images: ResMut<Assets<Image>>,
     mut material_resource: ResMut<MaterialResource>,
-    mut loading: ResMut<TextureLoadingState>,
+    mut loading: ResMut<PreLoadingCompletion>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut preload_signals: EventWriter<PreloadSignal>,
 ) {
-    if loading.loaded {
+    let was_ready = loading.textures_loaded;
+
+    if loading.textures_loaded {
         return;
     }
 
@@ -239,7 +242,12 @@ pub fn create_all_atlases(
         warn!("Texture loading failed; check asset paths and filenames");
     }
 
-    loading.loaded = !any_failed && all_loaded && textures_ready;
+    let new_ready = !any_failed && all_loaded && textures_ready;
+    if new_ready && !was_ready {
+        preload_signals.write(PreloadSignal::TexturesReady);
+    }
+
+    loading.textures_loaded = new_ready;
 }
 
 fn build_texture_atlas<T: GameElementId>(
