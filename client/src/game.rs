@@ -2,7 +2,7 @@ use crate::entities::stack::stack_update_system;
 use crate::mob::MobPlugin;
 use crate::player::PlayerPlugin;
 use crate::shaders::{WaterPlugin, WaterSettings};
-use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
+use crate::ui::menus::setup_server_connect_loading_screen;
 use crate::ui::PlayerUiPlugin;
 use crate::world::{RenderingPlugin, WorldPlugin};
 use bevy::prelude::*;
@@ -89,15 +89,11 @@ pub fn game_plugin(app: &mut App) {
         .add_event::<ItemStackUpdateEvent>()
         .add_systems(
             OnEnter(GameState::PreGameLoading),
-            (reset_preload_tracking, setup_server_connect_loading_screen).chain(),
+            (reset_preload_tracking,).in_set(PreGameLoadingSets::OnEnter::Initialize),
         )
         .add_systems(
             Update,
-            (
-                emit_server_ready_signal,
-                advance_to_game_on_preload,
-                update_server_connect_loading_screen,
-            )
+            (emit_server_ready_signal, advance_to_game_on_preload)
                 .run_if(in_state(GameState::PreGameLoading)),
         )
         .add_systems(

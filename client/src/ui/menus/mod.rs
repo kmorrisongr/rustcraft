@@ -66,6 +66,10 @@ impl Plugin for MenusPlugin {
             .add_systems(
                 OnEnter(GameState::PreGameLoading),
                 (setup_server_connect_loading_screen,).in_set(PreGameLoadingSets::OnEnter::Ui),
+            )
+            .add_systems(
+                Update,
+                (update_server_connect_loading_screen,).in_set(PreGameLoadingSets::Update::Ui),
             );
     }
 }
