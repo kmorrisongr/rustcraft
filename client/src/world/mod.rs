@@ -9,10 +9,7 @@ pub use data::*;
 pub use rendering::*;
 
 use bevy::prelude::*;
-use shared::{
-    sets::{GameOnEnterSet, GameOnExitSet, GameUpdateSet},
-    world::WorldSeed,
-};
+use shared::{sets::GameSet, world::WorldSeed};
 
 use crate::{
     camera::spawn_camera,
@@ -37,15 +34,15 @@ impl Plugin for WorldPlugin {
                 OnEnter(GameState::Game),
                 (spawn_camera, setup_main_lighting)
                     .chain()
-                    .in_set(GameOnEnterSet::Initialize),
+                    .in_set(GameSet::Initialize),
             )
             .add_systems(
                 Update,
-                (update_celestial_bodies,).in_set(GameUpdateSet::WorldInput),
+                (update_celestial_bodies,).in_set(GameSet::WorldInput),
             )
             .add_systems(
                 OnExit(GameState::Game),
-                (clear_resources).in_set(GameOnExitSet::World),
+                (clear_resources).in_set(GameSet::Cleanup),
             )
             .add_event::<WorldRenderRequestUpdateEvent>();
     }

@@ -1,66 +1,28 @@
 use bevy::prelude::*;
 
+/// A unified system set for organizing game systems by their logical purpose.
+/// This same enum is used across all schedules (Update, FixedUpdate, OnEnter, etc.)
+/// with ordering configured per-schedule where needed.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GameOnEnterSet {
+pub enum GameSet {
+    /// System initialization, spawning core entities
     Initialize,
-    Ui,
-    Rest,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GamePreUpdateSet {
-    PlayerInput,
-    Rest,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GameUpdateSet {
-    PlayerInput,
-    PlayerPhysics,
-    WorldInput,
-    WorldPhysics,
-    Networking,
-    Rendering,
-    Ui,
-    Rest,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GameFixedPreUpdateSet {
-    Networking,
-    Rest,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GameFixedUpdateSet {
-    Networking,
-    Rest,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GamePostUpdateSet {
-    Rendering,
-    Rest,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GameOnExitSet {
-    World,
-    Networking,
-    Rest,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum PreGameLoadingUpdateSet {
-    Initialize,
-    Networking,
-    Rest,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum PreGameLoadingOnEnterSet {
-    Initialize,
-    Networking,
+    /// Loading resources (textures, materials, etc.)
     Resources,
+    /// Processing player input
+    PlayerInput,
+    /// Player physics and movement
+    PlayerPhysics,
+    /// World/entity input processing
+    WorldInput,
+    /// World physics simulation
+    WorldPhysics,
+    /// Network message sending/receiving
+    Networking,
+    /// Rendering and mesh updates
+    Rendering,
+    /// UI updates and rendering
     Ui,
+    /// Cleanup and teardown
+    Cleanup,
 }

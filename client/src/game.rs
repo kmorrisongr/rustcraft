@@ -12,10 +12,7 @@ use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerSpawnEvent, PlayerUpdateEvent};
 use shared::physics::RustcraftPhysicsPlugin;
 use shared::players::{Inventory, ViewMode};
-use shared::sets::{
-    GameFixedPreUpdateSet, GameFixedUpdateSet, GameOnEnterSet, GameOnExitSet, GamePostUpdateSet,
-    GamePreUpdateSet, GameUpdateSet, PreGameLoadingOnEnterSet, PreGameLoadingUpdateSet,
-};
+use shared::sets::GameSet;
 use shared::TICKS_PER_SECOND;
 
 use bevy::color::palettes::basic::WHITE;
@@ -47,84 +44,63 @@ pub enum PreloadSignal {
 }
 
 pub fn game_plugin(app: &mut App) {
+    // Configure system set ordering for PreGameLoading state
     app.configure_sets(
         OnEnter(GameState::PreGameLoading),
         (
-            PreGameLoadingOnEnterSet::Initialize,
-            PreGameLoadingOnEnterSet::Networking.after(PreGameLoadingOnEnterSet::Initialize),
-            PreGameLoadingOnEnterSet::Resources.after(PreGameLoadingOnEnterSet::Networking),
-            PreGameLoadingOnEnterSet::Ui.after(PreGameLoadingOnEnterSet::Resources),
+            GameSet::Initialize,
+            GameSet::Networking.after(GameSet::Initialize),
+            GameSet::Resources.after(GameSet::Networking),
+            GameSet::Ui.after(GameSet::Resources),
         ),
     )
     .configure_sets(
         Update,
         (
-            PreGameLoadingUpdateSet::Initialize,
-            PreGameLoadingUpdateSet::Networking,
-            PreGameLoadingUpdateSet::Rest.after(PreGameLoadingUpdateSet::Networking),
+            GameSet::Initialize,
+            GameSet::Networking.after(GameSet::Initialize),
         )
             .run_if(in_state(GameState::PreGameLoading)),
     )
+    // Configure system set ordering for Game state
     .configure_sets(
         OnEnter(GameState::Game),
-        (
-            GameOnEnterSet::Initialize,
-            GameOnEnterSet::Ui.after(GameOnEnterSet::Initialize),
-            GameOnEnterSet::Rest.after(GameOnEnterSet::Ui),
-        ),
+        (GameSet::Initialize, GameSet::Ui.after(GameSet::Initialize)),
     )
     .configure_sets(
         PreUpdate,
-        (
-            GamePreUpdateSet::PlayerInput,
-            GamePreUpdateSet::Rest.after(GamePreUpdateSet::PlayerInput),
-        )
-            .run_if(in_state(GameState::Game)),
+        (GameSet::PlayerInput,).run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         Update,
         (
-            GameUpdateSet::PlayerInput,
-            GameUpdateSet::PlayerPhysics.after(GameUpdateSet::PlayerInput),
-            GameUpdateSet::WorldInput.after(GameUpdateSet::PlayerPhysics),
-            GameUpdateSet::WorldPhysics.after(GameUpdateSet::WorldInput),
-            GameUpdateSet::Networking.after(GameUpdateSet::WorldPhysics),
-            GameUpdateSet::Rendering.after(GameUpdateSet::Networking),
-            GameUpdateSet::Ui.after(GameUpdateSet::Rendering),
-            GameUpdateSet::Rest.after(GameUpdateSet::Ui),
+            GameSet::PlayerInput,
+            GameSet::PlayerPhysics.after(GameSet::PlayerInput),
+            GameSet::WorldInput.after(GameSet::PlayerPhysics),
+            GameSet::WorldPhysics.after(GameSet::WorldInput),
+            GameSet::Networking.after(GameSet::WorldPhysics),
+            GameSet::Rendering.after(GameSet::Networking),
+            GameSet::Ui.after(GameSet::Rendering),
         )
             .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         FixedPreUpdate,
-        (
-            GameFixedPreUpdateSet::Networking,
-            GameFixedPreUpdateSet::Rest.after(GameFixedPreUpdateSet::Networking),
-        )
-            .run_if(in_state(GameState::Game)),
+        (GameSet::Networking,).run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         FixedUpdate,
-        (
-            GameFixedUpdateSet::Networking,
-            GameFixedUpdateSet::Rest.after(GameFixedUpdateSet::Networking),
-        )
-            .run_if(in_state(GameState::Game)),
+        (GameSet::Networking,).run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         PostUpdate,
-        (
-            GamePostUpdateSet::Rendering,
-            GamePostUpdateSet::Rest.after(GamePostUpdateSet::Rendering),
-        )
-            .run_if(in_state(GameState::Game)),
+        (GameSet::Rendering,).run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         OnExit(GameState::Game),
         (
-            GameOnExitSet::World,
-            GameOnExitSet::Networking.after(GameOnExitSet::World),
-            GameOnExitSet::Rest.after(GameOnExitSet::Networking),
+            GameSet::Cleanup,
+            GameSet::Networking.after(GameSet::Cleanup),
         ),
     );
 
