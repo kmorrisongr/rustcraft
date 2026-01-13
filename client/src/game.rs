@@ -48,81 +48,84 @@ pub fn game_plugin(app: &mut App) {
         OnEnter(GameState::PreGameLoading),
         (
             PreGameLoadingSets::OnEnter::Initialize,
-            PreGameLoadingSets::OnEnter::Networking.after(PreGameLoadingSets::OnEnter::Initialize),
-            PreGameLoadingSets::OnEnter::Resources.after(PreGameLoadingSets::OnEnter::Networking),
-            PreGameLoadingSets::OnEnter::Ui.after(PreGameLoadingSets::OnEnter::Resources),
-        ),
+            PreGameLoadingSets::OnEnter::Networking,
+            PreGameLoadingSets::OnEnter::Resources,
+            PreGameLoadingSets::OnEnter::Ui,
+        )
+            .chain(),
     )
     .configure_sets(
         Update,
         (
             PreGameLoadingSets::Update::Initialize,
             PreGameLoadingSets::Update::Networking,
-            PreGameLoadingSets::Update::Rest.after(PreGameLoadingSets::Update::Networking),
+            PreGameLoadingSets::Update::Rest,
         )
+            .chain()
             .run_if(in_state(GameState::PreGameLoading)),
     )
     .configure_sets(
         OnEnter(GameState::Game),
         (
             GameSets::OnEnter::Initialize,
-            GameSets::OnEnter::Ui.after(GameSets::OnEnter::Initialize),
-            GameSets::OnEnter::Rest.after(GameSets::OnEnter::Ui),
-        ),
+            GameSets::OnEnter::Ui,
+            GameSets::OnEnter::Rest,
+        )
+            .chain(),
     )
     .configure_sets(
         PreUpdate,
-        (
-            GameSets::PreUpdate::PlayerInput,
-            GameSets::PreUpdate::Rest.after(GameSets::PreUpdate::PlayerInput),
-        )
+        (GameSets::PreUpdate::PlayerInput, GameSets::PreUpdate::Rest)
+            .chain()
             .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         Update,
         (
             GameSets::Update::PlayerInput,
-            GameSets::Update::PlayerPhysics.after(GameSets::Update::PlayerInput),
-            GameSets::Update::WorldInput.after(GameSets::Update::PlayerPhysics),
-            GameSets::Update::WorldPhysics.after(GameSets::Update::WorldInput),
-            GameSets::Update::Networking.after(GameSets::Update::WorldPhysics),
-            GameSets::Update::Rendering.after(GameSets::Update::Networking),
-            GameSets::Update::Ui.after(GameSets::Update::Rendering),
-            GameSets::Update::Rest.after(GameSets::Update::Ui),
+            GameSets::Update::PlayerPhysics,
+            GameSets::Update::WorldInput,
+            GameSets::Update::WorldPhysics,
+            GameSets::Update::Networking,
+            GameSets::Update::Rendering,
+            GameSets::Update::Ui,
+            GameSets::Update::Rest,
         )
+            .chain()
             .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         FixedPreUpdate,
         (
             GameSets::FixedPreUpdate::Networking,
-            GameSets::FixedPreUpdate::Rest.after(GameSets::FixedPreUpdate::Networking),
+            GameSets::FixedPreUpdate::Rest,
         )
+            .chain()
             .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         FixedUpdate,
         (
             GameSets::FixedUpdate::Networking,
-            GameSets::FixedUpdate::Rest.after(GameSets::FixedUpdate::Networking),
+            GameSets::FixedUpdate::Rest,
         )
+            .chain()
             .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         PostUpdate,
-        (
-            GameSets::PostUpdate::Rendering,
-            GameSets::PostUpdate::Rest.after(GameSets::PostUpdate::Rendering),
-        )
+        (GameSets::PostUpdate::Rendering, GameSets::PostUpdate::Rest)
+            .chain()
             .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         OnExit(GameState::Game),
         (
             GameSets::OnExit::World,
-            GameSets::OnExit::Networking.after(GameSets::OnExit::World),
-            GameSets::OnExit::Rest.after(GameSets::OnExit::Networking),
-        ),
+            GameSets::OnExit::Networking,
+            GameSets::OnExit::Rest,
+        )
+            .chain(),
     );
 
     app.add_plugins(PlayerUiPlugin)
