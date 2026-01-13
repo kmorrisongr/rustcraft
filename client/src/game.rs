@@ -4,7 +4,6 @@ use crate::player::{spawn_players_system, PlayerPlugin};
 use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use crate::ui::PlayerUiPlugin;
-use crate::world::time::time_update_system;
 use crate::world::{RenderingPlugin, WorldPlugin};
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
@@ -105,10 +104,6 @@ pub fn game_plugin(app: &mut App) {
         .add_systems(
             Update,
             (stack_update_system,).run_if(in_state(GameState::Game)),
-        )
-        .add_systems(
-            FixedPostUpdate,
-            time_update_system.run_if(in_state(GameState::Game)),
         );
 }
 

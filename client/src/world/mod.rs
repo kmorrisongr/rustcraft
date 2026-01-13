@@ -15,7 +15,7 @@ use crate::{
     camera::spawn_camera,
     world::{
         celestial::{setup_main_lighting, update_celestial_bodies},
-        time::ClientTime,
+        time::{time_update_system, ClientTime},
     },
     GameState,
 };
@@ -39,6 +39,10 @@ impl Plugin for WorldPlugin {
             .add_systems(
                 Update,
                 (update_celestial_bodies,).in_set(GameSets::Update::WorldInput),
+            )
+            .add_systems(
+                FixedPostUpdate,
+                time_update_system.in_set(GameSets::FixedPostUpdate::WorldTime),
             )
             .add_systems(
                 OnExit(GameState::Game),

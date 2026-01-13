@@ -63,6 +63,12 @@ pub mod GameSets {
     }
 
     #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash, LinearSystemSet)]
+    pub enum FixedPostUpdate {
+        WorldTime,
+        Rest,
+    }
+
+    #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash, LinearSystemSet)]
     pub enum PostUpdate {
         Rendering,
         Rest,
