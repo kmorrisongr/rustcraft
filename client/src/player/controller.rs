@@ -1,8 +1,10 @@
+use crate::camera::camera_control_system;
 use crate::input::data::GameAction;
-use crate::input::keyboard::*;
+use crate::input::{handle_mouse_system, keyboard::*};
 use crate::network::buffered_client::{
     CurrentFrameInputs, CurrentFrameInputsExt, PlayerTickInputsBuffer, SyncTime, SyncTimeExt,
 };
+use crate::player::{player_labels_system, spawn_players_system, update_players_system};
 use crate::ui::hud::debug::DebugOptions;
 use crate::ui::hud::hotbar::Hotbar;
 use crate::ui::hud::UIMode;
@@ -12,6 +14,7 @@ use bevy::prelude::*;
 use shared::messages::NetworkAction;
 use shared::physics::simulate_player_movement_rapier;
 use shared::players::{Player, ViewMode};
+use shared::sets::{GamePreUpdateSet, GameUpdateSet};
 
 use super::CurrentPlayerMarker;
 
@@ -191,5 +194,34 @@ pub fn chunk_force_reload_system(
             // Request a render for this chunk
             ev_writer.write(WorldRenderRequestUpdateEvent::ChunkToReload(*pos));
         }
+    }
+}
+
+pub struct PlayerControllerPlugin;
+impl Plugin for PlayerControllerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            PreUpdate,
+            (pre_input_update_system).in_set(GamePreUpdateSet::PlayerInput),
+        )
+        .add_systems(
+            Update,
+            (
+                first_and_third_person_view_system,
+                toggle_debug_system,
+                chunk_force_reload_system,
+                (
+                    spawn_players_system,
+                    update_players_system,
+                    player_labels_system,
+                    update_frame_inputs_system,
+                    player_movement_system,
+                    camera_control_system,
+                )
+                    .chain(),
+                handle_mouse_system,
+            )
+                .in_set(GameUpdateSet::PlayerInput),
+        );
     }
 }

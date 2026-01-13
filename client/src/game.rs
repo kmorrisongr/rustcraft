@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::entities::stack::stack_update_system;
 use crate::mob::*;
+use crate::player::{spawn_players_system, PlayerPlugin};
 use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use crate::ui::PlayerUiPlugin;
@@ -13,7 +14,7 @@ use shared::physics::RustcraftPhysicsPlugin;
 use shared::players::{Inventory, ViewMode};
 use shared::sets::{
     GameFixedPreUpdateSet, GameFixedUpdateSet, GameOnEnterSet, GameOnExitSet, GamePostUpdateSet,
-    GameUpdateSet,
+    GamePreUpdateSet, GameUpdateSet,
 };
 use shared::TICKS_PER_SECOND;
 use time::time_update_system;
@@ -30,7 +31,6 @@ use crate::world::*;
 
 use crate::camera::*;
 use crate::input::*;
-use crate::player::*;
 use crate::ui::hud::inventory::*;
 use shared::world::WorldSeed;
 
@@ -65,7 +65,16 @@ pub fn game_plugin(app: &mut App) {
         (
             GameOnEnterSet::Initialize,
             GameOnEnterSet::Ui.after(GameOnEnterSet::Initialize),
+            GameOnEnterSet::Rest.after(GameOnEnterSet::Ui),
         ),
+    )
+    .configure_sets(
+        PreUpdate,
+        (
+            GamePreUpdateSet::PlayerInput,
+            GamePreUpdateSet::Rest.after(GamePreUpdateSet::PlayerInput),
+        )
+            .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         Update,
@@ -77,26 +86,40 @@ pub fn game_plugin(app: &mut App) {
             GameUpdateSet::Networking.after(GameUpdateSet::WorldPhysics),
             GameUpdateSet::Rendering.after(GameUpdateSet::Networking),
             GameUpdateSet::Ui.after(GameUpdateSet::Rendering),
+            GameUpdateSet::Rest.after(GameUpdateSet::Ui),
         )
             .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         FixedPreUpdate,
-        (GameFixedPreUpdateSet::Networking).run_if(in_state(GameState::Game)),
+        (
+            GameFixedPreUpdateSet::Networking,
+            GameFixedPreUpdateSet::Rest.after(GameFixedPreUpdateSet::Networking),
+        )
+            .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         FixedUpdate,
-        (GameFixedUpdateSet::Networking).run_if(in_state(GameState::Game)),
+        (
+            GameFixedUpdateSet::Networking,
+            GameFixedUpdateSet::Rest.after(GameFixedUpdateSet::Networking),
+        )
+            .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         PostUpdate,
-        (GamePostUpdateSet::Rendering).run_if(in_state(GameState::Game)),
+        (
+            GamePostUpdateSet::Rendering,
+            GamePostUpdateSet::Rest.after(GamePostUpdateSet::Rendering),
+        )
+            .run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         OnExit(GameState::Game),
         (
             GameOnExitSet::World,
             GameOnExitSet::Networking.after(GameOnExitSet::World),
+            GameOnExitSet::Rest.after(GameOnExitSet::Networking),
         ),
     );
 
@@ -109,6 +132,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(AtmospherePlugin)
         .add_plugins(RustcraftPhysicsPlugin)
         .add_plugins(NetworkPlugin)
+        .add_plugins(PlayerPlugin)
         .insert_resource(WaterSettings {
             height: 0.0,       // Sea level for voxel world
             amplitude: 0.2,    // Gentle waves for block-based water
@@ -175,21 +199,7 @@ pub fn game_plugin(app: &mut App) {
         )
         .add_systems(
             Update,
-            (
-                first_and_third_person_view_system,
-                toggle_debug_system,
-                chunk_force_reload_system,
-                (
-                    update_frame_inputs_system,
-                    handle_block_interactions,
-                    player_movement_system,
-                    camera_control_system,
-                )
-                    .chain(),
-                handle_mouse_system,
-                update_celestial_bodies,
-            )
-                .run_if(in_state(GameState::Game)),
+            (update_celestial_bodies,).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             Update,
@@ -204,17 +214,7 @@ pub fn game_plugin(app: &mut App) {
         .add_observer(observe_on_step)
         .add_systems(
             Update,
-            (
-                spawn_players_system,
-                update_players_system,
-                spawn_mobs_system,
-                player_labels_system,
-            )
-                .run_if(in_state(GameState::Game)),
-        )
-        .add_systems(
-            PreUpdate,
-            pre_input_update_system.run_if(in_state(GameState::Game)),
+            (spawn_mobs_system,).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             FixedPostUpdate,
