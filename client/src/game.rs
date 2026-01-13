@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::entities::stack::stack_update_system;
-use crate::mob::*;
+use crate::mob::MobPlugin;
 use crate::player::{spawn_players_system, PlayerPlugin};
 use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
@@ -29,8 +29,6 @@ use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use crate::world::celestial::*;
 use crate::world::*;
 
-use crate::camera::*;
-use crate::input::*;
 use crate::ui::hud::inventory::*;
 use shared::world::WorldSeed;
 
@@ -130,6 +128,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(WireframePlugin::default())
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
         .add_plugins(AtmospherePlugin)
+        .add_plugins(MobPlugin)
         .add_plugins(RustcraftPhysicsPlugin)
         .add_plugins(NetworkPlugin)
         .add_plugins(PlayerPlugin)
@@ -164,10 +163,6 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(UIMode::Closed)
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(Inventory::new())
-        .init_resource::<ParticleAssets>()
-        .init_resource::<FoxFeetTargets>()
-        .init_resource::<Animations>()
-        .init_resource::<TargetedMob>()
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .add_event::<PreloadSignal>()
         .add_event::<PlayerSpawnEvent>()
@@ -203,18 +198,7 @@ pub fn game_plugin(app: &mut App) {
         )
         .add_systems(
             Update,
-            (
-                setup_fox_once_loaded,
-                simulate_particles,
-                update_targetted_mob_color,
-                stack_update_system,
-            )
-                .run_if(in_state(GameState::Game)),
-        )
-        .add_observer(observe_on_step)
-        .add_systems(
-            Update,
-            (spawn_mobs_system,).run_if(in_state(GameState::Game)),
+            (stack_update_system,).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             FixedPostUpdate,
