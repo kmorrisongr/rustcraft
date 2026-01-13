@@ -165,6 +165,8 @@ fn reset_texture_loading_state(mut loading: ResMut<TextureLoadingState>) {
     *loading = TextureLoadingState::default();
 }
 
+/// Advances to Game state once textures are loaded and server connection is ready.
+/// Both conditions are polled directly - no event indirection needed.
 fn advance_to_game_when_ready(
     texture_state: Res<TextureLoadingState>,
     target_server: Res<TargetServer>,
