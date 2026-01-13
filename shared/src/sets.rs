@@ -49,3 +49,18 @@ pub enum GameOnExitSet {
     Networking,
     Rest,
 }
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PreGameLoadingUpdateSet {
+    Initialize,
+    Networking,
+    Rest,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PreGameLoadingOnEnterSet {
+    Initialize,
+    Networking,
+    Resources,
+    Ui,
+}

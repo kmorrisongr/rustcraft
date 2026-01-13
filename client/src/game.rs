@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-
 use crate::entities::stack::stack_update_system;
 use crate::mob::MobPlugin;
 use crate::player::{spawn_players_system, PlayerPlugin};
 use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use crate::ui::PlayerUiPlugin;
+use crate::world::time::time_update_system;
+use crate::world::{RenderingPlugin, WorldPlugin};
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
 use shared::messages::mob::MobUpdateEvent;
@@ -14,28 +14,17 @@ use shared::physics::RustcraftPhysicsPlugin;
 use shared::players::{Inventory, ViewMode};
 use shared::sets::{
     GameFixedPreUpdateSet, GameFixedUpdateSet, GameOnEnterSet, GameOnExitSet, GamePostUpdateSet,
-    GamePreUpdateSet, GameUpdateSet,
+    GamePreUpdateSet, GameUpdateSet, PreGameLoadingOnEnterSet, PreGameLoadingUpdateSet,
 };
 use shared::TICKS_PER_SECOND;
-use time::time_update_system;
-
-use crate::world::time::ClientTime;
-use crate::world::ClientWorldMap;
 
 use bevy::color::palettes::basic::WHITE;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 
-use crate::world::celestial::*;
-use crate::world::*;
-
 use crate::ui::hud::inventory::*;
-use shared::world::WorldSeed;
 
-use crate::network::{
-    establish_authenticated_connection_to_server, init_server_connection,
-    launch_local_server_system, NetworkPlugin, TargetServer, TargetServerState,
-};
+use crate::network::{NetworkPlugin, TargetServer, TargetServerState};
 
 use crate::GameState;
 
@@ -59,6 +48,24 @@ pub enum PreloadSignal {
 
 pub fn game_plugin(app: &mut App) {
     app.configure_sets(
+        OnEnter(GameState::PreGameLoading),
+        (
+            PreGameLoadingOnEnterSet::Initialize,
+            PreGameLoadingOnEnterSet::Networking.after(PreGameLoadingOnEnterSet::Initialize),
+            PreGameLoadingOnEnterSet::Resources.after(PreGameLoadingOnEnterSet::Networking),
+            PreGameLoadingOnEnterSet::Ui.after(PreGameLoadingOnEnterSet::Resources),
+        ),
+    )
+    .configure_sets(
+        Update,
+        (
+            PreGameLoadingUpdateSet::Initialize,
+            PreGameLoadingUpdateSet::Networking,
+            PreGameLoadingUpdateSet::Rest.after(PreGameLoadingUpdateSet::Networking),
+        )
+            .run_if(in_state(GameState::PreGameLoading)),
+    )
+    .configure_sets(
         OnEnter(GameState::Game),
         (
             GameOnEnterSet::Initialize,
@@ -139,8 +146,6 @@ pub fn game_plugin(app: &mut App) {
             ..default()
         })
         .add_plugins(WaterPlugin)
-        .insert_resource(WorldSeed(0))
-        .insert_resource(ClientTime(0))
         .insert_resource(AmbientLight {
             color: Color::WHITE,
             brightness: 400.0,
@@ -171,20 +176,11 @@ pub fn game_plugin(app: &mut App) {
         .add_event::<ItemStackUpdateEvent>()
         .add_systems(
             OnEnter(GameState::PreGameLoading),
-            (
-                reset_preload_tracking,
-                launch_local_server_system,
-                init_server_connection,
-                setup_materials,
-                setup_server_connect_loading_screen,
-            )
-                .chain(),
+            (reset_preload_tracking, setup_server_connect_loading_screen).chain(),
         )
         .add_systems(
             Update,
             (
-                establish_authenticated_connection_to_server,
-                create_all_atlases,
                 emit_server_ready_signal,
                 advance_to_game_on_preload,
                 spawn_players_system,
@@ -194,28 +190,12 @@ pub fn game_plugin(app: &mut App) {
         )
         .add_systems(
             Update,
-            (update_celestial_bodies,).run_if(in_state(GameState::Game)),
-        )
-        .add_systems(
-            Update,
             (stack_update_system,).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             FixedPostUpdate,
             time_update_system.run_if(in_state(GameState::Game)),
-        )
-        .add_systems(
-            OnExit(GameState::Game),
-            (clear_resources).in_set(GameOnExitSet::World),
         );
-}
-
-fn clear_resources(mut world_map: ResMut<ClientWorldMap>) {
-    world_map.map = HashMap::new();
-    world_map.total_blocks_count = 0;
-    world_map.total_chunks_count = 0;
-    world_map.name = "".into();
-    world_map.mark_dirty();
 }
 
 fn reset_preload_tracking(

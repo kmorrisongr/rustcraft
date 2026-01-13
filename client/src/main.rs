@@ -10,7 +10,7 @@ mod shaders;
 mod ui;
 mod world;
 
-use crate::{ui::menus::MenusPlugin, world::ClientWorldMap};
+use crate::ui::menus::MenusPlugin;
 use bevy::{
     prelude::*,
     render::{
@@ -170,8 +170,6 @@ fn main() {
     network::add_base_netcode(&mut app);
     app.insert_resource(get_bindings(&game_folder_paths))
         .insert_resource(SelectedWorld::default())
-        // Declare the game state, whose starting value is determined by the `Default` trait
-        .insert_resource(ClientWorldMap { ..default() })
         .insert_resource(TexturePath {
             path: texture_path.to_string(),
         })

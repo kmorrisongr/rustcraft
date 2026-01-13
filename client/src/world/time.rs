@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Resource, Serialize, Deserialize, Debug, Clone)]
+#[derive(Resource, Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ClientTime(pub u64);
 
 pub fn time_update_system(mut time: ResMut<ClientTime>) {

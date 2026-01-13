@@ -3,27 +3,58 @@ pub mod data;
 pub mod rendering;
 pub mod time;
 
+use std::collections::HashMap;
+
 pub use data::*;
 pub use rendering::*;
 
 use bevy::prelude::*;
-use shared::sets::GameOnEnterSet;
+use shared::{
+    sets::{GameOnEnterSet, GameOnExitSet, GameUpdateSet},
+    world::WorldSeed,
+};
 
-use crate::{camera::spawn_camera, world::celestial::setup_main_lighting, GameState};
+use crate::{
+    camera::spawn_camera,
+    world::{
+        celestial::{setup_main_lighting, update_celestial_bodies},
+        time::ClientTime,
+    },
+    GameState,
+};
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct FirstChunkReceived(pub bool);
 
 pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(FirstChunkReceived(false))
+        app.init_resource::<WorldSeed>()
+            .init_resource::<ClientTime>()
+            .init_resource::<FirstChunkReceived>()
+            .init_resource::<ClientWorldMap>()
             .add_systems(
                 OnEnter(GameState::Game),
                 (spawn_camera, setup_main_lighting)
                     .chain()
                     .in_set(GameOnEnterSet::Initialize),
             )
+            .add_systems(
+                Update,
+                (update_celestial_bodies,).in_set(GameUpdateSet::WorldInput),
+            )
+            .add_systems(
+                OnExit(GameState::Game),
+                (clear_resources).in_set(GameOnExitSet::World),
+            )
             .add_event::<WorldRenderRequestUpdateEvent>();
     }
+}
+
+fn clear_resources(mut world_map: ResMut<ClientWorldMap>) {
+    world_map.map = HashMap::new();
+    world_map.total_blocks_count = 0;
+    world_map.total_chunks_count = 0;
+    world_map.name = "".into();
+    world_map.mark_dirty();
 }
