@@ -6,6 +6,7 @@ use bevy_renet::renet::{ChannelConfig, ConnectionConfig, SendType};
 use bincode::Options;
 
 pub mod constants;
+pub mod game_state;
 pub mod messages;
 pub mod physics;
 pub mod players;

@@ -25,7 +25,7 @@ use constants::{TEXTURE_PATH_BASE, TEXTURE_PATH_CUSTOM};
 use input::{data::GameAction, keyboard::get_bindings};
 use menus::solo::SelectedWorld;
 use serde::{Deserialize, Serialize};
-use shared::{get_game_folder_paths, SpecialFlag};
+use shared::{game_state::GameState, get_game_folder_paths, SpecialFlag};
 use std::collections::BTreeMap;
 use ui::{
     hud::debug::inspector::inspector_ui,
@@ -60,16 +60,6 @@ struct Args {
 pub struct MenuCamera;
 
 pub const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
-
-// Enum that will be used as a global state for the game
-#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
-pub enum GameState {
-    Splash,
-    #[default]
-    Menu,
-    PreGameLoading,
-    Game,
-}
 
 #[derive(Event)]
 pub struct LoadWorldEvent {

@@ -26,7 +26,7 @@ use crate::ui::hud::inventory::*;
 
 use crate::network::{NetworkPlugin, TargetServer, TargetServerState};
 
-use crate::GameState;
+use shared::game_state::GameState;
 
 #[derive(Resource)]
 pub struct PreLoadingCompletion {
