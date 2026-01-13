@@ -144,12 +144,15 @@ pub fn game_plugin(app: &mut App) {
         )
         .add_systems(
             Update,
-            (
-                advance_to_game_when_ready,
-                spawn_players_system,
-                update_server_connect_loading_screen,
-            )
+            (spawn_players_system, update_server_connect_loading_screen)
                 .run_if(in_state(GameState::PreGameLoading)),
+        )
+        .add_systems(
+            Update,
+            advance_to_game
+                .run_if(in_state(GameState::PreGameLoading))
+                .run_if(textures_ready)
+                .run_if(server_ready),
         )
         .add_systems(
             Update,
@@ -165,15 +168,15 @@ fn reset_texture_loading_state(mut loading: ResMut<TextureLoadingState>) {
     *loading = TextureLoadingState::default();
 }
 
-fn advance_to_game_when_ready(
-    texture_state: Res<TextureLoadingState>,
-    target_server: Res<TargetServer>,
-    mut game_state: ResMut<NextState<GameState>>,
-) {
-    let textures_ready = texture_state.loaded;
-    let server_ready = target_server.state == TargetServerState::FullyReady;
+fn advance_to_game(mut game_state: ResMut<NextState<GameState>>) {
+    game_state.set(GameState::Game);
+}
 
-    if textures_ready && server_ready {
-        game_state.set(GameState::Game);
-    }
+// Preload run conditions - add new conditions here and chain with .run_if()
+fn textures_ready(texture_state: Res<TextureLoadingState>) -> bool {
+    texture_state.loaded
+}
+
+fn server_ready(target_server: Res<TargetServer>) -> bool {
+    target_server.state == TargetServerState::FullyReady
 }
