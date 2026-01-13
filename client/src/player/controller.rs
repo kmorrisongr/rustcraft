@@ -14,7 +14,7 @@ use bevy::prelude::*;
 use shared::messages::NetworkAction;
 use shared::physics::simulate_player_movement_rapier;
 use shared::players::{Player, ViewMode};
-use shared::sets::{GamePreUpdateSet, GameUpdateSet};
+use shared::sets::GameSets;
 
 use super::CurrentPlayerMarker;
 
@@ -202,7 +202,7 @@ impl Plugin for PlayerControllerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             PreUpdate,
-            (pre_input_update_system).in_set(GamePreUpdateSet::PlayerInput),
+            (pre_input_update_system).in_set(GameSets::PreUpdate::PlayerInput),
         )
         .add_systems(
             Update,
@@ -221,7 +221,7 @@ impl Plugin for PlayerControllerPlugin {
                     .chain(),
                 handle_mouse_system,
             )
-                .in_set(GameUpdateSet::PlayerInput),
+                .in_set(GameSets::Update::PlayerInput),
         );
     }
 }

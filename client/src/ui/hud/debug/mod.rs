@@ -18,7 +18,7 @@ pub use fps::*;
 pub use loaded_stats::*;
 pub use raycast::*;
 pub use setup::*;
-use shared::sets::{GameOnEnterSet, GameUpdateSet};
+use shared::sets::GameSets;
 
 use crate::{ui::hud::debug::targeted_block::block_text_update_system, GameState};
 
@@ -49,7 +49,7 @@ impl Plugin for DebugHudPlugin {
             .init_resource::<BlockDebugWireframeSettings>()
             .add_systems(
                 OnEnter(GameState::Game),
-                (setup_chunk_ghost).in_set(GameOnEnterSet::Ui),
+                (setup_chunk_ghost).in_set(GameSets::OnEnter::Ui),
             )
             .add_systems(
                 Update,
@@ -65,7 +65,7 @@ impl Plugin for DebugHudPlugin {
                     raycast_debug_update_system,
                     toggle_wireframe_system,
                 )
-                    .in_set(GameUpdateSet::Ui),
+                    .in_set(GameSets::Update::Ui),
             );
     }
 }

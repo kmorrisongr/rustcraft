@@ -4,7 +4,7 @@ mod fox;
 mod spawn;
 
 pub use fox::*;
-use shared::sets::GameUpdateSet;
+use shared::sets::GameSets;
 pub use spawn::*;
 
 #[derive(Debug, Component, Clone)]
@@ -49,11 +49,11 @@ impl Plugin for MobPlugin {
                     setup_fox_once_loaded,
                     update_targetted_mob_color,
                 )
-                    .in_set(GameUpdateSet::WorldInput),
+                    .in_set(GameSets::Update::WorldInput),
             )
             .add_systems(
                 Update,
-                (simulate_particles,).in_set(GameUpdateSet::WorldPhysics),
+                (simulate_particles,).in_set(GameSets::Update::WorldPhysics),
             )
             .add_observer(observe_on_step);
     }

@@ -6,7 +6,7 @@ pub mod menus;
 pub mod style;
 
 use bevy::prelude::*;
-use shared::sets::{GameOnEnterSet, GameUpdateSet};
+use shared::sets::GameSets;
 
 use crate::{
     ui::{
@@ -39,7 +39,7 @@ impl Plugin for PlayerUiPlugin {
                     (setup_hotbar, setup_inventory).chain(),
                 )
                     .chain()
-                    .in_set(GameOnEnterSet::Ui),
+                    .in_set(GameSets::OnEnter::Ui),
             )
             .add_systems(
                 Update,
@@ -50,7 +50,7 @@ impl Plugin for PlayerUiPlugin {
                     set_ui_mode,
                     update_loading_overlay,
                 )
-                    .in_set(GameUpdateSet::Ui),
+                    .in_set(GameSets::Update::Ui),
             );
     }
 }

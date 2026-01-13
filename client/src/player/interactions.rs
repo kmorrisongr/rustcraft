@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use shared::messages::NetworkAction;
 use shared::players::blocks::{simulate_player_block_interactions, CallerType};
 use shared::players::{Player, ViewMode};
-use shared::sets::GameUpdateSet;
+use shared::sets::GameSets;
 use shared::world::raycast;
 
 use super::CurrentPlayerMarker;
@@ -128,7 +128,7 @@ impl Plugin for PlayerInteractionsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (handle_block_interactions,).in_set(GameUpdateSet::PlayerPhysics),
+            (handle_block_interactions,).in_set(GameSets::Update::PlayerPhysics),
         );
     }
 }
