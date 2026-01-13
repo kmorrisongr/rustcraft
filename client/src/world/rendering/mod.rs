@@ -32,6 +32,7 @@ impl Plugin for RenderingPlugin {
             .init_resource::<MaterialResource>()
             .init_resource::<AtlasHandles<BlockId>>()
             .init_resource::<AtlasHandles<ItemId>>()
+            .init_resource::<TextureLoadingState>()
             .add_systems(
                 OnEnter(GameState::PreGameLoading),
                 (setup_materials,).in_set(GameSet::Resources),
@@ -56,4 +57,8 @@ impl Plugin for RenderingPlugin {
                     .in_set(GameSet::Rendering),
             );
     }
+}
+
+pub fn reset_texture_loading_state(mut loading: ResMut<TextureLoadingState>) {
+    *loading = TextureLoadingState::default();
 }
