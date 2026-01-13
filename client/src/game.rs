@@ -44,44 +44,7 @@ pub enum PreloadSignal {
 }
 
 pub fn game_plugin(app: &mut App) {
-    app.configure_sets(
-        OnEnter(GameState::PreGameLoading),
-        PreGameLoadingSets::OnEnter::chained_schedule_configs(),
-    )
-    .configure_sets(
-        Update,
-        PreGameLoadingSets::Update::chained_schedule_configs()
-            .run_if(in_state(GameState::PreGameLoading)),
-    )
-    .configure_sets(
-        OnEnter(GameState::Game),
-        GameSets::OnEnter::chained_schedule_configs(),
-    )
-    .configure_sets(
-        PreUpdate,
-        GameSets::PreUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
-    )
-    .configure_sets(
-        Update,
-        GameSets::Update::chained_schedule_configs().run_if(in_state(GameState::Game)),
-    )
-    .configure_sets(
-        FixedPreUpdate,
-        GameSets::FixedPreUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
-    )
-    .configure_sets(
-        FixedUpdate,
-        GameSets::FixedUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
-    )
-    .configure_sets(
-        PostUpdate,
-        GameSets::PostUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
-    )
-    .configure_sets(
-        OnExit(GameState::Game),
-        GameSets::OnExit::chained_schedule_configs(),
-    );
-
+    configure_sets(app);
     app.add_plugins(PlayerUiPlugin)
         .add_plugins(WorldPlugin)
         .add_plugins(RenderingPlugin)
@@ -187,4 +150,44 @@ fn advance_to_game_on_preload(
     if gate.textures_ready && gate.server_ready {
         game_state.set(GameState::Game);
     }
+}
+
+fn configure_sets(app: &mut App) {
+    app.configure_sets(
+        OnEnter(GameState::PreGameLoading),
+        PreGameLoadingSets::OnEnter::chained_schedule_configs(),
+    )
+    .configure_sets(
+        Update,
+        PreGameLoadingSets::Update::chained_schedule_configs()
+            .run_if(in_state(GameState::PreGameLoading)),
+    )
+    .configure_sets(
+        OnEnter(GameState::Game),
+        GameSets::OnEnter::chained_schedule_configs(),
+    )
+    .configure_sets(
+        PreUpdate,
+        GameSets::PreUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        Update,
+        GameSets::Update::chained_schedule_configs().run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        FixedPreUpdate,
+        GameSets::FixedPreUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        FixedUpdate,
+        GameSets::FixedUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        PostUpdate,
+        GameSets::PostUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
+        OnExit(GameState::Game),
+        GameSets::OnExit::chained_schedule_configs(),
+    );
 }
