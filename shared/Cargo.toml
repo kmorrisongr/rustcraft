@@ -17,6 +17,7 @@ lz4 = "1.28.1"
 bevy_platform = "0.16.1"
 nonempty = "0.12.0"
 bevy_rapier3d = "0.30"
+derive-linear-schedule-set = { path = "../derive-linear-schedule-set" }
 
 [lints]
 workspace = true

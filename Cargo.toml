@@ -4,6 +4,7 @@ members = [
     "shared",
     "client",
     "server",
+    "derive-linear-schedule-set",
 ]
 
 # Enable a small amount of optimization in the dev profile.

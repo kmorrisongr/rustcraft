@@ -46,86 +46,40 @@ pub enum PreloadSignal {
 pub fn game_plugin(app: &mut App) {
     app.configure_sets(
         OnEnter(GameState::PreGameLoading),
-        (
-            PreGameLoadingSets::OnEnter::Initialize,
-            PreGameLoadingSets::OnEnter::Networking,
-            PreGameLoadingSets::OnEnter::Resources,
-            PreGameLoadingSets::OnEnter::Ui,
-        )
-            .chain(),
+        PreGameLoadingSets::OnEnter::chained_schedule_configs(),
     )
     .configure_sets(
         Update,
-        (
-            PreGameLoadingSets::Update::Initialize,
-            PreGameLoadingSets::Update::Networking,
-            PreGameLoadingSets::Update::Rest,
-        )
-            .chain()
+        PreGameLoadingSets::Update::chained_schedule_configs()
             .run_if(in_state(GameState::PreGameLoading)),
     )
     .configure_sets(
         OnEnter(GameState::Game),
-        (
-            GameSets::OnEnter::Initialize,
-            GameSets::OnEnter::Ui,
-            GameSets::OnEnter::Rest,
-        )
-            .chain(),
+        GameSets::OnEnter::chained_schedule_configs(),
     )
     .configure_sets(
         PreUpdate,
-        (GameSets::PreUpdate::PlayerInput, GameSets::PreUpdate::Rest)
-            .chain()
-            .run_if(in_state(GameState::Game)),
+        GameSets::PreUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         Update,
-        (
-            GameSets::Update::PlayerInput,
-            GameSets::Update::PlayerPhysics,
-            GameSets::Update::WorldInput,
-            GameSets::Update::WorldPhysics,
-            GameSets::Update::Networking,
-            GameSets::Update::Rendering,
-            GameSets::Update::Ui,
-            GameSets::Update::Rest,
-        )
-            .chain()
-            .run_if(in_state(GameState::Game)),
+        GameSets::Update::chained_schedule_configs().run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         FixedPreUpdate,
-        (
-            GameSets::FixedPreUpdate::Networking,
-            GameSets::FixedPreUpdate::Rest,
-        )
-            .chain()
-            .run_if(in_state(GameState::Game)),
+        GameSets::FixedPreUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         FixedUpdate,
-        (
-            GameSets::FixedUpdate::Networking,
-            GameSets::FixedUpdate::Rest,
-        )
-            .chain()
-            .run_if(in_state(GameState::Game)),
+        GameSets::FixedUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         PostUpdate,
-        (GameSets::PostUpdate::Rendering, GameSets::PostUpdate::Rest)
-            .chain()
-            .run_if(in_state(GameState::Game)),
+        GameSets::PostUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
     )
     .configure_sets(
         OnExit(GameState::Game),
-        (
-            GameSets::OnExit::World,
-            GameSets::OnExit::Networking,
-            GameSets::OnExit::Rest,
-        )
-            .chain(),
+        GameSets::OnExit::chained_schedule_configs(),
     );
 
     app.add_plugins(PlayerUiPlugin)
