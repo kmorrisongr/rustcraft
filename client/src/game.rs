@@ -25,22 +25,11 @@ use crate::network::{NetworkPlugin, TargetServer, TargetServerState};
 
 use shared::game_state::GameState;
 
-#[derive(Resource)]
-pub struct PreLoadingCompletion {
-    pub textures_loaded: bool,
-    pub empty_handles_warning_emitted: bool,
-}
-
+/// Tracks texture atlas loading progress
 #[derive(Resource, Default)]
-struct PreloadGate {
-    textures_ready: bool,
-    server_ready: bool,
-}
-
-#[derive(Event, Debug, Clone, Copy)]
-pub enum PreloadSignal {
-    TexturesReady,
-    ServerReady,
+pub struct TextureLoadingState {
+    pub loaded: bool,
+    pub empty_handles_warning_emitted: bool,
 }
 
 pub fn game_plugin(app: &mut App) {
@@ -127,11 +116,7 @@ pub fn game_plugin(app: &mut App) {
             brightness: 400.0,
             ..default()
         })
-        .insert_resource(PreLoadingCompletion {
-            textures_loaded: false,
-            empty_handles_warning_emitted: false,
-        })
-        .insert_resource(PreloadGate::default())
+        .insert_resource(TextureLoadingState::default())
         .insert_resource(WireframeConfig {
             // The global wireframe config enables drawing of wireframes on every mesh,
             // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
@@ -145,20 +130,22 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(Inventory::new())
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
-        .add_event::<PreloadSignal>()
         .add_event::<PlayerSpawnEvent>()
         .add_event::<PlayerUpdateEvent>()
         .add_event::<MobUpdateEvent>()
         .add_event::<ItemStackUpdateEvent>()
         .add_systems(
             OnEnter(GameState::PreGameLoading),
-            (reset_preload_tracking, setup_server_connect_loading_screen).chain(),
+            (
+                reset_texture_loading_state,
+                setup_server_connect_loading_screen,
+            )
+                .chain(),
         )
         .add_systems(
             Update,
             (
-                emit_server_ready_signal,
-                advance_to_game_on_preload,
+                advance_to_game_when_ready,
                 spawn_players_system,
                 update_server_connect_loading_screen,
             )
@@ -174,39 +161,21 @@ pub fn game_plugin(app: &mut App) {
         );
 }
 
-fn reset_preload_tracking(
-    mut loading: ResMut<PreLoadingCompletion>,
-    mut gate: ResMut<PreloadGate>,
-) {
-    loading.textures_loaded = false;
-    gate.textures_ready = false;
-    gate.server_ready = false;
+fn reset_texture_loading_state(mut loading: ResMut<TextureLoadingState>) {
+    *loading = TextureLoadingState::default();
 }
 
-fn emit_server_ready_signal(
+/// Advances to Game state once textures are loaded and server connection is ready.
+/// Both conditions are polled directly - no event indirection needed.
+fn advance_to_game_when_ready(
+    texture_state: Res<TextureLoadingState>,
     target_server: Res<TargetServer>,
-    mut signals: EventWriter<PreloadSignal>,
-    mut gate: ResMut<PreloadGate>,
-) {
-    if !gate.server_ready && target_server.state == TargetServerState::FullyReady {
-        signals.write(PreloadSignal::ServerReady);
-        gate.server_ready = true;
-    }
-}
-
-fn advance_to_game_on_preload(
-    mut signals: EventReader<PreloadSignal>,
-    mut gate: ResMut<PreloadGate>,
     mut game_state: ResMut<NextState<GameState>>,
 ) {
-    for signal in signals.read() {
-        match signal {
-            PreloadSignal::TexturesReady => gate.textures_ready = true,
-            PreloadSignal::ServerReady => {} // Gate updated in emit_server_ready_signal
-        }
-    }
+    let textures_ready = texture_state.loaded;
+    let server_ready = target_server.state == TargetServerState::FullyReady;
 
-    if gate.textures_ready && gate.server_ready {
+    if textures_ready && server_ready {
         game_state.set(GameState::Game);
     }
 }
