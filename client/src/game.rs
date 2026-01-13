@@ -5,9 +5,7 @@ use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use crate::ui::PlayerUiPlugin;
 use crate::world::time::time_update_system;
-use crate::world::{
-    reset_texture_loading_state, RenderingPlugin, TextureLoadingState, WorldPlugin,
-};
+use crate::world::{RenderingPlugin, WorldPlugin};
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
 use shared::messages::mob::MobUpdateEvent;
@@ -26,6 +24,13 @@ use crate::ui::hud::inventory::*;
 use crate::network::{NetworkPlugin, TargetServer, TargetServerState};
 
 use shared::game_state::GameState;
+
+/// Tracks texture atlas loading progress
+#[derive(Resource, Default)]
+pub struct TextureLoadingState {
+    pub loaded: bool,
+    pub empty_handles_warning_emitted: bool,
+}
 
 pub fn game_plugin(app: &mut App) {
     // Configure system set ordering for PreGameLoading state
@@ -111,6 +116,7 @@ pub fn game_plugin(app: &mut App) {
             brightness: 400.0,
             ..default()
         })
+        .insert_resource(TextureLoadingState::default())
         .insert_resource(WireframeConfig {
             // The global wireframe config enables drawing of wireframes on every mesh,
             // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
@@ -158,12 +164,16 @@ pub fn game_plugin(app: &mut App) {
         );
 }
 
+fn reset_texture_loading_state(mut loading: ResMut<TextureLoadingState>) {
+    *loading = TextureLoadingState::default();
+}
+
 fn advance_to_game(mut game_state: ResMut<NextState<GameState>>) {
     game_state.set(GameState::Game);
 }
 
-// Preload run conditions
-pub fn textures_ready(texture_state: Res<TextureLoadingState>) -> bool {
+// Preload run conditions - add new conditions here and chain with .run_if()
+fn textures_ready(texture_state: Res<TextureLoadingState>) -> bool {
     texture_state.loaded
 }
 

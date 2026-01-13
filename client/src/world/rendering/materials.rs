@@ -1,4 +1,5 @@
 use crate::constants::{BASE_ROUGHNESS, BASE_SPECULAR_HIGHLIGHT};
+use crate::game::TextureLoadingState;
 use crate::world::GlobalMaterial;
 use crate::TexturePath;
 use bevy::asset::LoadState;
@@ -12,13 +13,6 @@ use std::fs;
 use std::marker::PhantomData;
 
 use super::meshing::UvCoords;
-
-/// Tracks texture atlas loading progress
-#[derive(Resource, Default)]
-pub struct TextureLoadingState {
-    pub loaded: bool,
-    pub empty_handles_warning_emitted: bool,
-}
 
 #[derive(Resource, Debug)]
 pub struct AtlasWrapper {
