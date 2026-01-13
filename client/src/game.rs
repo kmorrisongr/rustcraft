@@ -2,7 +2,7 @@ use crate::entities::stack::stack_update_system;
 use crate::mob::MobPlugin;
 use crate::player::{spawn_players_system, PlayerPlugin};
 use crate::shaders::{WaterPlugin, WaterSettings};
-use crate::ui::menus::update_server_connect_loading_screen;
+use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use crate::ui::PlayerUiPlugin;
 use crate::world::time::time_update_system;
 use crate::world::{
@@ -130,7 +130,11 @@ pub fn game_plugin(app: &mut App) {
         .add_event::<ItemStackUpdateEvent>()
         .add_systems(
             OnEnter(GameState::PreGameLoading),
-            reset_texture_loading_state,
+            (
+                reset_texture_loading_state,
+                setup_server_connect_loading_screen,
+            )
+                .chain(),
         )
         .add_systems(
             Update,

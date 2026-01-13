@@ -37,13 +37,11 @@ impl Plugin for NetworkPlugin {
             )
             .add_systems(
                 Update,
-                (establish_authenticated_connection_to_server,)
-                    .run_if(in_state(GameState::PreGameLoading)),
+                (establish_authenticated_connection_to_server,).in_set(GameSet::Networking),
             )
             .add_systems(
                 Update,
-                (network_failure_handler)
-                    .run_if(in_state(GameState::PreGameLoading).or(in_state(GameState::Game))),
+                (network_failure_handler).in_set(GameSet::Networking),
             )
             .add_systems(
                 FixedPreUpdate,

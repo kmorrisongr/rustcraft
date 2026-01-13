@@ -63,11 +63,6 @@ pub fn setup_materials(
     texture_path: Res<TexturePath>,
     paths: Res<GameFolderPaths>,
 ) {
-    // Skip if textures are already being loaded
-    if !block_atlas_handles.handles.is_empty() {
-        return;
-    }
-
     let sun_material = materials.add(StandardMaterial {
         base_color: Color::srgb(1., 0.95, 0.1),
         emissive: LinearRgba::new(1., 0.95, 0.1, 0.5),
