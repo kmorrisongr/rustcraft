@@ -30,9 +30,10 @@ pub struct FloatingStack {
     pub items: Option<ItemStack>,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Resource)]
+#[derive(PartialEq, Eq, Clone, Copy, Resource, Default)]
 pub enum UIMode {
     Opened,
+    #[default]
     Closed,
     /// When the user is typing something in an input. All other inputs shall be ignored
     Typing,

@@ -17,7 +17,7 @@ use crate::{
             loading_overlay::{setup_loading_overlay, update_loading_overlay},
             render_inventory_hotbar,
             reticle::spawn_reticle,
-            set_ui_mode, setup_inventory,
+            set_ui_mode, setup_inventory, UIMode,
         },
         menus::pause::{render_pause_menu, setup_pause_menu},
     },
@@ -27,7 +27,8 @@ use crate::{
 pub struct PlayerUiPlugin;
 impl Plugin for PlayerUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(DebugHudPlugin)
+        app.init_resource::<UIMode>()
+            .add_plugins(DebugHudPlugin)
             .add_systems(
                 OnEnter(GameState::Game),
                 (

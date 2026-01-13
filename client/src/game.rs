@@ -19,8 +19,6 @@ use bevy::color::palettes::basic::WHITE;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 
-use crate::ui::hud::inventory::*;
-
 use crate::network::{NetworkPlugin, TargetServer, TargetServerState};
 
 use shared::game_state::GameState;
@@ -82,7 +80,6 @@ pub fn game_plugin(app: &mut App) {
             // Can be changed per mesh using the `WireframeColor` component.
             default_color: WHITE.into(),
         })
-        .insert_resource(UIMode::Closed)
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(Inventory::new())
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
