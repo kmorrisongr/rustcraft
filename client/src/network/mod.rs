@@ -14,7 +14,10 @@ pub use inputs::*;
 pub use setup::*;
 
 use bevy::prelude::*;
-use shared::sets::GameSet;
+use shared::sets::{
+    GameFixedPreUpdateSet, GameFixedUpdateSet, GameOnExitSet, GameUpdateSet,
+    PreGameLoadingOnEnterSet, PreGameLoadingUpdateSet,
+};
 
 use crate::{
     network::buffered_client::{CurrentFrameInputs, PlayerTickInputsBuffer, SyncTime},
@@ -33,27 +36,28 @@ impl Plugin for NetworkPlugin {
                 OnEnter(GameState::PreGameLoading),
                 (launch_local_server_system, init_server_connection)
                     .chain()
-                    .in_set(GameSet::Networking),
+                    .in_set(PreGameLoadingOnEnterSet::Networking),
             )
             .add_systems(
                 Update,
-                (establish_authenticated_connection_to_server,).in_set(GameSet::Networking),
+                (establish_authenticated_connection_to_server,)
+                    .in_set(PreGameLoadingUpdateSet::Networking),
             )
             .add_systems(
                 Update,
-                (network_failure_handler).in_set(GameSet::Networking),
+                (network_failure_handler).in_set(GameUpdateSet::Networking),
             )
             .add_systems(
                 FixedPreUpdate,
-                (poll_network_messages).in_set(GameSet::Networking),
+                (poll_network_messages).in_set(GameFixedPreUpdateSet::Networking),
             )
             .add_systems(
                 FixedUpdate,
-                (upload_player_inputs_system).in_set(GameSet::Networking),
+                (upload_player_inputs_system).in_set(GameFixedUpdateSet::Networking),
             )
             .add_systems(
                 OnExit(GameState::Game),
-                (terminate_server_connection).in_set(GameSet::Networking),
+                (terminate_server_connection).in_set(GameOnExitSet::Networking),
             );
     }
 }

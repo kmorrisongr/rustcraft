@@ -15,7 +15,7 @@ use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::app::AppExit;
 use multi::multiplayer_action;
 use settings::controls::{controls_menu_setup, controls_update_system};
-use shared::sets::GameSet;
+use shared::sets::PreGameLoadingOnEnterSet;
 
 use crate::input::keyboard::save_keybindings;
 use crate::{GameState, MenuCamera};
@@ -65,7 +65,7 @@ impl Plugin for MenusPlugin {
             .add_systems(OnEnter(MenuState::SettingsControls), controls_menu_setup)
             .add_systems(
                 OnEnter(GameState::PreGameLoading),
-                (setup_server_connect_loading_screen,).in_set(GameSet::Ui),
+                (setup_server_connect_loading_screen,).in_set(PreGameLoadingOnEnterSet::Ui),
             );
     }
 }

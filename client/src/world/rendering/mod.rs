@@ -13,7 +13,7 @@ pub use render_distance::*;
 
 use bevy::prelude::*;
 use shared::{
-    sets::GameSet,
+    sets::{GamePostUpdateSet, GameUpdateSet, PreGameLoadingOnEnterSet, PreGameLoadingUpdateSet},
     world::{BlockId, ItemId},
 };
 
@@ -34,15 +34,16 @@ impl Plugin for RenderingPlugin {
             .init_resource::<AtlasHandles<ItemId>>()
             .add_systems(
                 OnEnter(GameState::PreGameLoading),
-                (setup_materials,).in_set(GameSet::Resources),
+                (setup_materials,).in_set(PreGameLoadingOnEnterSet::Resources),
             )
             .add_systems(
                 Update,
-                (setup_materials, create_all_atlases).in_set(GameSet::Initialize),
+                (setup_materials, create_all_atlases).in_set(PreGameLoadingUpdateSet::Initialize),
             )
             .add_systems(
                 Update,
-                (render_distance_update_system, lod_transition_system).in_set(GameSet::Rendering),
+                (render_distance_update_system, lod_transition_system)
+                    .in_set(GameUpdateSet::Rendering),
             )
             .add_systems(
                 PostUpdate,
@@ -53,7 +54,7 @@ impl Plugin for RenderingPlugin {
                     water_cleanup_system,
                 )
                     .chain()
-                    .in_set(GameSet::Rendering),
+                    .in_set(GamePostUpdateSet::Rendering),
             );
     }
 }
