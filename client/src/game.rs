@@ -6,7 +6,6 @@ use crate::ui::menus::update_server_connect_loading_screen;
 use crate::ui::PlayerUiPlugin;
 use crate::world::{RenderingPlugin, WorldPlugin};
 use bevy::prelude::*;
-use bevy_atmosphere::prelude::*;
 use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use iyes_progress::prelude::*;
 use shared::messages::mob::MobUpdateEvent;
@@ -32,7 +31,6 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_plugins(WireframePlugin::default())
         .add_plugins(bevy_simple_text_input::TextInputPlugin)
-        .add_plugins(AtmospherePlugin)
         .add_plugins(PanOrbitCameraPlugin)
         .add_plugins(MobPlugin)
         .add_plugins(RustcraftPhysicsPlugin)

@@ -18,7 +18,7 @@ pub struct WorldUpdate {
     pub item_stacks: Vec<ItemStackUpdateEvent>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Event)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Message)]
 pub struct ItemStackUpdateEvent {
     pub id: u128,
     /// `None` if the stack has been deleted, `Some` if it has been updated in any way (position, number of items...)

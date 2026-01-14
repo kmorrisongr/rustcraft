@@ -462,7 +462,7 @@ dependencies = [
  "bevy_log 0.17.3",
  "bevy_math 0.17.3",
  "bevy_mesh 0.17.3",
- "bevy_pbr 0.17.3",
+ "bevy_pbr",
  "bevy_platform 0.17.3",
  "bevy_reflect 0.17.3",
  "bevy_render 0.17.3",
@@ -772,30 +772,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afa09271d4ca0bf31fda3a9ad57273775d448a05c4046d9367f71d29968d85b4"
 dependencies = [
  "bevy_macro_utils 0.17.3",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "bevy_atmosphere"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "961ca082cd26a7063a2c641bd349745ffc160b3ab60d0d063a159c4e585fb445"
-dependencies = [
- "bevy 0.16.1",
- "bevy_atmosphere_macros",
- "cfg-if",
-]
-
-[[package]]
-name = "bevy_atmosphere_macros"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "116aa3996275b0e6b88f5aa52e492fd0328c694be0eb70906b2befb6751de894"
-dependencies = [
- "bevy_macro_utils 0.16.1",
- "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn",
@@ -1203,7 +1179,6 @@ dependencies = [
  "bevy_gizmos_macros 0.16.1",
  "bevy_image 0.16.1",
  "bevy_math 0.16.1",
- "bevy_pbr 0.16.1",
  "bevy_reflect 0.16.1",
  "bevy_render 0.16.1",
  "bevy_sprite 0.16.1",
@@ -1231,7 +1206,7 @@ dependencies = [
  "bevy_light",
  "bevy_math 0.17.3",
  "bevy_mesh 0.17.3",
- "bevy_pbr 0.17.3",
+ "bevy_pbr",
  "bevy_reflect 0.17.3",
  "bevy_render 0.17.3",
  "bevy_shader",
@@ -1283,7 +1258,7 @@ dependencies = [
  "bevy_light",
  "bevy_math 0.17.3",
  "bevy_mesh 0.17.3",
- "bevy_pbr 0.17.3",
+ "bevy_pbr",
  "bevy_platform 0.17.3",
  "bevy_reflect 0.17.3",
  "bevy_render 0.17.3",
@@ -1443,9 +1418,7 @@ dependencies = [
  "bevy_image 0.16.1",
  "bevy_input 0.16.1",
  "bevy_input_focus 0.16.1",
- "bevy_log 0.16.1",
  "bevy_math 0.16.1",
- "bevy_pbr 0.16.1",
  "bevy_platform 0.16.1",
  "bevy_ptr 0.16.1",
  "bevy_reflect 0.16.1",
@@ -1491,7 +1464,7 @@ dependencies = [
  "bevy_log 0.17.3",
  "bevy_math 0.17.3",
  "bevy_mesh 0.17.3",
- "bevy_pbr 0.17.3",
+ "bevy_pbr",
  "bevy_picking",
  "bevy_platform 0.17.3",
  "bevy_post_process",
@@ -1709,40 +1682,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc968ff740adf4d2f8e02264981fc3e38e663af43fad88e59888ccc9ec1d0fab"
 dependencies = [
  "bevy 0.17.3",
-]
-
-[[package]]
-name = "bevy_pbr"
-version = "0.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5e0b4eb871f364a0d217f70f6c41d7fdc6f9f931fa1abbf222180c03d0ae410"
-dependencies = [
- "bevy_app 0.16.1",
- "bevy_asset 0.16.1",
- "bevy_color 0.16.2",
- "bevy_core_pipeline 0.16.1",
- "bevy_derive 0.16.1",
- "bevy_diagnostic 0.16.1",
- "bevy_ecs 0.16.1",
- "bevy_image 0.16.1",
- "bevy_math 0.16.1",
- "bevy_platform 0.16.1",
- "bevy_reflect 0.16.1",
- "bevy_render 0.16.1",
- "bevy_transform 0.16.1",
- "bevy_utils 0.16.1",
- "bevy_window 0.16.1",
- "bitflags 2.10.0",
- "bytemuck",
- "derive_more 1.0.0",
- "fixedbitset",
- "nonmax",
- "offset-allocator",
- "radsort",
- "smallvec",
- "static_assertions",
- "thiserror 2.0.12",
- "tracing",
 ]
 
 [[package]]
@@ -3036,7 +2975,6 @@ dependencies = [
  "bevy 0.17.3",
  "bevy-inspector-egui",
  "bevy_asset_loader",
- "bevy_atmosphere",
  "bevy_image 0.17.3",
  "bevy_panorbit_camera",
  "bevy_rapier3d",
