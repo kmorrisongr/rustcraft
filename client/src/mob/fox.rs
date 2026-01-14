@@ -2,8 +2,11 @@
 
 use std::time::Duration;
 
-use bevy::{animation::AnimationTargetId, prelude::*};
-use rand::{thread_rng, Rng};
+use bevy::{
+    animation::{AnimationEvent, AnimationTargetId},
+    prelude::*,
+};
+use rand::{rng, Rng};
 use shared::world::MobKind;
 
 use crate::effects::{spawn_particle, ParticleAssets};
@@ -19,8 +22,20 @@ pub struct MobAnimations {
     pub graph: Handle<AnimationGraph>,
 }
 
-#[derive(Event, Reflect, Clone)]
-pub struct OnStep;
+#[derive(AnimationEvent, Reflect, Clone)]
+pub struct OnStep {
+    pub target: Entity,
+}
+
+impl EntityEvent for OnStep {
+    fn event_target(&self) -> Entity {
+        self.target
+    }
+
+    fn event_target_mut(&mut self) -> &mut Entity {
+        &mut self.target
+    }
+}
 
 pub fn observe_on_step(
     trigger: On<OnStep>,
@@ -28,18 +43,21 @@ pub fn observe_on_step(
     mut commands: Commands,
     transforms: Query<&GlobalTransform>,
 ) {
-    let translation = transforms.get(trigger.target()).unwrap().translation();
-    let mut rng = thread_rng();
+    let translation = transforms
+        .get(trigger.event_target())
+        .unwrap()
+        .translation();
+    let mut rng = rng();
     // Spawn a bunch of particles.
     for _ in 0..14 {
-        let horizontal = rng.r#gen::<Dir2>() * rng.gen_range(8.0..12.0);
-        let vertical = rng.gen_range(0.0..4.0);
-        let size = rng.gen_range(0.2..1.0);
+        let horizontal = rng.random::<Dir2>() * rng.random_range(8.0..12.0);
+        let vertical = rng.random_range(0.0..4.0);
+        let size = rng.random_range(0.2..1.0);
         commands.queue(spawn_particle(
             particle.mesh.clone(),
             particle.material.clone(),
             translation.reject_from_normalized(Vec3::Y),
-            rng.gen_range(0.2..0.6),
+            rng.random_range(0.2..0.6),
             size,
             Vec3::new(horizontal.x, vertical, horizontal.y) * 10.0,
         ));
@@ -129,10 +147,10 @@ pub fn setup_fox_once_loaded(
 
         // Add step events to running animation for particle effects
         let running_animation = get_clip(animations.animations[0], graph, &mut clips);
-        running_animation.add_message_to_target(feet.front_left, 0.625, OnStep);
-        running_animation.add_message_to_target(feet.front_right, 0.5, OnStep);
-        running_animation.add_message_to_target(feet.back_left, 0.0, OnStep);
-        running_animation.add_message_to_target(feet.back_right, 0.125, OnStep);
+        running_animation.add_event_to_target(feet.front_left, 0.625, OnStep { target: entity });
+        running_animation.add_event_to_target(feet.front_right, 0.5, OnStep { target: entity });
+        running_animation.add_event_to_target(feet.back_left, 0.0, OnStep { target: entity });
+        running_animation.add_event_to_target(feet.back_right, 0.125, OnStep { target: entity });
 
         let mut transitions = AnimationTransitions::new();
         transitions
