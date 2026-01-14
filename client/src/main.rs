@@ -163,7 +163,6 @@ fn main() {
             name: args.player_name.unwrap_or_else(|| "Player".to_string()),
         })
         .init_state::<GameState>()
-        .enable_state_scoped_entities::<GameState>()
         // Adds the plugins for each state
         .add_plugins((splash::splash_plugin, MenusPlugin, game::game_plugin))
         .run();
