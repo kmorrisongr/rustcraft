@@ -1,9 +1,5 @@
 use crate::{constants::BINDS_PATH, input::data::GameAction, KeyMap};
 use bevy::prelude::*;
-use bevy::{
-    input::ButtonInput,
-    prelude::{KeyCode, Res},
-};
 use ron::{from_str, ser::PrettyConfig};
 use shared::GameFolderPaths;
 use std::path::Path;
@@ -31,55 +27,6 @@ fn write_keybindings_to_path(key_map: &KeyMap, binds_path: &Path) -> Result<(), 
     }
     let mut file = File::create(binds_path)?;
     file.write_all(serialized.as_bytes())
-}
-
-pub fn is_action_pressed(
-    action: GameAction,
-    keyboard_input: &ButtonInput<KeyCode>,
-    key_map: &KeyMap,
-) -> bool {
-    if let Some(key_codes) = key_map.map.get(&action) {
-        for key_code in key_codes {
-            if keyboard_input.pressed(*key_code) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-pub fn is_action_just_pressed(
-    action: GameAction,
-    keyboard_input: &ButtonInput<KeyCode>,
-    key_map: &KeyMap,
-) -> bool {
-    if let Some(key_codes) = key_map.map.get(&action) {
-        for key_code in key_codes {
-            if keyboard_input.just_pressed(*key_code) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-pub fn is_action_just_released(
-    action: GameAction,
-    keyboard_input: &ButtonInput<KeyCode>,
-    key_map: &KeyMap,
-) -> bool {
-    if let Some(key_codes) = key_map.map.get(&action) {
-        for key_code in key_codes {
-            if keyboard_input.just_released(*key_code) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-pub fn get_action_keys(action: GameAction, key_map: &KeyMap) -> Vec<KeyCode> {
-    key_map.map.get(&action).unwrap().to_vec()
 }
 
 pub(crate) fn default_key_map() -> BTreeMap<GameAction, Vec<KeyCode>> {

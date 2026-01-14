@@ -1,13 +1,13 @@
-use crate::input::keyboard::is_action_just_pressed;
-use crate::input::keyboard::is_action_just_released;
+use crate::input::data::GameAction;
+use crate::input::GlobalInputManager;
 use crate::network::CachedChatConversation;
 use crate::network::SendGameMessageExtension;
 use crate::ui::assets::chat_text_font;
 use crate::ui::hud::UiDialog;
-use crate::KeyMap;
 use bevy::prelude::*;
 use bevy_renet::renet::RenetClient;
 use bevy_simple_text_input::*;
+use leafwing_input_manager::prelude::*;
 use shared::GameFolderPaths;
 
 use super::UIMode;
@@ -113,10 +113,9 @@ pub fn render_chat(
         Res<CachedChatConversation>,
         Res<AssetServer>,
         ResMut<RenetClient>,
-        Res<ButtonInput<KeyCode>>,
-        Res<KeyMap>,
         Res<UIMode>,
     ),
+    action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
     queries: (
         Query<(Entity, &mut TextInputInactive, &mut TextInputValue), With<ChatInput>>,
         Query<&mut Visibility, With<ChatRoot>>,
@@ -136,30 +135,23 @@ pub fn render_chat(
     mut commands: Commands,
     _paths: Res<GameFolderPaths>,
 ) {
-    let (cached_conv, asset_server, mut client, keyboard_input, key_map, ui_mode) = resources;
+    let (cached_conv, asset_server, mut client, ui_mode) = resources;
     let (mut text_query, mut visibility_query, parent_query, mut animation_query) = queries;
     let (entity_check, mut inactive, mut value) = text_query.single_mut().unwrap();
 
     let mut visibility = visibility_query.single_mut().unwrap();
     let (parent, children) = parent_query.single().unwrap();
 
-    if is_action_just_released(
-        crate::input::data::GameAction::OpenChat,
-        &keyboard_input,
-        &key_map,
-    ) && *ui_mode == UIMode::Closed
-    {
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
+    if action_state.just_released(&GameAction::OpenChat) && *ui_mode == UIMode::Closed {
         inactive.0 = false;
         *visibility = Visibility::Visible;
     }
 
-    if *visibility == Visibility::Visible
-        && is_action_just_pressed(
-            crate::input::data::GameAction::Escape,
-            &keyboard_input,
-            &key_map,
-        )
-    {
+    if *visibility == Visibility::Visible && action_state.just_pressed(&GameAction::Escape) {
         *visibility = Visibility::Hidden;
         *value = TextInputValue("".to_string());
         *inactive = TextInputInactive(true);

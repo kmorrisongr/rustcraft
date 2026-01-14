@@ -2,7 +2,6 @@ use crate::network::save::send_save_request_to_server;
 use bevy::{
     asset::AssetServer,
     color::{Alpha, Color},
-    input::ButtonInput,
     prelude::*,
     ui::{
         AlignItems, BackgroundColor, BorderColor, Display, FlexDirection, FocusPolicy, Interaction,
@@ -12,7 +11,10 @@ use bevy::{
 use bevy_renet::renet::RenetClient;
 use shared::GameFolderPaths;
 
-use crate::{input::keyboard::is_action_just_pressed, GameState, KeyMap};
+use crate::input::data::GameAction;
+use crate::input::GlobalInputManager;
+use crate::GameState;
+use leafwing_input_manager::prelude::*;
 
 use crate::ui::hud::UiDialog;
 
@@ -109,15 +111,18 @@ pub fn render_pause_menu(
         Query<(&PauseButtonAction, &mut BorderColor, &Interaction)>,
         Query<&mut Visibility, With<PauseMenu>>,
     ),
-    input: Res<ButtonInput<KeyCode>>,
+    action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
     mut game_state: ResMut<NextState<GameState>>,
-    key_map: Res<KeyMap>,
     mut client: ResMut<RenetClient>,
 ) {
     let (mut button, mut visibility) = queries;
     let mut vis = visibility.single_mut().unwrap();
 
-    if is_action_just_pressed(crate::input::data::GameAction::Escape, &input, &key_map) {
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
+    if action_state.just_pressed(&GameAction::Escape) {
         *vis = match *vis {
             Visibility::Visible | Visibility::Inherited => Visibility::Hidden,
             Visibility::Hidden => Visibility::Visible,

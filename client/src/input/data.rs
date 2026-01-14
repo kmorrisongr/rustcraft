@@ -1,8 +1,21 @@
-use bevy::prelude::Component;
+use bevy::prelude::{Component, Reflect};
+use leafwing_input_manager::Actionlike;
 use serde::{Deserialize, Serialize};
 
 #[derive(
-    Eq, Hash, PartialEq, Component, Debug, Clone, Copy, Serialize, Deserialize, PartialOrd, Ord,
+    Actionlike,
+    Eq,
+    Hash,
+    PartialEq,
+    Component,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    PartialOrd,
+    Ord,
+    Reflect,
 )]
 pub enum GameAction {
     MoveForward,

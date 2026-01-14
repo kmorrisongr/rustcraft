@@ -25,6 +25,7 @@ bevy_image = "0.16.1"
 bevy_rapier3d = "0.30"
 iyes_progress = "0.14"
 bevy_asset_loader = { version = "0.23", features = ["progress_tracking", "standard_dynamic_assets"] }
+leafwing-input-manager = "0.17"
 
 [lints]
 workspace = true

@@ -1,10 +1,10 @@
 use crate::{
-    input::{data::GameAction, keyboard::is_action_just_pressed},
+    input::{data::GameAction, GlobalInputManager},
     player::CurrentPlayerMarker,
     world::{ClientWorldMap, WorldRenderRequestUpdateEvent},
-    KeyMap,
 };
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
 use shared::{
     world::{global_block_to_chunk_pos, LodLevel},
     DEFAULT_RENDER_DISTANCE,
@@ -30,18 +30,21 @@ impl RenderDistance {
 
 pub fn render_distance_update_system(
     mut render_distance: ResMut<RenderDistance>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    key_map: Res<KeyMap>,
+    action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
 ) {
     if render_distance.distance <= 0 {
         render_distance.distance = DEFAULT_RENDER_DISTANCE;
     }
 
-    if is_action_just_pressed(GameAction::RenderDistanceMinus, &keyboard_input, &key_map) {
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
+    if action_state.just_pressed(&GameAction::RenderDistanceMinus) {
         render_distance.distance = (render_distance.distance - 1).max(1);
     }
 
-    if is_action_just_pressed(GameAction::RenderDistancePlus, &keyboard_input, &key_map) {
+    if action_state.just_pressed(&GameAction::RenderDistancePlus) {
         render_distance.distance = render_distance.distance.saturating_add(1);
     }
 }

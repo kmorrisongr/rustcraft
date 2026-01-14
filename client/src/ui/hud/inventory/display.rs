@@ -1,22 +1,22 @@
 use super::{add_item_floating_stack, remove_item_floating_stack, UIMode};
 use crate::constants::MAX_HOTBAR_SLOTS;
 use crate::input::data::GameAction;
-use crate::input::keyboard::is_action_just_pressed;
+use crate::input::GlobalInputManager;
 use crate::ui::hud::hotbar::Hotbar;
 use crate::ui::hud::{FloatingStack, InventoryCell, InventoryRoot};
 use crate::world::TextureAtlases;
-use crate::KeyMap;
 use bevy::color::Color;
 use bevy::ecs::hierarchy::Children;
 use bevy::image::TextureAtlas;
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
 use bevy::prelude::{
-    EventReader, ImageNode, KeyCode, MouseButton, Node, Query, Res, ResMut, Text, Val, Visibility,
-    Window, With, Without,
+    EventReader, ImageNode, MouseButton, Node, Query, Res, ResMut, Text, Val, Visibility, Window,
+    With, Without,
 };
 use bevy::ui::{BorderColor, Interaction};
 use bevy::window::PrimaryWindow;
+use leafwing_input_manager::prelude::*;
 use shared::players::Inventory;
 
 pub fn render_inventory_hotbar(
@@ -37,10 +37,9 @@ pub fn render_inventory_hotbar(
         Query<&Window, With<PrimaryWindow>>,
         Query<&mut Hotbar>,
     ),
-    (keyboard_input, mouse_input, key_map, mut inventory, texture_atlases, ui_mode): (
-        Res<ButtonInput<KeyCode>>,
+    (action_query, mouse_input, mut inventory, texture_atlases, ui_mode): (
+        Query<&ActionState<GameAction>, With<GlobalInputManager>>,
         Res<ButtonInput<MouseButton>>,
-        Res<KeyMap>,
         ResMut<Inventory>,
         Res<TextureAtlases>,
         Res<UIMode>,
@@ -49,7 +48,11 @@ pub fn render_inventory_hotbar(
 ) {
     let mut vis = visibility_query.single_mut().unwrap();
 
-    if is_action_just_pressed(GameAction::ToggleInventory, &keyboard_input, &key_map)
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
+    if action_state.just_pressed(&GameAction::ToggleInventory)
         && ((*vis == Visibility::Hidden) ^ (*ui_mode != UIMode::Closed))
     {
         *vis = match *vis {

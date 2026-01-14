@@ -22,7 +22,11 @@ use bevy::{
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, DefaultInspectorConfigPlugin};
 use clap::Parser;
 use constants::{TEXTURE_PATH_BASE, TEXTURE_PATH_CUSTOM};
-use input::{data::GameAction, keyboard::get_bindings};
+use input::{
+    data::GameAction, keyboard::get_bindings, spawn_global_input_manager,
+    sync_input_map_from_keymap,
+};
+use leafwing_input_manager::prelude::*;
 use menus::solo::SelectedWorld;
 use serde::{Deserialize, Serialize};
 use shared::{game_state::GameState, get_game_folder_paths, SpecialFlag};
@@ -155,6 +159,11 @@ fn main() {
     })
     .add_plugins(DefaultInspectorConfigPlugin)
     .add_systems(Update, inspector_ui);
+
+    // Add leafwing-input-manager for action-based input handling
+    app.add_plugins(InputManagerPlugin::<GameAction>::default())
+        .add_systems(Startup, spawn_global_input_manager)
+        .add_systems(Update, sync_input_map_from_keymap);
 
     app.add_event::<LoadWorldEvent>();
     network::add_base_netcode(&mut app);
