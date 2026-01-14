@@ -1,10 +1,10 @@
 use crate::player::CurrentPlayerMarker;
 use crate::GameState;
-use bevy::pbr::NotShadowCaster;
 use bevy::prelude::*;
-use bevy::render::mesh::PrimitiveTopology;
-use bevy::render::render_asset::RenderAssetUsages;
+use bevy_asset::RenderAssetUsages;
+use bevy_light::NotShadowCaster;
 use shared::CHUNK_SIZE;
+use wgpu_types::PrimitiveTopology;
 
 use super::DebugOptions;
 

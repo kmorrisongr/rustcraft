@@ -2141,8 +2141,10 @@ version = "0.0.0"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
+ "bevy_asset",
  "bevy_asset_loader",
  "bevy_image",
+ "bevy_light",
  "bevy_mesh",
  "bevy_panorbit_camera",
  "bevy_rapier3d",
@@ -2161,6 +2163,7 @@ dependencies = [
  "serde",
  "server",
  "shared",
+ "wgpu-types",
 ]
 
 [[package]]

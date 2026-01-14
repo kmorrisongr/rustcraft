@@ -20,6 +20,8 @@ bincode = { workspace = true }
 bevy_water = "0.17"
 bevy_image = "0.17"
 bevy_mesh = "0.17"
+bevy_light = "0.17"
+bevy_asset = "0.17"
 
 bevy_simple_text_input = "0.12"
 bevy_panorbit_camera = "0.33"
@@ -30,6 +32,7 @@ iyes_progress = "0.15"
 
 lazy_static = "1.5.0"
 egui = "0.31"
+wgpu-types = "26.0.0"
 
 [lints]
 workspace = true
