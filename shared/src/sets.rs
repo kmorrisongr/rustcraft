@@ -7,7 +7,6 @@ pub mod PreGameLoadingSets {
     pub enum Update {
         Initialize,
         Networking,
-        Ui,
         Rest,
     }
 
