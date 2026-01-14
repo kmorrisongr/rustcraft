@@ -7,8 +7,6 @@ pub mod save;
 pub mod simulation;
 pub mod stacks;
 
-use bevy::prelude::Event;
-use bevy::prelude::EventReader;
 use bevy::prelude::IVec3;
 use bevy::prelude::ResMut;
 use bevy::prelude::*;
@@ -16,7 +14,7 @@ use bevy_log::{debug, info};
 use shared::world::{BlockData, ItemStack, ServerItemStack, ServerWorldMap, WorldMap};
 use ulid::Ulid;
 
-#[derive(Event, Debug)]
+#[derive(Message, Debug)]
 pub struct BlockInteractionEvent {
     pub position: IVec3,
     pub block_type: Option<BlockData>, // None = delete, Some = add
@@ -24,7 +22,7 @@ pub struct BlockInteractionEvent {
 
 pub fn handle_block_interactions(
     mut world_map: ResMut<ServerWorldMap>,
-    mut events: EventReader<BlockInteractionEvent>,
+    mut events: MessageReader<BlockInteractionEvent>,
 ) {
     for event in events.read() {
         match &event.block_type {

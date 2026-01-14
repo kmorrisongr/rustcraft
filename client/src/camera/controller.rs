@@ -14,7 +14,7 @@ const EYE_HEIGHT_OFFSET: f32 = 0.8;
 /// Uses bevy_panorbit_camera to "cheat" and get first/third person camera easily.
 pub fn camera_control_system(
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
-    mut mouse_motion: EventReader<MouseMotion>,
+    mut mouse_motion: MessageReader<MouseMotion>,
     player_query: Query<&Transform, With<CurrentPlayerMarker>>,
     mut camera_query: Query<&mut PanOrbitCamera, With<Camera>>,
     view_mode: Res<ViewMode>,

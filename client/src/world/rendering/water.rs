@@ -222,7 +222,7 @@ pub fn water_render_system(
     mut water_material: ResMut<WaterMaterialHandle>,
     mut materials: ResMut<Assets<StandardWaterMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut ev_chunk_update: EventReader<WorldRenderRequestUpdateEvent>,
+    mut ev_chunk_update: MessageReader<WorldRenderRequestUpdateEvent>,
     mut mesh_pool: Local<WaterMeshGenPool>,
     mut chunks_to_update: Local<Vec<IVec3>>,
 ) {

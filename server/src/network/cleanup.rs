@@ -1,4 +1,4 @@
-use bevy_ecs::event::EventWriter;
+use bevy_ecs::message::MessageWriter;
 use shared::{messages::PlayerId, world::ServerWorldMap};
 
 use crate::world::save::SaveRequestEvent;
@@ -15,7 +15,7 @@ pub fn cleanup_all_players_from_world(world_map: &mut ServerWorldMap) {
 pub fn cleanup_player_from_world(
     world_map: &mut ServerWorldMap,
     player_id: &PlayerId,
-    save_event_writer: &mut EventWriter<SaveRequestEvent>,
+    save_event_writer: &mut MessageWriter<SaveRequestEvent>,
 ) {
     if world_map.players.remove(player_id).is_some() {
         save_event_writer.write(SaveRequestEvent::Player(*player_id));

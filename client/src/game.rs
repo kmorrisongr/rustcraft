@@ -66,10 +66,10 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(Inventory::new())
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
-        .add_event::<PlayerSpawnEvent>()
-        .add_event::<PlayerUpdateEvent>()
-        .add_event::<MobUpdateEvent>()
-        .add_event::<ItemStackUpdateEvent>()
+        .add_message::<PlayerSpawnEvent>()
+        .add_message::<PlayerUpdateEvent>()
+        .add_message::<MobUpdateEvent>()
+        .add_message::<ItemStackUpdateEvent>()
         .add_systems(
             Update,
             (

@@ -129,10 +129,10 @@ pub fn setup_fox_once_loaded(
 
         // Add step events to running animation for particle effects
         let running_animation = get_clip(animations.animations[0], graph, &mut clips);
-        running_animation.add_event_to_target(feet.front_left, 0.625, OnStep);
-        running_animation.add_event_to_target(feet.front_right, 0.5, OnStep);
-        running_animation.add_event_to_target(feet.back_left, 0.0, OnStep);
-        running_animation.add_event_to_target(feet.back_right, 0.125, OnStep);
+        running_animation.add_message_to_target(feet.front_left, 0.625, OnStep);
+        running_animation.add_message_to_target(feet.front_right, 0.5, OnStep);
+        running_animation.add_message_to_target(feet.back_left, 0.0, OnStep);
+        running_animation.add_message_to_target(feet.back_right, 0.125, OnStep);
 
         let mut transitions = AnimationTransitions::new();
         transitions

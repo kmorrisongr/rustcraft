@@ -24,7 +24,7 @@ pub fn spawn_players_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_profile: Res<CurrentPlayerProfile>,
-    mut ev_spawn: EventReader<PlayerSpawnEvent>,
+    mut ev_spawn: MessageReader<PlayerSpawnEvent>,
     mut target_server: ResMut<TargetServer>,
     players: Query<&Player>,
     assets: Res<AssetServer>,
@@ -137,7 +137,7 @@ pub fn spawn_players_system(
 
 pub fn update_players_system(
     mut players: Query<(&mut Player, &mut Transform)>,
-    mut ev_player_update: EventReader<PlayerUpdateEvent>,
+    mut ev_player_update: MessageReader<PlayerUpdateEvent>,
     mut unacknowledged_inputs: ResMut<UnacknowledgedInputs>,
     client: Res<TargetServer>,
     world_map: ResMut<ClientWorldMap>,

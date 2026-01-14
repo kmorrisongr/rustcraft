@@ -10,7 +10,7 @@ use bevy::prelude::*;
 use bevy::{
     color::Color,
     prelude::{
-        Button, Changed, Commands, Component, Entity, EventWriter, NextState, Query, Res, ResMut,
+        Button, Changed, Commands, Component, Entity, MessageWriter, NextState, Query, Res, ResMut,
         StateScoped, Text, With,
     },
     ui::{
@@ -317,7 +317,7 @@ pub fn solo_action(
         ResMut<SelectedWorld>,
     ),
     mut commands: Commands,
-    mut load_event: EventWriter<LoadWorldEvent>,
+    mut load_event: MessageWriter<LoadWorldEvent>,
     paths: Res<GameFolderPaths>,
 ) {
     if list_query.is_empty() {

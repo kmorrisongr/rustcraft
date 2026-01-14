@@ -150,7 +150,7 @@ fn main() {
     app.add_plugins(InputManagerPlugin::<GameAction>::default())
         .add_systems(Startup, spawn_global_input_manager);
 
-    app.add_event::<LoadWorldEvent>();
+    app.add_message::<LoadWorldEvent>();
     network::add_base_netcode(&mut app);
     app.insert_resource(LoadedInputMap(get_bindings(&game_folder_paths)))
         .insert_resource(SelectedWorld::default())

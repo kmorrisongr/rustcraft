@@ -11,7 +11,7 @@ use bevy::image::TextureAtlas;
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
 use bevy::prelude::{
-    EventReader, ImageNode, MouseButton, Node, Query, Res, ResMut, Text, Val, Visibility, Window,
+    MessageReader, ImageNode, MouseButton, Node, Query, Res, ResMut, Text, Val, Visibility, Window,
     With, Without,
 };
 use bevy::ui::{BorderColor, Interaction};
@@ -44,7 +44,7 @@ pub fn render_inventory_hotbar(
         Res<TextureAtlases>,
         Res<UIMode>,
     ),
-    mut scroll: EventReader<MouseWheel>,
+    mut scroll: MessageReader<MouseWheel>,
 ) {
     let mut vis = visibility_query.single_mut().unwrap();
 

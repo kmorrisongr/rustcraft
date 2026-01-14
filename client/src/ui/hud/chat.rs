@@ -127,7 +127,7 @@ pub fn render_chat(
         >,
     ),
     mut last_render_ts: Local<u64>,
-    mut event: EventReader<TextInputSubmitEvent>,
+    mut event: MessageReader<TextInputSubmitEvent>,
     mut commands: Commands,
     _paths: Res<GameFolderPaths>,
 ) {

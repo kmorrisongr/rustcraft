@@ -106,7 +106,7 @@ pub fn world_render_system(
     material_resource: Res<MaterialResource>,
     texture_atlases: Option<Res<TextureAtlases>>,
     render_distance: Res<RenderDistance>,
-    mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
+    mut ev_render: MessageReader<WorldRenderRequestUpdateEvent>,
     mut queued_events: Local<QueuedEvents>,
     mut queued_meshes: Local<QueuedMeshes>,
     mut world_map_cache: Local<WorldMapCache>,
