@@ -1,22 +1,25 @@
-use crate::{constants::BINDS_PATH, input::data::GameAction, KeyMap};
+use crate::{constants::BINDS_PATH, input::data::GameAction};
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
 use ron::{from_str, ser::PrettyConfig};
 use shared::GameFolderPaths;
 use std::path::Path;
 use std::{
-    collections::BTreeMap,
     fs::{self, File},
     io::Write,
     path::PathBuf,
 };
 
-fn write_keybindings_to_path(key_map: &KeyMap, binds_path: &Path) -> Result<(), std::io::Error> {
+fn write_keybindings_to_path(
+    input_map: &InputMap<GameAction>,
+    binds_path: &Path,
+) -> Result<(), std::io::Error> {
     let pretty_config = PrettyConfig::new()
-        .with_depth_limit(3)
+        .with_depth_limit(4)
         .with_separate_tuple_members(true)
         .with_enumerate_arrays(true);
 
-    let serialized = ron::ser::to_string_pretty(key_map, pretty_config).map_err(|e| {
+    let serialized = ron::ser::to_string_pretty(input_map, pretty_config).map_err(|e| {
         std::io::Error::new(
             std::io::ErrorKind::Other,
             format!("serialization failed: {e}"),
@@ -29,48 +32,40 @@ fn write_keybindings_to_path(key_map: &KeyMap, binds_path: &Path) -> Result<(), 
     file.write_all(serialized.as_bytes())
 }
 
-pub(crate) fn default_key_map() -> BTreeMap<GameAction, Vec<KeyCode>> {
-    let mut map = BTreeMap::new();
-    map.insert(
-        GameAction::MoveForward,
-        vec![KeyCode::KeyW, KeyCode::ArrowUp],
-    );
-    map.insert(
-        GameAction::MoveBackward,
-        vec![KeyCode::KeyS, KeyCode::ArrowDown],
-    );
-    map.insert(
-        GameAction::MoveLeft,
-        vec![KeyCode::KeyA, KeyCode::ArrowLeft],
-    );
-    map.insert(
-        GameAction::MoveRight,
-        vec![KeyCode::KeyD, KeyCode::ArrowRight],
-    );
-    map.insert(GameAction::Jump, vec![KeyCode::Space]);
-    map.insert(GameAction::Escape, vec![KeyCode::Escape]);
-    map.insert(GameAction::ToggleFps, vec![KeyCode::F3]);
-    map.insert(GameAction::ToggleChunkDebugMode, vec![KeyCode::F4]);
-    map.insert(GameAction::ToggleViewMode, vec![KeyCode::F5]);
-    map.insert(GameAction::ToggleBlockWireframeDebugMode, vec![KeyCode::F6]);
-    map.insert(GameAction::ToggleRaycastDebugMode, vec![KeyCode::F7]);
-    map.insert(GameAction::ToggleFlyMode, vec![KeyCode::KeyF]);
-    map.insert(GameAction::FlyUp, vec![KeyCode::Space]);
-    map.insert(GameAction::FlyDown, vec![KeyCode::ShiftLeft]);
-    map.insert(GameAction::ToggleInventory, vec![KeyCode::KeyE]);
-    map.insert(GameAction::OpenChat, vec![KeyCode::KeyT]);
-    map.insert(GameAction::RenderDistanceMinus, vec![KeyCode::KeyO]);
-    map.insert(GameAction::RenderDistancePlus, vec![KeyCode::KeyP]);
-    map.insert(GameAction::ReloadChunks, vec![KeyCode::KeyR]);
-    map
+/// Creates the default InputMap with all game keybindings.
+pub fn default_input_map() -> InputMap<GameAction> {
+    InputMap::default()
+        .with_one_to_many(GameAction::MoveForward, [KeyCode::KeyW, KeyCode::ArrowUp])
+        .with_one_to_many(
+            GameAction::MoveBackward,
+            [KeyCode::KeyS, KeyCode::ArrowDown],
+        )
+        .with_one_to_many(GameAction::MoveLeft, [KeyCode::KeyA, KeyCode::ArrowLeft])
+        .with_one_to_many(GameAction::MoveRight, [KeyCode::KeyD, KeyCode::ArrowRight])
+        .with(GameAction::Jump, KeyCode::Space)
+        .with(GameAction::Escape, KeyCode::Escape)
+        .with(GameAction::ToggleFps, KeyCode::F3)
+        .with(GameAction::ToggleChunkDebugMode, KeyCode::F4)
+        .with(GameAction::ToggleViewMode, KeyCode::F5)
+        .with(GameAction::ToggleBlockWireframeDebugMode, KeyCode::F6)
+        .with(GameAction::ToggleRaycastDebugMode, KeyCode::F7)
+        .with(GameAction::ToggleFlyMode, KeyCode::KeyF)
+        .with(GameAction::FlyUp, KeyCode::Space)
+        .with(GameAction::FlyDown, KeyCode::ShiftLeft)
+        .with(GameAction::ToggleInventory, KeyCode::KeyE)
+        .with(GameAction::OpenChat, KeyCode::KeyT)
+        .with(GameAction::RenderDistanceMinus, KeyCode::KeyO)
+        .with(GameAction::RenderDistancePlus, KeyCode::KeyP)
+        .with(GameAction::ReloadChunks, KeyCode::KeyR)
 }
 
-pub fn get_bindings(game_folder_paths: &GameFolderPaths) -> KeyMap {
+/// Loads keybindings from the config file, or creates defaults if missing.
+pub fn get_bindings(game_folder_paths: &GameFolderPaths) -> InputMap<GameAction> {
     let binds_path: PathBuf = Path::new(&game_folder_paths.assets_folder_path).join(BINDS_PATH);
 
     if let Ok(content) = fs::read_to_string(binds_path.as_path()) {
-        match from_str::<KeyMap>(&content) {
-            Ok(key_map) => return key_map,
+        match from_str::<InputMap<GameAction>>(&content) {
+            Ok(input_map) => return input_map,
             Err(e) => warn!(
                 "Failed to deserialize keybindings at {:?}, writing defaults: {}",
                 binds_path, e
@@ -78,20 +73,26 @@ pub fn get_bindings(game_folder_paths: &GameFolderPaths) -> KeyMap {
         }
     }
 
-    let key_map = KeyMap::default();
-    if let Err(e) = write_keybindings_to_path(&key_map, binds_path.as_path()) {
+    let input_map = default_input_map();
+    if let Err(e) = write_keybindings_to_path(&input_map, binds_path.as_path()) {
         error!(
             "Failed to create default keybindings file at {:?}: {}",
             binds_path, e
         );
     }
-    key_map
+    input_map
 }
 
-pub fn save_keybindings(key_map: Res<KeyMap>, game_folder_path: Res<GameFolderPaths>) {
+/// Saves the current keybindings to the config file.
+pub fn save_keybindings(
+    query: Query<&InputMap<GameAction>, With<crate::input::action_state::GlobalInputManager>>,
+    game_folder_path: Res<GameFolderPaths>,
+) {
     let binds_path = game_folder_path.assets_folder_path.join(BINDS_PATH);
-    match write_keybindings_to_path(key_map.into_inner(), &binds_path) {
-        Ok(_) => info!("Keybindings successfully saved to {:?}", binds_path),
-        Err(e) => error!("Failed to save keybindings to {:?}: {}", binds_path, e),
+    if let Ok(input_map) = query.single() {
+        match write_keybindings_to_path(input_map, &binds_path) {
+            Ok(_) => info!("Keybindings successfully saved to {:?}", binds_path),
+            Err(e) => error!("Failed to save keybindings to {:?}: {}", binds_path, e),
+        }
     }
 }

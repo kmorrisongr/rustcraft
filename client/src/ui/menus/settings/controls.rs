@@ -10,11 +10,12 @@ use bevy::{
     },
     utils::default,
 };
+use leafwing_input_manager::prelude::*;
 use shared::GameFolderPaths;
 
+use crate::input::action_state::GlobalInputManager;
 use crate::input::data::GameAction;
 use crate::menus::{MenuButtonAction, MenuState, ScrollingList};
-use crate::KeyMap;
 
 use crate::ui::assets::*;
 use crate::ui::style::NORMAL_BUTTON;
@@ -34,9 +35,13 @@ pub struct ActionRecorder {
 pub fn controls_menu_setup(
     mut commands: Commands,
     assets: Res<AssetServer>,
-    key_map: Res<KeyMap>,
+    input_map_query: Query<&InputMap<GameAction>, With<GlobalInputManager>>,
     paths: Res<GameFolderPaths>,
 ) {
+    let input_map = input_map_query
+        .single()
+        .expect("GlobalInputManager should exist");
+
     let background_image = load_background_image(&assets);
     let font = load_font(&assets);
     let trash_icon = assets.load("./trash.png");
@@ -121,7 +126,17 @@ pub fn controls_menu_setup(
                                     ..default()
                                 },
                             ));
-                            for (action, keys) in &key_map.map {
+                            // Iterate over all buttonlike actions in the InputMap
+                            for (action, bindings) in input_map.iter_buttonlike() {
+                                // Convert Box<dyn Buttonlike> to KeyCode for display
+                                let keys: Vec<KeyCode> = bindings
+                                    .iter()
+                                    .filter_map(|b| {
+                                        // Try to downcast to KeyCode
+                                        b.as_any().downcast_ref::<KeyCode>().copied()
+                                    })
+                                    .collect();
+
                                 list.spawn((
                                     (
                                         Button,
@@ -169,7 +184,7 @@ pub fn controls_menu_setup(
                                     update_input_component(
                                         &mut component.commands(),
                                         id,
-                                        keys,
+                                        &keys,
                                         &assets,
                                         &paths,
                                     );
@@ -319,11 +334,12 @@ pub fn controls_update_system(
         Query<(&mut ActionRecorder, &mut Visibility)>,
     ),
     mut commands: Commands,
-    resources: (Res<AssetServer>, Res<ButtonInput<KeyCode>>, ResMut<KeyMap>),
+    resources: (Res<AssetServer>, Res<ButtonInput<KeyCode>>),
+    mut input_map_query: Query<&mut InputMap<GameAction>, With<GlobalInputManager>>,
     paths: Res<GameFolderPaths>,
 ) {
     let (mut edit_query, mut clear_query, mut visibility_query) = queries;
-    let (assets, input, mut key_map) = resources;
+    let (assets, input) = resources;
 
     if visibility_query.is_empty() {
         return;
@@ -334,14 +350,24 @@ pub fn controls_update_system(
     if *vis == Visibility::Visible {
         if let Some(btn) = input.get_just_pressed().next() {
             *vis = Visibility::Hidden;
-            key_map.map.get_mut(&recorder.action).unwrap().push(*btn);
-            update_input_component(
-                &mut commands,
-                recorder.entity,
-                key_map.map.get(&recorder.action).unwrap(),
-                &assets,
-                &paths,
-            );
+
+            // Add the new key binding to the InputMap
+            if let Ok(mut input_map) = input_map_query.single_mut() {
+                input_map.insert(recorder.action, *btn);
+
+                // Get updated bindings for display
+                let keys: Vec<KeyCode> = input_map
+                    .get_buttonlike(&recorder.action)
+                    .map(|bindings| {
+                        bindings
+                            .iter()
+                            .filter_map(|b| b.as_any().downcast_ref::<KeyCode>().copied())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                update_input_component(&mut commands, recorder.entity, &keys, &assets, &paths);
+            }
             return;
         }
     }
@@ -380,15 +406,12 @@ pub fn controls_update_system(
         match *interaction {
             Interaction::Pressed => {
                 // Clear all binds for this action
-                key_map.map.insert(clear.0, Vec::new());
-                // Update visual element
-                update_input_component(
-                    &mut commands,
-                    clear.1,
-                    key_map.map.get(&clear.0).unwrap(),
-                    &assets,
-                    &paths,
-                );
+                if let Ok(mut input_map) = input_map_query.single_mut() {
+                    input_map.clear_action(&clear.0);
+
+                    // Update visual element with empty bindings
+                    update_input_component(&mut commands, clear.1, &Vec::new(), &assets, &paths);
+                }
             }
             Interaction::Hovered => {
                 bg.0 = Color::Srgba(css::RED);

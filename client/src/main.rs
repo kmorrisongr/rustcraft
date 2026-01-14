@@ -22,15 +22,10 @@ use bevy::{
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, DefaultInspectorConfigPlugin};
 use clap::Parser;
 use constants::{TEXTURE_PATH_BASE, TEXTURE_PATH_CUSTOM};
-use input::{
-    data::GameAction, keyboard::get_bindings, spawn_global_input_manager,
-    sync_input_map_from_keymap,
-};
+use input::{data::GameAction, keyboard::get_bindings, spawn_global_input_manager};
 use leafwing_input_manager::prelude::*;
 use menus::solo::SelectedWorld;
-use serde::{Deserialize, Serialize};
 use shared::{game_state::GameState, get_game_folder_paths, SpecialFlag};
-use std::collections::BTreeMap;
 use ui::{
     hud::debug::inspector::inspector_ui,
     menus::{self, splash},
@@ -70,19 +65,9 @@ pub struct LoadWorldEvent {
     pub world_name: String,
 }
 
-#[derive(Resource, Serialize, Deserialize)]
-pub struct KeyMap {
-    #[serde(default = "input::keyboard::default_key_map")]
-    pub map: BTreeMap<GameAction, Vec<KeyCode>>,
-}
-
-impl Default for KeyMap {
-    fn default() -> Self {
-        Self {
-            map: input::keyboard::default_key_map(),
-        }
-    }
-}
+/// Resource to pass the loaded InputMap to the GlobalInputManager spawning system.
+#[derive(Resource)]
+pub struct LoadedInputMap(pub InputMap<GameAction>);
 
 #[derive(Resource, Debug)]
 pub struct TexturePath {
@@ -162,12 +147,11 @@ fn main() {
 
     // Add leafwing-input-manager for action-based input handling
     app.add_plugins(InputManagerPlugin::<GameAction>::default())
-        .add_systems(Startup, spawn_global_input_manager)
-        .add_systems(Update, sync_input_map_from_keymap);
+        .add_systems(Startup, spawn_global_input_manager);
 
     app.add_event::<LoadWorldEvent>();
     network::add_base_netcode(&mut app);
-    app.insert_resource(get_bindings(&game_folder_paths))
+    app.insert_resource(LoadedInputMap(get_bindings(&game_folder_paths)))
         .insert_resource(SelectedWorld::default())
         .insert_resource(TexturePath {
             path: texture_path.to_string(),
