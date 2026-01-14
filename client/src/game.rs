@@ -89,7 +89,8 @@ pub fn game_plugin(app: &mut App) {
         .add_event::<ItemStackUpdateEvent>()
         .add_systems(
             OnEnter(GameState::PreGameLoading),
-            (reset_preload_tracking, setup_server_connect_loading_screen).chain(),
+            (reset_preload_tracking, setup_server_connect_loading_screen)
+                .in_set(PreGameLoadingSets::OnEnter::Initialize),
         )
         .add_systems(
             Update,
