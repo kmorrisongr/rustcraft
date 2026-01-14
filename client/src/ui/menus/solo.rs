@@ -1,5 +1,5 @@
 use super::{MenuButtonAction, MenuState, ScrollingList};
-use crate::ui::assets::*;
+use crate::ui::assets::{white_text_color, UiAssets};
 use crate::ui::list_item::{spawn_list_item_row, ListItemConfig};
 use crate::ui::style::*;
 use crate::world::ClientWorldMap;
@@ -8,7 +8,6 @@ use bevy::platform::collections::HashMap;
 use bevy::prelude::Resource;
 use bevy::prelude::*;
 use bevy::{
-    asset::AssetServer,
     color::Color,
     prelude::{
         Button, Changed, Commands, Component, Entity, EventWriter, NextState, Query, Res, ResMut,
@@ -58,13 +57,10 @@ pub struct SelectedWorld {
 
 pub fn solo_menu_setup(
     mut commands: Commands,
-    assets_server: Res<AssetServer>,
+    ui_assets: Res<UiAssets>,
     _paths: Res<GameFolderPaths>,
 ) {
-    let background_image = load_background_image(&assets_server);
-    let button_background_image = load_button_background_large_image(&assets_server);
-
-    let txt_font = menu_text_font(&assets_server);
+    let txt_font = ui_assets.menu_text_font();
     let txt_color = white_text_color();
 
     let btn_style = menu_list_button_style();
@@ -82,7 +78,7 @@ pub fn solo_menu_setup(
                 row_gap: Val::Percent(2.),
                 ..Default::default()
             },),
-            ImageNode::new(background_image),
+            ImageNode::new(ui_assets.background.clone()),
         ))
         .with_children(|root| {
             root.spawn((
@@ -175,7 +171,7 @@ pub fn solo_menu_setup(
                                     style.grid_column = GridPlacement::span(2);
                                     style
                                 },
-                                ImageNode::new(button_background_image.clone()),
+                                ImageNode::new(ui_assets.button_background_large.clone()),
                             ),
                             MultiplayerButtonAction::Add,
                         ))
@@ -194,7 +190,7 @@ pub fn solo_menu_setup(
                                     style.grid_column = GridPlacement::span(2);
                                     style
                                 },
-                                ImageNode::new(button_background_image.clone()),
+                                ImageNode::new(ui_assets.button_background_large.clone()),
                             ),
                             MenuButtonAction::BackToMainMenu,
                         ))
@@ -207,7 +203,7 @@ pub fn solo_menu_setup(
 
 pub fn list_worlds(
     mut commands: Commands,
-    assets: Res<AssetServer>,
+    ui_assets: Res<UiAssets>,
     mut list_query: Query<(&mut WorldList, Entity)>,
     mut world_map: ResMut<ClientWorldMap>,
     game_paths: Res<GameFolderPaths>,
@@ -237,7 +233,7 @@ pub fn list_worlds(
                 add_world_item(
                     path_str,
                     &mut commands,
-                    &assets,
+                    &ui_assets,
                     &mut list,
                     list_entity,
                     &mut world_map,
@@ -253,7 +249,7 @@ pub fn list_worlds(
 fn add_world_item(
     name: String,
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
+    ui_assets: &Res<UiAssets>,
     list: &mut WorldList,
     list_entity: Entity,
     world_map: &mut ClientWorldMap,
@@ -270,7 +266,7 @@ fn add_world_item(
     let entities = spawn_list_item_row(
         commands,
         ListItemConfig {
-            asset_server,
+            ui_assets,
             primary_text: &name,
             secondary_text: None,
         },
@@ -312,8 +308,8 @@ pub fn solo_action(
         Query<&mut TextInputValue, With<WorldNameInput>>,
         Query<(Entity, &mut WorldList), With<WorldList>>,
     ),
-    (asset_server, mut menu_state, mut game_state, mut world_map, mut selected_world): (
-        Res<AssetServer>,
+    (ui_assets, mut menu_state, mut game_state, mut world_map, mut selected_world): (
+        Res<UiAssets>,
         ResMut<NextState<MenuState>>,
         ResMut<NextState<GameState>>,
         ResMut<ClientWorldMap>,
@@ -347,7 +343,7 @@ pub fn solo_action(
                         add_world_item(
                             new_name,
                             &mut commands,
-                            &asset_server,
+                            &ui_assets,
                             &mut list,
                             entity,
                             &mut world_map,

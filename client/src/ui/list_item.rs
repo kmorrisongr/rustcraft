@@ -6,16 +6,13 @@
 use bevy::prelude::*;
 
 use super::{
-    assets::{
-        load_play_icon, load_trash_icon, menu_text_font, secondary_text_color, secondary_text_font,
-        white_text_color,
-    },
+    assets::{secondary_text_color, white_text_color, UiAssets},
     style::{icon_button_style, icon_image_style, list_item_row_style, BACKGROUND_COLOR},
 };
 
 /// Configuration for building a list item row
 pub struct ListItemConfig<'a> {
-    pub asset_server: &'a Res<'a, AssetServer>,
+    pub ui_assets: &'a Res<'a, UiAssets>,
     pub primary_text: &'a str,
     pub secondary_text: Option<&'a str>,
 }
@@ -42,23 +39,27 @@ pub fn spawn_list_item_row(commands: &mut Commands, config: ListItemConfig) -> L
     let play_btn = commands
         .spawn((Button, icon_button_style()))
         .with_children(|btn| {
-            let icon = load_play_icon(config.asset_server);
-            btn.spawn((ImageNode::new(icon), icon_image_style()));
+            btn.spawn((
+                ImageNode::new(config.ui_assets.play_icon.clone()),
+                icon_image_style(),
+            ));
         })
         .id();
 
     let delete_btn = commands
         .spawn((Button, icon_button_style()))
         .with_children(|btn| {
-            let icon = load_trash_icon(config.asset_server);
-            btn.spawn((ImageNode::new(icon), icon_image_style()));
+            btn.spawn((
+                ImageNode::new(config.ui_assets.trash_icon.clone()),
+                icon_image_style(),
+            ));
         })
         .id();
 
     let txt = commands
         .spawn((
             Text::new(format!("{}\n", config.primary_text)),
-            menu_text_font(config.asset_server),
+            config.ui_assets.menu_text_font(),
             white_text_color(),
             Node {
                 display: Display::Flex,
@@ -74,7 +75,7 @@ pub fn spawn_list_item_row(commands: &mut Commands, config: ListItemConfig) -> L
             commands
                 .spawn((
                     Text::new(secondary),
-                    secondary_text_font(config.asset_server),
+                    config.ui_assets.secondary_text_font(),
                     secondary_text_color(),
                 ))
                 .id(),

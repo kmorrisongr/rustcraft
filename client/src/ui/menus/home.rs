@@ -1,20 +1,14 @@
 use bevy::prelude::*;
 
-use crate::ui::assets::*;
+use crate::ui::assets::UiAssets;
 use crate::ui::style::{background_image_style, big_button_style, text_font, NORMAL_BUTTON};
 use crate::TEXT_COLOR;
 
 use super::{MenuButtonAction, MenuState};
 
-pub fn home_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Load assets
-    let background_image = load_background_image(&asset_server);
-    let button_background_image = load_button_background_image(&asset_server);
-    let title_image = load_title_image(&asset_server);
-    let font = load_font(&asset_server);
-
+pub fn home_setup(mut commands: Commands, ui_assets: Res<UiAssets>) {
     let button_text_color = TextColor(TEXT_COLOR);
-    let button_text_font = text_font(font.clone(), 33.0);
+    let button_text_font = text_font(ui_assets.font.clone(), 33.0);
 
     // Main container for the menu
     commands
@@ -24,7 +18,7 @@ pub fn home_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 BackgroundColor(Color::NONE),
                 StateScoped(MenuState::Main),
             ),
-            ImageNode::new(background_image), // Set the background image
+            ImageNode::new(ui_assets.background.clone()), // Set the background image
         ))
         .with_children(|parent| {
             // Display the game title as an image
@@ -39,7 +33,7 @@ pub fn home_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     height: Val::Px(image_height),
                     ..default()
                 },
-                ImageNode::new(title_image),
+                ImageNode::new(ui_assets.title.clone()),
             ));
 
             // Add buttons for each action available in the menu
@@ -55,7 +49,7 @@ pub fn home_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             Button,
                             big_button_style(), // Use large button style
                             BackgroundColor(NORMAL_BUTTON),
-                            ImageNode::new(button_background_image.clone()),
+                            ImageNode::new(ui_assets.button_background.clone()),
                         ),
                         action,
                     ))

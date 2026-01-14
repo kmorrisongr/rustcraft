@@ -1,5 +1,4 @@
 use bevy::{
-    asset::AssetServer,
     color::{palettes::css, Color},
     input::ButtonInput,
     prelude::*,
@@ -17,7 +16,7 @@ use crate::input::action_state::GlobalInputManager;
 use crate::input::data::GameAction;
 use crate::menus::{MenuButtonAction, MenuState, ScrollingList};
 
-use crate::ui::assets::*;
+use crate::ui::assets::UiAssets;
 use crate::ui::style::NORMAL_BUTTON;
 
 #[derive(Debug, Component, PartialEq, Eq)]
@@ -34,7 +33,7 @@ pub struct ActionRecorder {
 
 pub fn controls_menu_setup(
     mut commands: Commands,
-    assets: Res<AssetServer>,
+    ui_assets: Res<UiAssets>,
     input_map_query: Query<&InputMap<GameAction>, With<GlobalInputManager>>,
     paths: Res<GameFolderPaths>,
 ) {
@@ -42,9 +41,7 @@ pub fn controls_menu_setup(
         .single()
         .expect("GlobalInputManager should exist");
 
-    let background_image = load_background_image(&assets);
-    let font = load_font(&assets);
-    let trash_icon = assets.load("./trash.png");
+    let trash_icon = ui_assets.trash_icon.clone();
 
     commands
         .spawn((
@@ -63,7 +60,7 @@ pub fn controls_menu_setup(
                 },
                 BackgroundColor(Color::NONE),
             ),
-            ImageNode::new(background_image),
+            ImageNode::new(ui_assets.background.clone()),
         ))
         .with_children(|root| {
             let placeholder = root
@@ -85,7 +82,7 @@ pub fn controls_menu_setup(
                     btn.spawn((
                         Text::new("Back"),
                         TextFont {
-                            font: font.clone(),
+                            font: ui_assets.font.clone(),
                             font_size: 21.,
                             ..default()
                         },
@@ -116,7 +113,7 @@ pub fn controls_menu_setup(
                             list.spawn((
                                 Text::new("Keyboard Controls"),
                                 TextFont {
-                                    font: font.clone(),
+                                    font: ui_assets.font.clone(),
                                     font_size: 36.,
                                     ..default()
                                 },
@@ -161,7 +158,7 @@ pub fn controls_menu_setup(
                                     line.spawn((
                                         Text::new(format!("{action:?}")),
                                         TextFont {
-                                            font: font.clone(),
+                                            font: ui_assets.font.clone(),
                                             font_size: 24.,
                                             ..default()
                                         },
@@ -185,7 +182,7 @@ pub fn controls_menu_setup(
                                         &mut component.commands(),
                                         id,
                                         &keys,
-                                        &assets,
+                                        &ui_assets,
                                         &paths,
                                     );
 
@@ -255,7 +252,7 @@ pub fn controls_menu_setup(
                         dialog.spawn((
                             Text::new("Press any key..."),
                             TextFont {
-                                font: font.clone(),
+                                font: ui_assets.font.clone(),
                                 font_size: 21.,
                                 ..default()
                             },
@@ -275,11 +272,10 @@ pub fn update_input_component(
     commands: &mut Commands,
     entity: Entity,
     binds: &Vec<KeyCode>,
-    assets: &AssetServer,
+    ui_assets: &Res<UiAssets>,
     _paths: &Res<GameFolderPaths>,
 ) {
     commands.entity(entity).despawn_related::<Children>();
-    let font: Handle<Font> = assets.load("./fonts/RustCraftRegular-Bmg3.otf");
 
     // List all possible binds, and add them as text elements
     for key in binds {
@@ -314,7 +310,7 @@ pub fn update_input_component(
                         output
                     }),
                     TextFont {
-                        font: font.clone(),
+                        font: ui_assets.font.clone(),
                         font_size: 21.,
                         ..default()
                     },
@@ -334,12 +330,12 @@ pub fn controls_update_system(
         Query<(&mut ActionRecorder, &mut Visibility)>,
     ),
     mut commands: Commands,
-    resources: (Res<AssetServer>, Res<ButtonInput<KeyCode>>),
+    resources: (Res<UiAssets>, Res<ButtonInput<KeyCode>>),
     mut input_map_query: Query<&mut InputMap<GameAction>, With<GlobalInputManager>>,
     paths: Res<GameFolderPaths>,
 ) {
     let (mut edit_query, mut clear_query, mut visibility_query) = queries;
-    let (assets, input) = resources;
+    let (ui_assets, input) = resources;
 
     if visibility_query.is_empty() {
         return;
@@ -366,7 +362,7 @@ pub fn controls_update_system(
                     })
                     .unwrap_or_default();
 
-                update_input_component(&mut commands, recorder.entity, &keys, &assets, &paths);
+                update_input_component(&mut commands, recorder.entity, &keys, &ui_assets, &paths);
             }
             return;
         }
@@ -410,7 +406,7 @@ pub fn controls_update_system(
                     input_map.clear_action(&clear.0);
 
                     // Update visual element with empty bindings
-                    update_input_component(&mut commands, clear.1, &Vec::new(), &assets, &paths);
+                    update_input_component(&mut commands, clear.1, &Vec::new(), &ui_assets, &paths);
                 }
             }
             Interaction::Hovered => {

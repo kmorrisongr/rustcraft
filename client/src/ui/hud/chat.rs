@@ -2,7 +2,7 @@ use crate::input::data::GameAction;
 use crate::input::GlobalInputManager;
 use crate::network::CachedChatConversation;
 use crate::network::SendGameMessageExtension;
-use crate::ui::assets::chat_text_font;
+use crate::ui::assets::UiAssets;
 use crate::ui::hud::UiDialog;
 use bevy::prelude::*;
 use bevy_renet::renet::RenetClient;
@@ -36,7 +36,7 @@ const ANIMATION_HIDE: u64 = 2_000;
 
 pub fn setup_chat(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    ui_assets: Res<UiAssets>,
     _paths: Res<GameFolderPaths>,
 ) {
     commands
@@ -100,7 +100,7 @@ pub fn setup_chat(
                         value: "Send a message...".to_string(),
                         ..default()
                     },
-                    TextInputTextFont(chat_text_font(&asset_server)),
+                    TextInputTextFont(ui_assets.chat_text_font()),
                     TextInputTextColor(TextColor(Color::WHITE)),
                     TextInputInactive(true),
                 ),
@@ -111,7 +111,7 @@ pub fn setup_chat(
 pub fn render_chat(
     resources: (
         Res<CachedChatConversation>,
-        Res<AssetServer>,
+        Res<UiAssets>,
         ResMut<RenetClient>,
         Res<UIMode>,
     ),
@@ -135,7 +135,7 @@ pub fn render_chat(
     mut commands: Commands,
     _paths: Res<GameFolderPaths>,
 ) {
-    let (cached_conv, asset_server, mut client, ui_mode) = resources;
+    let (cached_conv, ui_assets, mut client, ui_mode) = resources;
     let (mut text_query, mut visibility_query, parent_query, mut animation_query) = queries;
     let (entity_check, mut inactive, mut value) = text_query.single_mut().unwrap();
 
@@ -196,7 +196,7 @@ pub fn render_chat(
                     },
                     (
                         Text::new(format!("<{}> : {}", message.author, message.content)),
-                        chat_text_font(&asset_server),
+                        ui_assets.chat_text_font(),
                         TextColor(Color::WHITE),
                         Visibility::Visible,
                         BackgroundColor(CHAT_COLOR),
