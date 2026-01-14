@@ -2156,7 +2156,7 @@ dependencies = [
  "lazy_static",
  "leafwing-input-manager",
  "log",
- "rand 0.8.5",
+ "rand 0.9.2",
  "ron 0.6.6",
  "serde",
  "server",
@@ -5375,7 +5375,7 @@ dependencies = [
  "futures-lite",
  "log",
  "noiz",
- "rand 0.8.5",
+ "rand 0.9.2",
  "ron 0.6.6",
  "serde",
  "shared",
@@ -5407,7 +5407,7 @@ dependencies = [
  "lz4",
  "noiz",
  "nonempty",
- "rand 0.8.5",
+ "rand 0.9.2",
  "serde",
 ]
 
