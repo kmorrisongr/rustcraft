@@ -14,6 +14,7 @@ pub use inputs::*;
 pub use setup::*;
 
 use bevy::prelude::*;
+use iyes_progress::prelude::*;
 use shared::sets::{GameSets, PreGameLoadingSets};
 
 use crate::{
@@ -39,6 +40,12 @@ impl Plugin for NetworkPlugin {
                 Update,
                 (establish_authenticated_connection_to_server,)
                     .in_set(PreGameLoadingSets::Update::Networking),
+            )
+            .add_systems(
+                Update,
+                track_server_connection_progress
+                    .track_progress::<GameState>()
+                    .run_if(in_state(GameState::PreGameLoading)),
             )
             .add_systems(
                 Update,

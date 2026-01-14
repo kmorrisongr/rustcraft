@@ -1,5 +1,4 @@
 use crate::constants::{BASE_ROUGHNESS, BASE_SPECULAR_HIGHLIGHT};
-use crate::game::{PreLoadingCompletion, PreloadSignal};
 use crate::world::GlobalMaterial;
 use bevy::image::ImageSampler;
 use bevy::platform::collections::HashMap as BevyHashMap;
@@ -88,15 +87,9 @@ pub fn create_all_atlases(
     texture_assets: Res<TextureAssets>,
     mut images: ResMut<Assets<Image>>,
     mut material_resource: ResMut<MaterialResource>,
-    mut loading: ResMut<PreLoadingCompletion>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut preload_signals: EventWriter<PreloadSignal>,
 ) {
-    if loading.textures_loaded {
-        return;
-    }
-
     // Collect all texture handles from TextureAssets
     let texture_handles = texture_assets.get_all_handles();
 
@@ -121,8 +114,7 @@ pub fn create_all_atlases(
             );
             material_resource.blocks = Some(blocks);
         } else {
-            warn!("Failed to build block texture atlas");
-            return;
+            panic!("Failed to build block texture atlas");
         }
     }
 
@@ -147,13 +139,10 @@ pub fn create_all_atlases(
             );
             material_resource.items = Some(items);
         } else {
-            warn!("Failed to build item texture atlas");
-            return;
+            panic!("Failed to build item texture atlas");
         }
     }
 
-    loading.textures_loaded = true;
-    preload_signals.write(PreloadSignal::TexturesReady);
     info!("Texture atlases created successfully");
 }
 
