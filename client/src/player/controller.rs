@@ -197,6 +197,22 @@ pub fn chunk_force_reload_system(
     }
 }
 
+/// Hides the local player's model in first-person view to prevent camera clipping.
+/// Shows the model again in third-person view.
+pub fn local_player_visibility_system(
+    view_mode: Res<ViewMode>,
+    mut player_query: Query<&mut Visibility, With<CurrentPlayerMarker>>,
+) {
+    let Ok(mut visibility) = player_query.single_mut() else {
+        return;
+    };
+
+    *visibility = match *view_mode {
+        ViewMode::FirstPerson => Visibility::Hidden,
+        ViewMode::ThirdPerson => Visibility::Visible,
+    };
+}
+
 pub struct PlayerControllerPlugin;
 impl Plugin for PlayerControllerPlugin {
     fn build(&self, app: &mut App) {
@@ -210,6 +226,7 @@ impl Plugin for PlayerControllerPlugin {
                 first_and_third_person_view_system,
                 toggle_debug_system,
                 chunk_force_reload_system,
+                local_player_visibility_system,
                 (
                     spawn_players_system,
                     update_players_system,

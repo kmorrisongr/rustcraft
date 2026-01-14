@@ -14,6 +14,7 @@ serde = { version = "1.0", features = ["derive"] }
 ron = "0.6"
 bevy_atmosphere = "0.13"
 bevy_water = "0.16"
+bevy_panorbit_camera = "0.28"
 shared = { path = "../shared" }
 server = { path = "../server" }
 log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
