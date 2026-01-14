@@ -19,7 +19,9 @@ pub struct Mob {
 
 #[derive(Debug, Clone)]
 pub struct TargetedMobData {
+    #[allow(dead_code)]
     pub kind: MobKind,
+    #[allow(dead_code)]
     pub id: MobId,
 }
 
