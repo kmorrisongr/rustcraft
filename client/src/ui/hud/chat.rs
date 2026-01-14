@@ -38,7 +38,7 @@ pub fn setup_chat(mut commands: Commands, ui_assets: Res<UiAssets>, _paths: Res<
     commands
         .spawn((
             Name::new("ChatRoot"),
-            StateScoped(crate::GameState::Game),
+            DespawnOnExit(crate::GameState::Game),
             ChatRoot,
             UiDialog,
             (

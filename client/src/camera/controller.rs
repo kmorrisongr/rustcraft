@@ -3,7 +3,7 @@ use crate::player::CurrentPlayerMarker;
 use crate::ui::hud::UIMode;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, PrimaryWindow};
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use bevy_panorbit_camera::PanOrbitCamera;
 use shared::players::ViewMode;
 
@@ -13,27 +13,23 @@ const EYE_HEIGHT_OFFSET: f32 = 0.8;
 /// System to handle FPS-style camera controls.
 /// Uses bevy_panorbit_camera to "cheat" and get first/third person camera easily.
 pub fn camera_control_system(
-    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    mut primary_cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>,
     mut mouse_motion: MessageReader<MouseMotion>,
     player_query: Query<&Transform, With<CurrentPlayerMarker>>,
     mut camera_query: Query<&mut PanOrbitCamera, With<Camera>>,
     view_mode: Res<ViewMode>,
     ui_mode: Res<UIMode>,
 ) {
-    let Ok(mut window) = windows.single_mut() else {
-        return;
-    };
-
     let ui_open = *ui_mode != UIMode::Closed;
 
     // Manage cursor grabbing based on UI state
     if ui_open {
-        window.cursor_options.grab_mode = CursorGrabMode::None;
-        window.cursor_options.visible = true;
+        primary_cursor_options.grab_mode = CursorGrabMode::None;
+        primary_cursor_options.visible = true;
         mouse_motion.clear();
     } else {
-        window.cursor_options.grab_mode = CursorGrabMode::Locked;
-        window.cursor_options.visible = false;
+        primary_cursor_options.grab_mode = CursorGrabMode::Locked;
+        primary_cursor_options.visible = false;
     }
 
     // Accumulate mouse delta

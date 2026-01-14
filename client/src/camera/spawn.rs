@@ -36,6 +36,6 @@ pub fn spawn_camera(mut commands: Commands) {
             ..default()
         },
         AtmosphereCamera::default(),
-        StateScoped(GameState::Game),
+        DespawnOnExit(GameState::Game),
     ));
 }

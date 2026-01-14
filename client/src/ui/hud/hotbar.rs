@@ -18,7 +18,7 @@ pub fn setup_hotbar(mut commands: Commands, texture_atlases: Res<TextureAtlases>
     commands
         .spawn((
             Hotbar { selected: 0 },
-            StateScoped(GameState::Game),
+            DespawnOnExit(GameState::Game),
             (
                 Node {
                     display: Display::Flex,

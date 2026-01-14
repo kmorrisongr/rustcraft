@@ -43,7 +43,7 @@ pub fn settings_menu_setup(mut commands: Commands, ui_assets: Res<UiAssets>) {
                 BackgroundColor(Color::NONE),
             ),
             ImageNode::new(ui_assets.background.clone()),
-            StateScoped(MenuState::Settings),
+            DespawnOnExit(MenuState::Settings),
         ))
         .with_children(|parent| {
             parent

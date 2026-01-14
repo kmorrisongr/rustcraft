@@ -83,7 +83,7 @@ fn update_chunk(
                 // Spawn solid mesh
                 if let Some(new_solid_mesh) = new_meshes.solid_mesh {
                     root.spawn((
-                        StateScoped(GameState::Game),
+                        DespawnOnExit(GameState::Game),
                         Mesh3d(meshes.add(new_solid_mesh)),
                         MeshMaterial3d(solid_texture.clone()),
                     ));

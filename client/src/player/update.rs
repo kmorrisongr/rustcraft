@@ -63,7 +63,7 @@ pub fn spawn_players_system(
         let player_name = event.name.clone();
 
         let mut entity = commands.spawn((
-            StateScoped(GameState::Game),
+            DespawnOnExit(GameState::Game),
             Transform::from_translation(player.position),
             Visibility::default(),
             Mesh3d(meshes.add(Mesh::from(Cuboid::new(
@@ -123,7 +123,7 @@ pub fn spawn_players_system(
                     name: player_name.clone(),
                 },
                 Transform::from_translation(Vec3::new(0.0, 5.0, 0.0)),
-                StateScoped(GameState::Game),
+                DespawnOnExit(GameState::Game),
             ))
             .with_children(|parent| {
                 parent.spawn((

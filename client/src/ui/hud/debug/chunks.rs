@@ -18,7 +18,7 @@ pub fn setup_chunk_ghost(
 ) {
     commands.spawn((
         ChunkGhost,
-        StateScoped(GameState::Game),
+        DespawnOnExit(GameState::Game),
         NotShadowCaster,
         Transform::default(),
         GlobalTransform::default(),

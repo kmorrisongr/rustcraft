@@ -286,7 +286,7 @@ pub fn water_render_system(
 
             let entity = commands
                 .spawn((
-                    StateScoped(GameState::Game),
+                    DespawnOnExit(GameState::Game),
                     transform,
                     Visibility::Visible,
                     Mesh3d(mesh_handle.clone()),

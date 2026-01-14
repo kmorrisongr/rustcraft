@@ -79,7 +79,7 @@ fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>, mut commands: Comman
             ..default()
         },
         MenuCamera,
-        StateScoped(GameState::Menu),
+        DespawnOnExit(GameState::Menu),
     ));
     menu_state.set(MenuState::Main);
 }

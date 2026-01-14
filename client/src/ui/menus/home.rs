@@ -16,7 +16,7 @@ pub fn home_setup(mut commands: Commands, ui_assets: Res<UiAssets>, buttons: Res
             (
                 background_image_style(),
                 BackgroundColor(Color::NONE),
-                StateScoped(MenuState::Main),
+                DespawnOnExit(MenuState::Main),
             ),
             ImageNode::new(ui_assets.background.clone()), // Set the background image
         ))

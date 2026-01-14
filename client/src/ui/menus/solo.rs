@@ -68,7 +68,7 @@ pub fn solo_menu_setup(
 
     commands
         .spawn((
-            StateScoped(MenuState::Solo),
+            DespawnOnExit(MenuState::Solo),
             (Node {
                 width: Val::Vw(100.0),
                 height: Val::Vh(100.0),

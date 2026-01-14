@@ -11,7 +11,7 @@ pub struct LoadingOverlay;
 pub fn setup_loading_overlay(mut commands: Commands) {
     commands
         .spawn((
-            StateScoped(GameState::Game),
+            DespawnOnExit(GameState::Game),
             LoadingOverlay,
             Node {
                 position_type: PositionType::Absolute,

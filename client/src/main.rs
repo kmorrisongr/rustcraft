@@ -61,7 +61,7 @@ pub struct MenuCamera;
 
 pub const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct LoadWorldEvent {
     pub world_name: String,
 }
@@ -140,11 +140,9 @@ fn main() {
             }),
     );
 
-    app.add_plugins(EguiPlugin {
-        enable_multipass_for_primary_context: false,
-    })
-    .add_plugins(DefaultInspectorConfigPlugin)
-    .add_systems(Update, inspector_ui);
+    app.add_plugins(EguiPlugin::default())
+        .add_plugins(DefaultInspectorConfigPlugin)
+        .add_systems(Update, inspector_ui);
 
     // Add leafwing-input-manager for action-based input handling
     app.add_plugins(InputManagerPlugin::<GameAction>::default())

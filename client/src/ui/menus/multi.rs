@@ -64,7 +64,7 @@ pub fn multiplayer_menu_setup(
 
     commands
         .spawn((
-            StateScoped(MenuState::Multi),
+            DespawnOnExit(MenuState::Multi),
             (
                 Node {
                     width: Val::Vw(100.0),

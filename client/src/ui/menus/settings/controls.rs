@@ -45,7 +45,7 @@ pub fn controls_menu_setup(
 
     commands
         .spawn((
-            StateScoped(MenuState::SettingsControls),
+            DespawnOnExit(MenuState::SettingsControls),
             (
                 Node {
                     padding: UiRect::horizontal(Val::Vw(15.)),

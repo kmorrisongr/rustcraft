@@ -38,7 +38,7 @@ pub fn setup_pause_menu(
             PauseMenu,
             UiDialog,
             Name::new("PauseMenu"),
-            StateScoped(GameState::Game),
+            DespawnOnExit(GameState::Game),
             BackgroundColor(Color::BLACK.with_alpha(0.6)),
             (
                 Node {
