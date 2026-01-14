@@ -20,7 +20,6 @@ Minecraft game clone written in Rust, using the Bevy game engine.
 - [How to Build](#how-to-build)
     - [Prerequisites](#prerequisites)
     - [Running the Project](#running-the-project)
-- [Documentation for Developers](#documentation-for-developers)
 - [Contributing](#contributing)
     - [Guidelines](#guidelines)
 
