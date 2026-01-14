@@ -23,12 +23,12 @@ bevy_image = "0.17"
 lazy_static = "1.5.0"
 bevy_simple_text_input = "0.11"
 bevy_atmosphere = "0.13"
-bevy_panorbit_camera = "0.28"
-bevy-inspector-egui = "0.31"
+bevy_panorbit_camera = "0.33"
+bevy-inspector-egui = "0.35"
 egui = "0.31"
-iyes_progress = "0.14"
-bevy_asset_loader = { version = "0.23", features = ["progress_tracking", "standard_dynamic_assets"] }
-leafwing-input-manager = "0.17"
+iyes_progress = "0.15"
+bevy_asset_loader = { version = "0.24", features = ["progress_tracking", "standard_dynamic_assets"] }
+leafwing-input-manager = "0.19"
 
 [lints]
 workspace = true
