@@ -5,40 +5,40 @@ use super::style::{
     CHAT_FONT_SIZE, MENU_FONT_SIZE, SECONDARY_FONT_SIZE, SECONDARY_TEXT_COLOR, TEXT_COLOR,
 };
 
+/// Button background variants (normal and dark, regular and large sizes)
+#[derive(AssetCollection, Resource)]
+pub struct ButtonAssets {
+    #[asset(path = "graphics/button_background.png")]
+    pub normal: Handle<Image>,
+
+    #[asset(path = "graphics/button_background_large.png")]
+    pub normal_large: Handle<Image>,
+
+    #[asset(path = "graphics/dark_button_background.png")]
+    pub dark: Handle<Image>,
+
+    #[asset(path = "graphics/dark_button_background_large.png")]
+    pub dark_large: Handle<Image>,
+}
+
 /// Asset collection for UI assets, loaded automatically via bevy_asset_loader.
 /// This resource is available after `GameState::Splash` completes loading.
 #[derive(AssetCollection, Resource)]
 pub struct UiAssets {
-    // Font
     #[asset(path = "fonts/RustCraftRegular-Bmg3.otf")]
     pub font: Handle<Font>,
 
-    // Icons
     #[asset(path = "graphics/play.png")]
     pub play_icon: Handle<Image>,
 
     #[asset(path = "graphics/trash.png")]
     pub trash_icon: Handle<Image>,
 
-    // Background images
     #[asset(path = "graphics/background.png")]
     pub background: Handle<Image>,
 
     #[asset(path = "graphics/title.png")]
     pub title: Handle<Image>,
-
-    // Button backgrounds
-    #[asset(path = "graphics/button_background.png")]
-    pub button_background: Handle<Image>,
-
-    #[asset(path = "graphics/button_background_large.png")]
-    pub button_background_large: Handle<Image>,
-
-    #[asset(path = "graphics/dark_button_background.png")]
-    pub dark_button_background: Handle<Image>,
-
-    #[asset(path = "graphics/dark_button_background_large.png")]
-    pub dark_button_background_large: Handle<Image>,
 }
 
 impl UiAssets {

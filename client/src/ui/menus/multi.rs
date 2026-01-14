@@ -1,7 +1,7 @@
 use super::{MenuButtonAction, MenuState, ScrollingList};
 use crate::constants::SERVER_LIST_SAVE_NAME;
 use crate::network::{TargetServer, TargetServerState};
-use crate::ui::assets::{white_text_color, UiAssets};
+use crate::ui::assets::{white_text_color, ButtonAssets, UiAssets};
 use crate::ui::list_item::{spawn_list_item_row, ListItemConfig};
 use crate::ui::style::*;
 use crate::GameState;
@@ -55,6 +55,7 @@ pub struct ServerNameInput;
 pub fn multiplayer_menu_setup(
     mut commands: Commands,
     ui_assets: Res<UiAssets>,
+    buttons: Res<ButtonAssets>,
     _paths: Res<GameFolderPaths>,
 ) {
     let txt_font = ui_assets.menu_text_font();
@@ -182,7 +183,7 @@ pub fn multiplayer_menu_setup(
                                 BorderColor(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 btn_style.clone(),
-                                ImageNode::new(ui_assets.button_background_large.clone()),
+                                ImageNode::new(buttons.normal_large.clone()),
                             ),
                             MultiplayerButtonAction::Add,
                         ))
@@ -197,7 +198,7 @@ pub fn multiplayer_menu_setup(
                                 BorderColor(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 btn_style.clone(),
-                                ImageNode::new(ui_assets.button_background_large.clone()),
+                                ImageNode::new(buttons.normal_large.clone()),
                             ),
                             MenuButtonAction::BackToMainMenu,
                         ))

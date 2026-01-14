@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_simple_text_input::TextInputInactive;
 
-use super::{assets::UiAssets, style::*};
+use super::{assets::ButtonAssets, style::*};
 
 #[derive(Component)]
 pub struct ScrollingList {
@@ -52,7 +52,7 @@ pub fn button_system(
         (Changed<Interaction>, With<TextInputInactive>),
     >,
     mut text_input_query: Query<(Entity, &mut TextInputInactive)>,
-    ui_assets: Res<UiAssets>,
+    buttons: Res<ButtonAssets>,
 ) {
     for (interaction, mut ui_image, mut background_color, selected, style, node) in
         &mut interaction_query
@@ -65,15 +65,9 @@ pub fn button_system(
 
         // Select the appropriate images based on the width
         let (normal_image, dark_image) = if width > 400.0 {
-            (
-                ui_assets.button_background_large.clone(),
-                ui_assets.dark_button_background_large.clone(),
-            )
+            (buttons.normal_large.clone(), buttons.dark_large.clone())
         } else {
-            (
-                ui_assets.button_background.clone(),
-                ui_assets.dark_button_background.clone(),
-            )
+            (buttons.normal.clone(), buttons.dark.clone())
         };
 
         match *interaction {

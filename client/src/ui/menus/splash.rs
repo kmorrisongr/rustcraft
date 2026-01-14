@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
 
-use crate::ui::assets::UiAssets;
+use crate::ui::assets::{ButtonAssets, UiAssets};
 use crate::GameState;
 
 // This plugin will display a splash screen with Bevy logo while loading UI assets
@@ -11,7 +11,8 @@ pub fn splash_plugin(app: &mut App) {
         .add_loading_state(
             LoadingState::new(GameState::Splash)
                 .continue_to_state(GameState::Menu)
-                .load_collection::<UiAssets>(),
+                .load_collection::<UiAssets>()
+                .load_collection::<ButtonAssets>(),
         )
         // When entering the state, spawn everything needed for this screen
         .add_systems(OnEnter(GameState::Splash), splash_setup);

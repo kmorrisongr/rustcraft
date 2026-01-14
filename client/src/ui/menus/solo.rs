@@ -1,5 +1,5 @@
 use super::{MenuButtonAction, MenuState, ScrollingList};
-use crate::ui::assets::{white_text_color, UiAssets};
+use crate::ui::assets::{white_text_color, ButtonAssets, UiAssets};
 use crate::ui::list_item::{spawn_list_item_row, ListItemConfig};
 use crate::ui::style::*;
 use crate::world::ClientWorldMap;
@@ -58,6 +58,7 @@ pub struct SelectedWorld {
 pub fn solo_menu_setup(
     mut commands: Commands,
     ui_assets: Res<UiAssets>,
+    buttons: Res<ButtonAssets>,
     _paths: Res<GameFolderPaths>,
 ) {
     let txt_font = ui_assets.menu_text_font();
@@ -171,7 +172,7 @@ pub fn solo_menu_setup(
                                     style.grid_column = GridPlacement::span(2);
                                     style
                                 },
-                                ImageNode::new(ui_assets.button_background_large.clone()),
+                                ImageNode::new(buttons.normal_large.clone()),
                             ),
                             MultiplayerButtonAction::Add,
                         ))
@@ -190,7 +191,7 @@ pub fn solo_menu_setup(
                                     style.grid_column = GridPlacement::span(2);
                                     style
                                 },
-                                ImageNode::new(ui_assets.button_background_large.clone()),
+                                ImageNode::new(buttons.normal_large.clone()),
                             ),
                             MenuButtonAction::BackToMainMenu,
                         ))

@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 
-use crate::ui::assets::UiAssets;
+use crate::ui::assets::{ButtonAssets, UiAssets};
 use crate::ui::style::{background_image_style, big_button_style, text_font, NORMAL_BUTTON};
 use crate::TEXT_COLOR;
 
 use super::{MenuButtonAction, MenuState};
 
-pub fn home_setup(mut commands: Commands, ui_assets: Res<UiAssets>) {
+pub fn home_setup(mut commands: Commands, ui_assets: Res<UiAssets>, buttons: Res<ButtonAssets>) {
     let button_text_color = TextColor(TEXT_COLOR);
     let button_text_font = text_font(ui_assets.font.clone(), 33.0);
 
@@ -49,7 +49,7 @@ pub fn home_setup(mut commands: Commands, ui_assets: Res<UiAssets>) {
                             Button,
                             big_button_style(), // Use large button style
                             BackgroundColor(NORMAL_BUTTON),
-                            ImageNode::new(ui_assets.button_background.clone()),
+                            ImageNode::new(buttons.normal.clone()),
                         ),
                         action,
                     ))
