@@ -3,7 +3,7 @@ use bevy::{prelude::*, ui::FocusPolicy};
 use crate::{
     constants::{HOTBAR_BORDER, HOTBAR_CELL_SIZE, HOTBAR_PADDING, MAX_HOTBAR_SLOTS},
     ui::hud::InventoryCell,
-    world::MaterialResource,
+    world::TextureAtlases,
     GameState,
 };
 
@@ -12,8 +12,8 @@ pub struct Hotbar {
     pub selected: u32,
 }
 
-pub fn setup_hotbar(mut commands: Commands, materials_resource: Res<MaterialResource>) {
-    let atlas = materials_resource.items.as_ref().unwrap();
+pub fn setup_hotbar(mut commands: Commands, texture_atlases: Res<TextureAtlases>) {
+    let atlas = &texture_atlases.items;
 
     commands
         .spawn((

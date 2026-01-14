@@ -13,11 +13,7 @@ pub use render_distance::*;
 
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
-use shared::{
-    game_state::GameState,
-    sets::GameSets,
-    world::{BlockId, ItemId},
-};
+use shared::{game_state::GameState, sets::GameSets};
 
 use crate::world::water::{
     water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle,
@@ -31,29 +27,21 @@ impl Plugin for RenderingPlugin {
             .init_resource::<RenderDistance>()
             .init_resource::<LodTransitionTimer>()
             .init_resource::<MaterialResource>()
-            .init_resource::<AtlasHandles<BlockId>>()
-            .init_resource::<AtlasHandles<ItemId>>()
             // Configure dynamic assets before loading state starts
             .add_systems(
                 OnEnter(GameState::PreGameLoading),
-                (configure_dynamic_texture_assets, setup_basic_materials).chain(),
+                configure_dynamic_texture_assets,
             )
             // Configure the loading state with bevy_asset_loader
+            // TextureAtlases is built via FromWorld after assets finish loading
             .add_loading_state(
                 LoadingState::new(GameState::PreGameLoading)
                     .load_collection::<BlockTextureAssets>()
-                    .load_collection::<ItemTextureAssets>(),
+                    .load_collection::<ItemTextureAssets>()
+                    .finally_init_resource::<TextureAtlases>(),
             )
-            // Initialize atlas handles after assets are loaded, then create atlases
-            .add_systems(
-                OnEnter(GameState::Game),
-                (
-                    init_block_atlas_handles,
-                    init_item_atlas_handles,
-                    create_all_atlases,
-                )
-                    .chain(),
-            )
+            // Create materials from the atlases when entering Game state
+            .add_systems(OnEnter(GameState::Game), setup_atlas_materials)
             .add_systems(
                 Update,
                 (render_distance_update_system, lod_transition_system)

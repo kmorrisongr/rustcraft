@@ -6,16 +6,13 @@ use bevy::platform::collections::HashMap as BevyHashMap;
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
 use bevy_asset_loader::prelude::*;
-use shared::world::{BlockId, GameElementId, ItemId};
 use shared::GameFolderPaths;
 use std::collections::HashMap;
 use std::fs;
-use std::marker::PhantomData;
 
 use super::meshing::UvCoords;
 
 /// Asset collection for block textures loaded dynamically from a folder.
-/// Uses bevy_asset_loader with iyes_progress integration.
 #[derive(AssetCollection, Resource)]
 pub struct BlockTextureAssets {
     #[asset(key = "block_textures", collection(typed, mapped))]
@@ -29,7 +26,8 @@ pub struct ItemTextureAssets {
     pub textures: BevyHashMap<String, Handle<Image>>,
 }
 
-#[derive(Resource, Debug)]
+/// Wrapper for a built texture atlas with UV coordinates.
+#[derive(Debug)]
 pub struct AtlasWrapper {
     pub handles: HashMap<String, Handle<Image>>,
     pub texture: Handle<Image>,
@@ -38,29 +36,135 @@ pub struct AtlasWrapper {
     pub uvs: HashMap<String, UvCoords>,
 }
 
-#[derive(Resource, Default, Debug)]
+/// Contains all game materials.
+#[derive(Resource, Default)]
 pub struct MaterialResource {
     pub global_materials: HashMap<GlobalMaterial, Handle<StandardMaterial>>,
-    pub items: Option<AtlasWrapper>,
-    pub blocks: Option<AtlasWrapper>,
 }
 
+/// Resource that holds the built texture atlases.
+/// Initialized via `finally_init_resource` after assets are loaded.
 #[derive(Resource)]
-pub struct AtlasHandles<T> {
-    pub handles: Vec<(Handle<Image>, String)>,
-    pub loaded: bool,
-    /// Phantom to allow multiple instances of the struct
-    _d: PhantomData<T>,
+pub struct TextureAtlases {
+    pub blocks: AtlasWrapper,
+    pub items: AtlasWrapper,
 }
 
-impl<T> Default for AtlasHandles<T> {
-    fn default() -> Self {
-        Self {
-            handles: Vec::new(),
-            loaded: false,
-            _d: PhantomData {},
-        }
+impl FromWorld for TextureAtlases {
+    fn from_world(world: &mut World) -> Self {
+        // Build block atlas
+        let block_handles: Vec<(Handle<Image>, String)> = world
+            .resource::<BlockTextureAssets>()
+            .textures
+            .iter()
+            .map(|(name, handle)| {
+                let filename = std::path::Path::new(name)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(name)
+                    .to_string();
+                (handle.clone(), filename)
+            })
+            .collect();
+
+        let blocks = world.resource_scope(|world, mut images: Mut<Assets<Image>>| {
+            world.resource_scope(|_world, mut layouts: Mut<Assets<TextureAtlasLayout>>| {
+                build_texture_atlas(&block_handles, &mut images, &mut layouts)
+                    .expect("Failed to build block texture atlas")
+            })
+        });
+
+        info!(
+            "Block texture atlas created with {} textures",
+            block_handles.len()
+        );
+
+        // Build item atlas
+        let item_handles: Vec<(Handle<Image>, String)> = world
+            .resource::<ItemTextureAssets>()
+            .textures
+            .iter()
+            .map(|(name, handle)| {
+                let filename = std::path::Path::new(name)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(name)
+                    .to_string();
+                (handle.clone(), filename)
+            })
+            .collect();
+
+        let items = world.resource_scope(|world, mut images: Mut<Assets<Image>>| {
+            world.resource_scope(|_world, mut layouts: Mut<Assets<TextureAtlasLayout>>| {
+                build_texture_atlas(&item_handles, &mut images, &mut layouts)
+                    .expect("Failed to build item texture atlas")
+            })
+        });
+
+        info!(
+            "Item texture atlas created with {} textures",
+            item_handles.len()
+        );
+
+        TextureAtlases { blocks, items }
     }
+}
+
+/// System to create all materials from the texture atlases.
+/// Runs after TextureAtlases is initialized.
+pub fn setup_atlas_materials(
+    atlases: Res<TextureAtlases>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut material_resource: ResMut<MaterialResource>,
+) {
+    // Create sun and moon materials
+    let sun_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(1., 0.95, 0.1),
+        emissive: LinearRgba::new(1., 0.95, 0.1, 0.5),
+        emissive_exposure_weight: 0.5,
+        cull_mode: Some(Face::Front),
+        ..Default::default()
+    });
+    material_resource
+        .global_materials
+        .insert(GlobalMaterial::Sun, sun_material);
+
+    let moon_material = materials.add(StandardMaterial {
+        base_color: Color::WHITE,
+        emissive: LinearRgba::WHITE,
+        emissive_exposure_weight: 0.5,
+        cull_mode: Some(Face::Front),
+        ..Default::default()
+    });
+    material_resource
+        .global_materials
+        .insert(GlobalMaterial::Moon, moon_material);
+
+    // Create block material
+    let block_material = materials.add(StandardMaterial {
+        base_color_texture: Some(atlases.blocks.texture.clone_weak()),
+        perceptual_roughness: BASE_ROUGHNESS,
+        reflectance: BASE_SPECULAR_HIGHLIGHT,
+        alpha_mode: AlphaMode::AlphaToCoverage,
+        ..default()
+    });
+    material_resource
+        .global_materials
+        .insert(GlobalMaterial::Blocks, block_material);
+
+    // Create item material
+    let item_material = materials.add(StandardMaterial {
+        base_color_texture: Some(atlases.items.texture.clone_weak()),
+        perceptual_roughness: BASE_ROUGHNESS,
+        reflectance: BASE_SPECULAR_HIGHLIGHT,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+    material_resource
+        .global_materials
+        .insert(GlobalMaterial::Items, item_material);
+
+    info!("All materials created");
 }
 
 /// Configures dynamic assets for bevy_asset_loader based on the texture paths.
@@ -128,218 +232,57 @@ pub fn configure_dynamic_texture_assets(
     }
 }
 
-/// Sets up basic materials (sun, moon) that don't require loaded textures.
-pub fn setup_basic_materials(
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut material_resource: ResMut<MaterialResource>,
-) {
-    let sun_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(1., 0.95, 0.1),
-        emissive: LinearRgba::new(1., 0.95, 0.1, 0.5),
-        emissive_exposure_weight: 0.5,
-        cull_mode: Some(Face::Front),
-        ..Default::default()
-    });
-
-    let moon_material = materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        emissive: LinearRgba::WHITE,
-        emissive_exposure_weight: 0.5,
-        cull_mode: Some(Face::Front),
-        ..Default::default()
-    });
-
-    material_resource
-        .global_materials
-        .insert(GlobalMaterial::Sun, sun_material);
-    material_resource
-        .global_materials
-        .insert(GlobalMaterial::Moon, moon_material);
-}
-
-/// Initializes block atlas handles from the loaded BlockTextureAssets.
-/// Called via `finally_init_resource` after bevy_asset_loader finishes loading.
-pub fn init_block_atlas_handles(
-    mut atlas_handles: ResMut<AtlasHandles<BlockId>>,
-    block_assets: Res<BlockTextureAssets>,
-) {
-    atlas_handles.handles = block_assets
-        .textures
-        .iter()
-        .map(|(name, handle)| {
-            // Extract just the filename without path and extension
-            let filename = std::path::Path::new(name)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or(name)
-                .to_string();
-            (handle.clone(), filename)
-        })
-        .collect();
-
-    info!(
-        "Initialized {} block atlas handles",
-        atlas_handles.handles.len()
-    );
-}
-
-/// Initializes item atlas handles from the loaded ItemTextureAssets.
-/// Called via `finally_init_resource` after bevy_asset_loader finishes loading.
-pub fn init_item_atlas_handles(
-    mut atlas_handles: ResMut<AtlasHandles<ItemId>>,
-    item_assets: Res<ItemTextureAssets>,
-) {
-    atlas_handles.handles = item_assets
-        .textures
-        .iter()
-        .map(|(name, handle)| {
-            // Extract just the filename without path and extension
-            let filename = std::path::Path::new(name)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or(name)
-                .to_string();
-            (handle.clone(), filename)
-        })
-        .collect();
-
-    info!(
-        "Initialized {} item atlas handles",
-        atlas_handles.handles.len()
-    );
-}
-
-/// Creates texture atlases from loaded assets.
-/// This system runs after bevy_asset_loader has finished loading all textures.
-/// The assets are guaranteed to be loaded when this runs.
-pub fn create_all_atlases(
-    mut atlases: (ResMut<AtlasHandles<BlockId>>, ResMut<AtlasHandles<ItemId>>),
-    mut images: ResMut<Assets<Image>>,
-    mut material_resource: ResMut<MaterialResource>,
-    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // Skip if atlases are already built
-    if atlases.0.loaded && atlases.1.loaded {
-        return;
-    }
-
-    // Skip if no handles loaded yet
-    if atlases.0.handles.is_empty() && atlases.1.handles.is_empty() {
-        return;
-    }
-
-    // Build block atlas
-    if !atlases.0.loaded && !atlases.0.handles.is_empty() && material_resource.blocks.is_none() {
-        if let Some(blocks) = build_texture_atlas(
-            &mut atlases.0,
-            &mut images,
-            &mut texture_atlases,
-            None,
-            Some(ImageSampler::nearest()),
-        ) {
-            material_resource.global_materials.insert(
-                GlobalMaterial::Blocks,
-                materials.add(StandardMaterial {
-                    base_color_texture: Some(blocks.texture.clone_weak()),
-                    perceptual_roughness: BASE_ROUGHNESS,
-                    reflectance: BASE_SPECULAR_HIGHLIGHT,
-                    alpha_mode: AlphaMode::AlphaToCoverage,
-                    ..default()
-                }),
-            );
-
-            material_resource.blocks = Some(blocks);
-            atlases.0.loaded = true;
-            info!("Block texture atlas created");
-        }
-    }
-
-    // Build item atlas
-    if !atlases.1.loaded && !atlases.1.handles.is_empty() && material_resource.items.is_none() {
-        if let Some(items) = build_texture_atlas(
-            &mut atlases.1,
-            &mut images,
-            &mut texture_atlases,
-            None,
-            Some(ImageSampler::nearest()),
-        ) {
-            material_resource.global_materials.insert(
-                GlobalMaterial::Items,
-                materials.add(StandardMaterial {
-                    base_color_texture: Some(items.texture.clone_weak()),
-                    perceptual_roughness: BASE_ROUGHNESS,
-                    reflectance: BASE_SPECULAR_HIGHLIGHT,
-                    alpha_mode: AlphaMode::Blend,
-                    ..default()
-                }),
-            );
-            material_resource.items = Some(items);
-            atlases.1.loaded = true;
-            info!("Item texture atlas created");
-        }
-    }
-}
-
-fn build_texture_atlas<T: GameElementId>(
-    atlas_handles: &mut AtlasHandles<T>,
-    images: &mut ResMut<Assets<Image>>,
-    texture_atlases: &mut ResMut<Assets<TextureAtlasLayout>>,
-    padding: Option<UVec2>,
-    sampling: Option<ImageSampler>,
+/// Builds a texture atlas from a list of image handles and names.
+fn build_texture_atlas(
+    handles: &[(Handle<Image>, String)],
+    images: &mut Assets<Image>,
+    layouts: &mut Assets<TextureAtlasLayout>,
 ) -> Option<AtlasWrapper> {
-    if atlas_handles.loaded {
-        // Blocks if this atlas is loaded but game setup phase is not done yet
-        return None;
-    }
+    let mut builder = TextureAtlasBuilder::default();
+    builder.padding(UVec2::ZERO);
 
-    let mut texture_atlas_builder = TextureAtlasBuilder::default();
-    texture_atlas_builder.padding(padding.unwrap_or_default());
-
-    for handle in atlas_handles.handles.iter() {
-        let id = handle.0.id();
+    for (handle, _name) in handles {
+        let id = handle.id();
         let Some(texture) = images.get(id) else {
-            // Not all images are loaded yet
+            warn!("Texture not loaded: {:?}", id);
             return None;
         };
-
-        texture_atlas_builder.add_texture(Some(id), texture);
+        builder.add_texture(Some(id), texture);
     }
 
-    let (texture_atlas_layout, texture_atlas_sources, texture) =
-        texture_atlas_builder.build().unwrap();
+    let (layout, sources, mut texture) = builder.build().ok()?;
+    texture.sampler = ImageSampler::nearest();
 
     let size = texture.size_f32();
-    let texture = images.add(texture);
-    // Update the sampling settings of the texture atlas
-    let image = images.get_mut(&texture).unwrap();
-    image.sampler = sampling.unwrap_or_default();
+    let texture_handle = images.add(texture);
 
-    // Create UV references
-    let mut handles = HashMap::new();
+    // Build UV coordinates and handle mappings
+    let mut handle_map = HashMap::new();
     let mut uvs = HashMap::new();
-    for i in atlas_handles.handles.iter() {
-        handles.insert(i.1.clone(), i.0.clone_weak());
-        let rect = texture_atlas_sources
-            .texture_rect(&texture_atlas_layout, i.0.id())
+
+    for (handle, name) in handles {
+        handle_map.insert(name.clone(), handle.clone_weak());
+
+        let rect = sources
+            .texture_rect(&layout, handle.id())
             .unwrap_or_default();
 
-        let uv_coords = UvCoords::new(
-            rect.min.x as f32 / size.x,
-            rect.max.x as f32 / size.x,
-            rect.min.y as f32 / size.y,
-            rect.max.y as f32 / size.y,
+        uvs.insert(
+            name.clone(),
+            UvCoords::new(
+                rect.min.x as f32 / size.x,
+                rect.max.x as f32 / size.x,
+                rect.min.y as f32 / size.y,
+                rect.max.y as f32 / size.y,
+            ),
         );
-
-        uvs.insert(i.1.clone(), uv_coords);
     }
 
-    // Create the atlas
     Some(AtlasWrapper {
-        texture,
-        layout: texture_atlases.add(texture_atlas_layout),
-        sources: texture_atlas_sources,
-        handles,
+        handles: handle_map,
+        texture: texture_handle,
+        layout: layouts.add(layout),
+        sources,
         uvs,
     })
 }

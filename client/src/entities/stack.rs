@@ -7,7 +7,7 @@ use shared::{
 
 use crate::{
     player::CurrentPlayerMarker,
-    world::{MaterialResource, RenderDistance},
+    world::{MaterialResource, RenderDistance, TextureAtlases},
 };
 
 #[derive(Debug, Component)]
@@ -23,9 +23,14 @@ pub fn stack_update_system(
     mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
     material_resource: Res<MaterialResource>,
+    texture_atlases: Option<Res<TextureAtlases>>,
     distance: Res<RenderDistance>,
     player_pos: Query<&Transform, With<CurrentPlayerMarker>>,
 ) {
+    let Some(texture_atlases) = texture_atlases else {
+        return;
+    };
+
     'ev_loop: for ev in events.read() {
         if let Some((stack, pos)) = ev.data {
             for (_, mut marker, mut transform) in stacks.iter_mut() {
@@ -50,10 +55,8 @@ pub fn stack_update_system(
                 panic!("Unexpected vertex format, expected Float32x2.");
             };
 
-            if let Some(uv_coords) = material_resource
+            if let Some(uv_coords) = texture_atlases
                 .items
-                .as_ref()
-                .unwrap()
                 .uvs
                 .get(&format!("{:?}", stack.item_id))
             {

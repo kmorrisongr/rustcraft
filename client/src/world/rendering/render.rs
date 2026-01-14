@@ -15,7 +15,7 @@ use shared::{
 };
 
 use crate::{
-    world::{self, MaterialResource, QueuedEvents, WorldRenderRequestUpdateEvent},
+    world::{self, MaterialResource, QueuedEvents, TextureAtlases, WorldRenderRequestUpdateEvent},
     GameState,
 };
 
@@ -104,6 +104,7 @@ fn update_chunk(
 pub fn world_render_system(
     mut world_map: ResMut<ClientWorldMap>,
     material_resource: Res<MaterialResource>,
+    texture_atlases: Option<Res<TextureAtlases>>,
     render_distance: Res<RenderDistance>,
     mut ev_render: EventReader<WorldRenderRequestUpdateEvent>,
     mut queued_events: Local<QueuedEvents>,
@@ -119,10 +120,10 @@ pub fn world_render_system(
         queued_events.events.insert(*event);
     }
 
-    if material_resource.blocks.is_none() {
-        // Wait until the texture is ready
+    let Some(texture_atlases) = texture_atlases else {
+        // Wait until the texture atlas is ready
         return;
-    }
+    };
 
     let pool = AsyncComputeTaskPool::get();
 
@@ -150,7 +151,7 @@ pub fn world_render_system(
 
         // Cache UV map to avoid cloning every frame
         let uvs = if uv_map_cache.cached.is_none() {
-            let new_uvs = Arc::new(material_resource.blocks.as_ref().unwrap().uvs.clone());
+            let new_uvs = Arc::new(texture_atlases.blocks.uvs.clone());
             uv_map_cache.cached = Some(Arc::clone(&new_uvs));
             new_uvs
         } else {

@@ -4,7 +4,7 @@ use crate::input::data::GameAction;
 use crate::input::keyboard::is_action_just_pressed;
 use crate::ui::hud::hotbar::Hotbar;
 use crate::ui::hud::{FloatingStack, InventoryCell, InventoryRoot};
-use crate::world::MaterialResource;
+use crate::world::TextureAtlases;
 use crate::KeyMap;
 use bevy::color::Color;
 use bevy::ecs::hierarchy::Children;
@@ -37,12 +37,12 @@ pub fn render_inventory_hotbar(
         Query<&Window, With<PrimaryWindow>>,
         Query<&mut Hotbar>,
     ),
-    (keyboard_input, mouse_input, key_map, mut inventory, materials, ui_mode): (
+    (keyboard_input, mouse_input, key_map, mut inventory, texture_atlases, ui_mode): (
         Res<ButtonInput<KeyCode>>,
         Res<ButtonInput<MouseButton>>,
         Res<KeyMap>,
         ResMut<Inventory>,
-        Res<MaterialResource>,
+        Res<TextureAtlases>,
         Res<UIMode>,
     ),
     mut scroll: EventReader<MouseWheel>,
@@ -85,7 +85,7 @@ pub fn render_inventory_hotbar(
             &mut txt,
             &mut stack_vis,
             atlas,
-            &materials,
+            &texture_atlases,
         );
     }
 
@@ -106,7 +106,7 @@ pub fn render_inventory_hotbar(
         let (mut stack_img, mut stack_vis) = atlas_query.get_mut(children[1]).unwrap();
 
         if let Some(atlas) = &mut stack_img.texture_atlas {
-            update_inventory_cell(&stack, &mut txt, &mut stack_vis, atlas, &materials);
+            update_inventory_cell(&stack, &mut txt, &mut stack_vis, atlas, &texture_atlases);
         }
         // Show selected stack in hotbar
         if *vis != Visibility::Visible && hotbar_query.single().unwrap().selected == cell.id {
@@ -217,9 +217,9 @@ pub fn update_inventory_cell(
     txt: &mut Text,
     visibility: &mut Visibility,
     atlas: &mut TextureAtlas,
-    materials: &MaterialResource,
+    texture_atlases: &TextureAtlases,
 ) {
-    let items_atlas = materials.items.as_ref().unwrap();
+    let items_atlas = &texture_atlases.items;
 
     // Set content
     if let Some(fstack) = stack {
