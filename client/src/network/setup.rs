@@ -3,7 +3,6 @@ use bevy_renet::netcode::{
     ClientAuthentication, NetcodeClientPlugin, NetcodeClientTransport, NetcodeTransportError,
 };
 use bevy_renet::{renet::RenetClient, RenetClientPlugin};
-use iyes_progress::prelude::*;
 use rand::Rng;
 use shared::constants::{
     DEFAULT_RENDER_DISTANCE, NETCODE_CLIENT_TRANSPORT_ERROR, SOCKET_BIND_ERROR,
@@ -292,17 +291,5 @@ pub fn establish_authenticated_connection_to_server(
                 panic!("Unexpected message: {message:?}");
             }
         }
-    }
-}
-
-/// Tracks server connection progress for the loading state.
-/// Returns `Progress::from(true)` when the server connection is established,
-/// allowing the loading state to transition once both assets and the server are ready.
-pub fn track_server_connection_progress(target_server: Res<TargetServer>) -> Progress {
-    match target_server.state {
-        TargetServerState::ConnectionEstablished | TargetServerState::FullyReady => {
-            Progress::from(true)
-        }
-        _ => Progress::from(false),
     }
 }
