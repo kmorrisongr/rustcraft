@@ -1,14 +1,13 @@
 use super::{MenuButtonAction, MenuState, ScrollingList};
 use crate::constants::SERVER_LIST_SAVE_NAME;
 use crate::network::{TargetServer, TargetServerState};
-use crate::ui::assets::*;
+use crate::ui::assets::{white_text_color, ButtonAssets, UiAssets};
 use crate::ui::list_item::{spawn_list_item_row, ListItemConfig};
 use crate::ui::style::*;
 use crate::GameState;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::{
-    asset::AssetServer,
     color::Color,
     prelude::{
         Button, Changed, Commands, Component, Entity, Query, Res, StateScoped, With, Without,
@@ -55,13 +54,11 @@ pub struct ServerNameInput;
 
 pub fn multiplayer_menu_setup(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    ui_assets: Res<UiAssets>,
+    buttons: Res<ButtonAssets>,
     _paths: Res<GameFolderPaths>,
 ) {
-    let background_image = load_background_image(&asset_server);
-    let button_background_image = load_button_background_large_image(&asset_server);
-
-    let txt_font = menu_text_font(&asset_server);
+    let txt_font = ui_assets.menu_text_font();
     let txt_color = white_text_color();
     let btn_style = menu_list_button_style();
 
@@ -81,7 +78,7 @@ pub fn multiplayer_menu_setup(
                 },
                 BackgroundColor(Color::NONE),
             ),
-            ImageNode::new(background_image),
+            ImageNode::new(ui_assets.background.clone()),
         ))
         .with_children(|root| {
             root.spawn((
@@ -186,7 +183,7 @@ pub fn multiplayer_menu_setup(
                                 BorderColor(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 btn_style.clone(),
-                                ImageNode::new(button_background_image.clone()),
+                                ImageNode::new(buttons.normal_large.clone()),
                             ),
                             MultiplayerButtonAction::Add,
                         ))
@@ -201,7 +198,7 @@ pub fn multiplayer_menu_setup(
                                 BorderColor(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 btn_style.clone(),
-                                ImageNode::new(button_background_image.clone()),
+                                ImageNode::new(buttons.normal_large.clone()),
                             ),
                             MenuButtonAction::BackToMainMenu,
                         ))
@@ -216,7 +213,7 @@ pub fn add_server_item(
     name: String,
     ip: String,
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
+    ui_assets: &Res<UiAssets>,
     list: &mut ServerList,
     list_entity: Entity,
     _paths: &Res<GameFolderPaths>,
@@ -226,7 +223,7 @@ pub fn add_server_item(
     let entities = spawn_list_item_row(
         commands,
         ListItemConfig {
-            asset_server,
+            ui_assets,
             primary_text: &name,
             secondary_text: Some(&ip),
         },
@@ -253,7 +250,7 @@ pub fn add_server_item(
 
 pub fn load_server_list(
     mut commands: Commands,
-    assets: Res<AssetServer>,
+    ui_assets: Res<UiAssets>,
     mut list_query: Query<(&mut ServerList, Entity)>,
     paths: Res<GameFolderPaths>,
 ) {
@@ -282,7 +279,7 @@ pub fn load_server_list(
             "localhost".into(),
             "127.0.0.1:8000".into(),
             &mut commands,
-            &assets,
+            &ui_assets,
             &mut list,
             list_entity,
             &paths,
@@ -304,7 +301,7 @@ pub fn load_server_list(
             "localhost".into(),
             "127.0.0.1:8000".into(),
             &mut commands,
-            &assets,
+            &ui_assets,
             &mut list,
             list_entity,
             &paths,
@@ -316,7 +313,7 @@ pub fn load_server_list(
             srv.name,
             srv.ip,
             &mut commands,
-            &assets,
+            &ui_assets,
             &mut list,
             list_entity,
             &paths,
@@ -384,7 +381,7 @@ pub fn multiplayer_action(
         Query<(Entity, &mut ServerList), With<ServerList>>,
     ),
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    ui_assets: Res<UiAssets>,
     mut target_server: ResMut<TargetServer>,
     mut game_state: ResMut<NextState<GameState>>,
     mut menu_state: ResMut<NextState<MenuState>>,
@@ -409,7 +406,7 @@ pub fn multiplayer_action(
                             name.0.clone(),
                             ip.0.clone(),
                             &mut commands,
-                            &asset_server,
+                            &ui_assets,
                             &mut list,
                             entity,
                             &paths,

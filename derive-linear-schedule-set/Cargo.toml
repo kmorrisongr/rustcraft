@@ -1,0 +1,15 @@
+[package]
+name = "derive-linear-schedule-set"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "*"
+quote = "*"
+proc-macro2 = "*"
+
+[lints]
+workspace = true

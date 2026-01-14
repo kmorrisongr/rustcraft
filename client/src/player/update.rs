@@ -1,5 +1,4 @@
 use crate::{
-    camera::CameraController,
     network::{CurrentPlayerProfile, TargetServer, TargetServerState, UnacknowledgedInputs},
     player::{PlayerLabel, PlayerMaterialHandle},
     ui::hud::debug::LastBiomeChunk,
@@ -8,6 +7,7 @@ use crate::{
 };
 use bevy::color::palettes::css::ORANGE;
 use bevy::prelude::*;
+use bevy_panorbit_camera::PanOrbitCamera;
 use shared::{
     messages::{PlayerSpawnEvent, PlayerUpdateEvent},
     physics::PlayerPhysicsBundle,
@@ -28,7 +28,7 @@ pub fn spawn_players_system(
     mut target_server: ResMut<TargetServer>,
     players: Query<&Player>,
     assets: Res<AssetServer>,
-    mut camera_query: Query<(&mut Transform, &mut CameraController), With<Camera>>,
+    mut camera_query: Query<&mut PanOrbitCamera, With<Camera>>,
 ) {
     let current_id = player_profile.into_inner().id;
     'event_loop: for event in ev_spawn.read() {
@@ -94,17 +94,20 @@ pub fn spawn_players_system(
             entity.insert((CurrentPlayerMarker {}, LastBiomeChunk::default()));
             info!("Inserted current player marker");
 
-            info!("aaa ---");
-            for (transform, controller) in camera_query.iter_mut() {
-                *transform.into_inner() = event.data.camera_transform;
-                *controller.into_inner() = event.data.camera_transform.rotation.into();
+            // Initialize camera to look at player position
+            for mut camera in camera_query.iter_mut() {
+                camera.target_focus = event.data.position;
+                // Extract yaw/pitch from saved camera transform
+                let (yaw, pitch, _) = event.data.camera_transform.rotation.to_euler(EulerRot::YXZ);
+                camera.target_yaw = yaw;
+                camera.target_pitch = pitch;
+                camera.force_update = true;
 
                 info!(
-                    "Setting camera transform: {:?}",
-                    event.data.camera_transform
+                    "Setting camera focus: {:?}, yaw: {}, pitch: {}",
+                    event.data.position, yaw, pitch
                 );
             }
-            info!("bbb ---");
         }
 
         let entity_id = entity.id();

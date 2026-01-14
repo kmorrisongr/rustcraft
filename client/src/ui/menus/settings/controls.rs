@@ -1,5 +1,4 @@
 use bevy::{
-    asset::AssetServer,
     color::{palettes::css, Color},
     input::ButtonInput,
     prelude::*,
@@ -10,13 +9,14 @@ use bevy::{
     },
     utils::default,
 };
+use leafwing_input_manager::prelude::*;
 use shared::GameFolderPaths;
 
+use crate::input::action_state::GlobalInputManager;
 use crate::input::data::GameAction;
 use crate::menus::{MenuButtonAction, MenuState, ScrollingList};
-use crate::KeyMap;
 
-use crate::ui::assets::*;
+use crate::ui::assets::UiAssets;
 use crate::ui::style::NORMAL_BUTTON;
 
 #[derive(Debug, Component, PartialEq, Eq)]
@@ -33,13 +33,15 @@ pub struct ActionRecorder {
 
 pub fn controls_menu_setup(
     mut commands: Commands,
-    assets: Res<AssetServer>,
-    key_map: Res<KeyMap>,
+    ui_assets: Res<UiAssets>,
+    input_map_query: Query<&InputMap<GameAction>, With<GlobalInputManager>>,
     paths: Res<GameFolderPaths>,
 ) {
-    let background_image = load_background_image(&assets);
-    let font = load_font(&assets);
-    let trash_icon = assets.load("./trash.png");
+    let input_map = input_map_query
+        .single()
+        .expect("GlobalInputManager should exist");
+
+    let trash_icon = ui_assets.trash_icon.clone();
 
     commands
         .spawn((
@@ -58,7 +60,7 @@ pub fn controls_menu_setup(
                 },
                 BackgroundColor(Color::NONE),
             ),
-            ImageNode::new(background_image),
+            ImageNode::new(ui_assets.background.clone()),
         ))
         .with_children(|root| {
             let placeholder = root
@@ -80,7 +82,7 @@ pub fn controls_menu_setup(
                     btn.spawn((
                         Text::new("Back"),
                         TextFont {
-                            font: font.clone(),
+                            font: ui_assets.font.clone(),
                             font_size: 21.,
                             ..default()
                         },
@@ -111,7 +113,7 @@ pub fn controls_menu_setup(
                             list.spawn((
                                 Text::new("Keyboard Controls"),
                                 TextFont {
-                                    font: font.clone(),
+                                    font: ui_assets.font.clone(),
                                     font_size: 36.,
                                     ..default()
                                 },
@@ -121,7 +123,17 @@ pub fn controls_menu_setup(
                                     ..default()
                                 },
                             ));
-                            for (action, keys) in &key_map.map {
+                            // Iterate over all buttonlike actions in the InputMap
+                            for (action, bindings) in input_map.iter_buttonlike() {
+                                // Convert Box<dyn Buttonlike> to KeyCode for display
+                                let keys: Vec<KeyCode> = bindings
+                                    .iter()
+                                    .filter_map(|b| {
+                                        // Try to downcast to KeyCode
+                                        b.as_any().downcast_ref::<KeyCode>().copied()
+                                    })
+                                    .collect();
+
                                 list.spawn((
                                     (
                                         Button,
@@ -146,7 +158,7 @@ pub fn controls_menu_setup(
                                     line.spawn((
                                         Text::new(format!("{action:?}")),
                                         TextFont {
-                                            font: font.clone(),
+                                            font: ui_assets.font.clone(),
                                             font_size: 24.,
                                             ..default()
                                         },
@@ -169,8 +181,8 @@ pub fn controls_menu_setup(
                                     update_input_component(
                                         &mut component.commands(),
                                         id,
-                                        keys,
-                                        &assets,
+                                        &keys,
+                                        &ui_assets,
                                         &paths,
                                     );
 
@@ -240,7 +252,7 @@ pub fn controls_menu_setup(
                         dialog.spawn((
                             Text::new("Press any key..."),
                             TextFont {
-                                font: font.clone(),
+                                font: ui_assets.font.clone(),
                                 font_size: 21.,
                                 ..default()
                             },
@@ -260,11 +272,10 @@ pub fn update_input_component(
     commands: &mut Commands,
     entity: Entity,
     binds: &Vec<KeyCode>,
-    assets: &AssetServer,
+    ui_assets: &Res<UiAssets>,
     _paths: &Res<GameFolderPaths>,
 ) {
     commands.entity(entity).despawn_related::<Children>();
-    let font: Handle<Font> = assets.load("./fonts/RustCraftRegular-Bmg3.otf");
 
     // List all possible binds, and add them as text elements
     for key in binds {
@@ -299,7 +310,7 @@ pub fn update_input_component(
                         output
                     }),
                     TextFont {
-                        font: font.clone(),
+                        font: ui_assets.font.clone(),
                         font_size: 21.,
                         ..default()
                     },
@@ -319,11 +330,12 @@ pub fn controls_update_system(
         Query<(&mut ActionRecorder, &mut Visibility)>,
     ),
     mut commands: Commands,
-    resources: (Res<AssetServer>, Res<ButtonInput<KeyCode>>, ResMut<KeyMap>),
+    resources: (Res<UiAssets>, Res<ButtonInput<KeyCode>>),
+    mut input_map_query: Query<&mut InputMap<GameAction>, With<GlobalInputManager>>,
     paths: Res<GameFolderPaths>,
 ) {
     let (mut edit_query, mut clear_query, mut visibility_query) = queries;
-    let (assets, input, mut key_map) = resources;
+    let (ui_assets, input) = resources;
 
     if visibility_query.is_empty() {
         return;
@@ -334,14 +346,24 @@ pub fn controls_update_system(
     if *vis == Visibility::Visible {
         if let Some(btn) = input.get_just_pressed().next() {
             *vis = Visibility::Hidden;
-            key_map.map.get_mut(&recorder.action).unwrap().push(*btn);
-            update_input_component(
-                &mut commands,
-                recorder.entity,
-                key_map.map.get(&recorder.action).unwrap(),
-                &assets,
-                &paths,
-            );
+
+            // Add the new key binding to the InputMap
+            if let Ok(mut input_map) = input_map_query.single_mut() {
+                input_map.insert(recorder.action, *btn);
+
+                // Get updated bindings for display
+                let keys: Vec<KeyCode> = input_map
+                    .get_buttonlike(&recorder.action)
+                    .map(|bindings| {
+                        bindings
+                            .iter()
+                            .filter_map(|b| b.as_any().downcast_ref::<KeyCode>().copied())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                update_input_component(&mut commands, recorder.entity, &keys, &ui_assets, &paths);
+            }
             return;
         }
     }
@@ -380,15 +402,12 @@ pub fn controls_update_system(
         match *interaction {
             Interaction::Pressed => {
                 // Clear all binds for this action
-                key_map.map.insert(clear.0, Vec::new());
-                // Update visual element
-                update_input_component(
-                    &mut commands,
-                    clear.1,
-                    key_map.map.get(&clear.0).unwrap(),
-                    &assets,
-                    &paths,
-                );
+                if let Ok(mut input_map) = input_map_query.single_mut() {
+                    input_map.clear_action(&clear.0);
+
+                    // Update visual element with empty bindings
+                    update_input_component(&mut commands, clear.1, &Vec::new(), &ui_assets, &paths);
+                }
             }
             Interaction::Hovered => {
                 bg.0 = Color::Srgba(css::RED);

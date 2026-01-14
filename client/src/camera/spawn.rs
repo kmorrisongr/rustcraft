@@ -1,52 +1,40 @@
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::AtmosphereCamera;
+use bevy_panorbit_camera::PanOrbitCamera;
 
 use crate::GameState;
 
-#[derive(Component)]
-pub struct CameraController {
-    pub distance: f32,
-    pub angle_x: f32,
-    pub angle_y: f32,
-    pub mouse_sensitivity: f32,
-}
+pub const DEFAULT_THIRD_PERSON_RADIUS: f32 = 10.0;
+pub const FIRST_PERSON_RADIUS: f32 = 0.0;
+pub const MOUSE_SENSITIVITY: f32 = 0.003;
 
-const DEFAULT_DISTANCE: f32 = 10.0;
-const DEFAULT_MOUSE_SENSITIVITY: f32 = 0.003;
-
-impl Default for CameraController {
-    fn default() -> Self {
-        Self {
-            distance: DEFAULT_DISTANCE,
-            angle_x: 0.0,
-            angle_y: 20.0f32.to_radians(),
-            mouse_sensitivity: DEFAULT_MOUSE_SENSITIVITY,
-        }
-    }
-}
-
-impl From<Quat> for CameraController {
-    fn from(quat: Quat) -> Self {
-        Self {
-            distance: DEFAULT_DISTANCE,
-            angle_x: quat.to_euler(EulerRot::XYZ).0,
-            angle_y: quat.to_euler(EulerRot::XYZ).1,
-            mouse_sensitivity: DEFAULT_MOUSE_SENSITIVITY,
-        }
-    }
-}
-
-#[allow(deprecated)]
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
+        Camera {
+            order: 2,
+            ..default()
+        },
         Projection::Perspective(PerspectiveProjection {
             fov: f32::to_radians(60.0),
             ..Default::default()
         }),
         Transform::from_translation(Vec3::new(0.0, 5.0, 10.0))
             .looking_at(Vec3::new(0.0, 0.5, 0.0), Vec3::Y),
-        CameraController::default(),
+        PanOrbitCamera {
+            // Start in first-person mode
+            radius: Some(FIRST_PERSON_RADIUS),
+            target_radius: FIRST_PERSON_RADIUS,
+            // Limit pitch to avoid flipping
+            pitch_lower_limit: Some(-89.0_f32.to_radians()),
+            pitch_upper_limit: Some(89.0_f32.to_radians()),
+            // Disable all built-in controls - we handle mouse input directly for FPS-style
+            orbit_sensitivity: 0.0,
+            zoom_sensitivity: 0.0,
+            pan_sensitivity: 0.0,
+            touch_enabled: false,
+            ..default()
+        },
         AtmosphereCamera::default(),
         StateScoped(GameState::Game),
     ));

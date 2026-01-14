@@ -1,5 +1,6 @@
 mod camera;
 mod constants;
+mod effects;
 mod entities;
 mod game;
 mod input;
@@ -10,7 +11,7 @@ mod shaders;
 mod ui;
 mod world;
 
-use crate::world::ClientWorldMap;
+use crate::ui::menus::MenusPlugin;
 use bevy::{
     prelude::*,
     render::{
@@ -22,11 +23,10 @@ use bevy::{
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, DefaultInspectorConfigPlugin};
 use clap::Parser;
 use constants::{TEXTURE_PATH_BASE, TEXTURE_PATH_CUSTOM};
-use input::{data::GameAction, keyboard::get_bindings};
+use input::{data::GameAction, keyboard::get_bindings, spawn_global_input_manager};
+use leafwing_input_manager::prelude::*;
 use menus::solo::SelectedWorld;
-use serde::{Deserialize, Serialize};
-use shared::{get_game_folder_paths, SpecialFlag};
-use std::collections::BTreeMap;
+use shared::{game_state::GameState, get_game_folder_paths, SpecialFlag};
 use ui::{
     hud::debug::inspector::inspector_ui,
     menus::{self, splash},
@@ -61,34 +61,14 @@ pub struct MenuCamera;
 
 pub const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
-// Enum that will be used as a global state for the game
-#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
-pub enum GameState {
-    Splash,
-    #[default]
-    Menu,
-    PreGameLoading,
-    Game,
-}
-
 #[derive(Event)]
 pub struct LoadWorldEvent {
     pub world_name: String,
 }
 
-#[derive(Resource, Serialize, Deserialize)]
-pub struct KeyMap {
-    #[serde(default = "input::keyboard::default_key_map")]
-    pub map: BTreeMap<GameAction, Vec<KeyCode>>,
-}
-
-impl Default for KeyMap {
-    fn default() -> Self {
-        Self {
-            map: input::keyboard::default_key_map(),
-        }
-    }
-}
+/// Resource to pass the loaded InputMap to the GlobalInputManager spawning system.
+#[derive(Resource)]
+pub struct LoadedInputMap(pub InputMap<GameAction>);
 
 #[derive(Resource, Debug)]
 pub struct TexturePath {
@@ -166,12 +146,14 @@ fn main() {
     .add_plugins(DefaultInspectorConfigPlugin)
     .add_systems(Update, inspector_ui);
 
+    // Add leafwing-input-manager for action-based input handling
+    app.add_plugins(InputManagerPlugin::<GameAction>::default())
+        .add_systems(Startup, spawn_global_input_manager);
+
     app.add_event::<LoadWorldEvent>();
     network::add_base_netcode(&mut app);
-    app.insert_resource(get_bindings(&game_folder_paths))
+    app.insert_resource(LoadedInputMap(get_bindings(&game_folder_paths)))
         .insert_resource(SelectedWorld::default())
-        // Declare the game state, whose starting value is determined by the `Default` trait
-        .insert_resource(ClientWorldMap { ..default() })
         .insert_resource(TexturePath {
             path: texture_path.to_string(),
         })
@@ -183,6 +165,6 @@ fn main() {
         .init_state::<GameState>()
         .enable_state_scoped_entities::<GameState>()
         // Adds the plugins for each state
-        .add_plugins((splash::splash_plugin, menus::menu_plugin, game::game_plugin))
+        .add_plugins((splash::splash_plugin, MenusPlugin, game::game_plugin))
         .run();
 }

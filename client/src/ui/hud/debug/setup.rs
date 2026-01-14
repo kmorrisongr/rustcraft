@@ -4,15 +4,16 @@ use super::loaded_stats::{BlocksNumberText, ChunksNumberText};
 use super::targeted_block::BlockText;
 use super::{CoordsText, FpsText};
 use crate::input::data::GameAction;
-use crate::input::keyboard::get_action_keys;
-use crate::{GameState, KeyMap};
+use crate::input::GlobalInputManager;
+use crate::GameState;
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
 
 /// Marker to find the container entity so we can show/hide the FPS counter
 #[derive(Component)]
 pub struct HudRoot;
 
-pub fn setup_hud(mut commands: Commands) {
+pub fn setup_debug_hud(mut commands: Commands) {
     // create our UI root node
     // this is the wrapper/container for the text
     let root = commands
@@ -124,17 +125,17 @@ pub fn setup_hud(mut commands: Commands) {
 /// Toggle the FPS counter when pressing F3
 pub fn toggle_hud_system(
     mut q: Query<&mut Visibility, With<HudRoot>>,
-    kbd: Res<ButtonInput<KeyCode>>,
-    key_map: Res<KeyMap>,
+    action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
 ) {
-    let keys = get_action_keys(GameAction::ToggleFps, &key_map);
-    for key in keys {
-        if kbd.just_pressed(key) {
-            let mut vis = q.single_mut().unwrap();
-            *vis = match *vis {
-                Visibility::Hidden => Visibility::Visible,
-                _ => Visibility::Hidden,
-            };
-        }
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
+    if action_state.just_pressed(&GameAction::ToggleFps) {
+        let mut vis = q.single_mut().unwrap();
+        *vis = match *vis {
+            Visibility::Hidden => Visibility::Visible,
+            _ => Visibility::Hidden,
+        };
     }
 }

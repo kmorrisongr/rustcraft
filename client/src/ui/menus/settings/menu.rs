@@ -1,22 +1,18 @@
-use crate::ui::assets::*;
-use crate::{ui::assets::load_background_image, TEXT_COLOR};
+use crate::ui::assets::UiAssets;
+use crate::TEXT_COLOR;
 use bevy::prelude::ImageNode;
 use bevy::prelude::*;
 use bevy::text::{TextColor, TextFont};
 use bevy::ui::BackgroundColor;
 use bevy::utils::default;
 use bevy::{
-    asset::AssetServer,
     prelude::{Commands, Res, StateScoped},
     ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, Val},
 };
 
 use crate::menus::{MenuButtonAction, MenuState};
 
-pub fn settings_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let background_image = load_background_image(&asset_server);
-    let font = load_font(&asset_server);
-
+pub fn settings_menu_setup(mut commands: Commands, ui_assets: Res<UiAssets>) {
     let button_style = Node {
         width: Val::Px(400.0),
         height: Val::Px(60.0),
@@ -27,7 +23,7 @@ pub fn settings_menu_setup(mut commands: Commands, asset_server: Res<AssetServer
     };
 
     let button_font = TextFont {
-        font: font.clone(),
+        font: ui_assets.font.clone(),
         font_size: 33.0,
         ..default()
     };
@@ -46,7 +42,7 @@ pub fn settings_menu_setup(mut commands: Commands, asset_server: Res<AssetServer
                 },
                 BackgroundColor(Color::NONE),
             ),
-            ImageNode::new(background_image),
+            ImageNode::new(ui_assets.background.clone()),
             StateScoped(MenuState::Settings),
         ))
         .with_children(|parent| {

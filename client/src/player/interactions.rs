@@ -1,4 +1,4 @@
-use crate::mob::{MobMarker, TargetedMob, TargetedMobData};
+use crate::mob::{Mob, TargetedMob, TargetedMobData};
 use crate::network::buffered_client::CurrentFrameInputs;
 use crate::ui::hud::UIMode;
 use crate::world::ClientWorldMap;
@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use shared::messages::NetworkAction;
 use shared::players::blocks::{simulate_player_block_interactions, CallerType};
 use shared::players::{Player, ViewMode};
+use shared::sets::GameSets;
 use shared::world::raycast;
 
 use super::CurrentPlayerMarker;
@@ -17,7 +18,7 @@ pub struct PlayerInteractionQueries<'w, 's> {
     player_query: Query<'w, 's, &'static mut Player, With<CurrentPlayerMarker>>,
     p_transform: Query<'w, 's, &'static mut Transform, With<CurrentPlayerMarker>>,
     camera_query: Query<'w, 's, &'static Transform, (With<Camera>, Without<CurrentPlayerMarker>)>,
-    mob_query: Query<'w, 's, &'static MobMarker>,
+    mob_query: Query<'w, 's, &'static Mob>,
 }
 
 #[derive(SystemParam)]
@@ -75,9 +76,8 @@ pub fn handle_block_interactions(
         let mob = mob_query.get(*entity);
         if let Ok(mob) = mob {
             targeted_mob.target = Some(TargetedMobData {
-                // entity: *entity,
                 id: mob.id,
-                name: mob.name.clone(),
+                kind: mob.kind.clone(),
             });
         } else {
             targeted_mob.target = None;
@@ -118,6 +118,16 @@ pub fn handle_block_interactions(
             world_map,
             &frame_inputs.0,
             CallerType::Client,
+        );
+    }
+}
+
+pub struct PlayerInteractionsPlugin;
+impl Plugin for PlayerInteractionsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (handle_block_interactions,).in_set(GameSets::Update::PlayerPhysics),
         );
     }
 }

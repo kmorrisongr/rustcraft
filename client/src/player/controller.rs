@@ -1,17 +1,21 @@
+use crate::camera::camera_control_system;
 use crate::input::data::GameAction;
-use crate::input::keyboard::*;
+use crate::input::handle_mouse_system;
+use crate::input::GlobalInputManager;
 use crate::network::buffered_client::{
     CurrentFrameInputs, CurrentFrameInputsExt, PlayerTickInputsBuffer, SyncTime, SyncTimeExt,
 };
+use crate::player::{player_labels_system, spawn_players_system, update_players_system};
 use crate::ui::hud::debug::DebugOptions;
 use crate::ui::hud::hotbar::Hotbar;
 use crate::ui::hud::UIMode;
 use crate::world::{ClientWorldMap, WorldRenderRequestUpdateEvent};
-use crate::KeyMap;
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
 use shared::messages::NetworkAction;
 use shared::physics::simulate_player_movement_rapier;
 use shared::players::{Player, ViewMode};
+use shared::sets::GameSets;
 
 use super::CurrentPlayerMarker;
 
@@ -70,29 +74,27 @@ pub fn pre_input_update_system(
 
 pub fn player_movement_system(
     queries: Query<(&mut Player, &mut Transform), (With<CurrentPlayerMarker>, Without<Camera>)>,
-    resources: (
-        Res<ButtonInput<KeyCode>>,
-        Res<UIMode>,
-        Res<KeyMap>,
-        ResMut<CurrentFrameInputs>,
-    ),
+    action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
+    resources: (Res<UIMode>, ResMut<CurrentFrameInputs>),
     world_map: Res<ClientWorldMap>,
 ) {
     let mut player_query = queries;
-    let (keyboard_input, ui_mode, key_map, mut frame_inputs) = resources;
+    let (ui_mode, mut frame_inputs) = resources;
 
     if frame_inputs.0.delta_ms == 0 {
         return;
     }
 
-    if *ui_mode == UIMode::Closed
-        && is_action_just_pressed(GameAction::ToggleFlyMode, &keyboard_input, &key_map)
-    {
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
+    if *ui_mode == UIMode::Closed && action_state.just_pressed(&GameAction::ToggleFlyMode) {
         frame_inputs.0.inputs.insert(NetworkAction::ToggleFlyMode);
     }
 
     for (game_action, network_action) in ACTION_MAPPING {
-        if is_action_pressed(*game_action, &keyboard_input, &key_map) {
+        if action_state.pressed(game_action) {
             frame_inputs.0.inputs.insert(*network_action);
         }
     }
@@ -118,13 +120,14 @@ pub fn first_and_third_person_view_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut view_mode: ResMut<ViewMode>,
     mut player_query: Query<&mut PlayerMaterialHandle, With<CurrentPlayerMarker>>,
-    key_map: Res<KeyMap>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
+    action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
     ui_mode: Res<UIMode>,
 ) {
-    if *ui_mode == UIMode::Closed
-        && is_action_just_pressed(GameAction::ToggleViewMode, &keyboard_input, &key_map)
-    {
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
+    if *ui_mode == UIMode::Closed && action_state.just_pressed(&GameAction::ToggleViewMode) {
         view_mode.toggle();
     }
 
@@ -152,9 +155,12 @@ pub fn first_and_third_person_view_system(
 
 pub fn toggle_debug_system(
     mut debug_options: ResMut<DebugOptions>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    key_map: Res<KeyMap>,
+    action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
 ) {
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
     const TOGGLES: &[(GameAction, fn(&mut DebugOptions))] = &[
         (
             GameAction::ToggleChunkDebugMode,
@@ -167,7 +173,7 @@ pub fn toggle_debug_system(
     ];
 
     for (action, toggle_fn) in TOGGLES {
-        if is_action_just_pressed(*action, &keyboard_input, &key_map) {
+        if action_state.just_pressed(action) {
             toggle_fn(&mut debug_options);
         }
     }
@@ -175,12 +181,15 @@ pub fn toggle_debug_system(
 
 pub fn chunk_force_reload_system(
     mut world_map: ResMut<ClientWorldMap>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    key_map: Res<KeyMap>,
+    action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
     mut ev_writer: EventWriter<WorldRenderRequestUpdateEvent>,
     mut commands: Commands,
 ) {
-    if is_action_just_pressed(GameAction::ReloadChunks, &keyboard_input, &key_map) {
+    let Ok(action_state) = action_query.single() else {
+        return;
+    };
+
+    if action_state.just_pressed(&GameAction::ReloadChunks) {
         for (pos, chunk_arc) in world_map.map.iter_mut() {
             // Despawn the chunk's entity (use Arc::make_mut for copy-on-write)
             let chunk = std::sync::Arc::make_mut(chunk_arc);
@@ -191,5 +200,51 @@ pub fn chunk_force_reload_system(
             // Request a render for this chunk
             ev_writer.write(WorldRenderRequestUpdateEvent::ChunkToReload(*pos));
         }
+    }
+}
+
+/// Hides the local player's model in first-person view to prevent camera clipping.
+/// Shows the model again in third-person view.
+pub fn local_player_visibility_system(
+    view_mode: Res<ViewMode>,
+    mut player_query: Query<&mut Visibility, With<CurrentPlayerMarker>>,
+) {
+    let Ok(mut visibility) = player_query.single_mut() else {
+        return;
+    };
+
+    *visibility = match *view_mode {
+        ViewMode::FirstPerson => Visibility::Hidden,
+        ViewMode::ThirdPerson => Visibility::Visible,
+    };
+}
+
+pub struct PlayerControllerPlugin;
+impl Plugin for PlayerControllerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            PreUpdate,
+            (pre_input_update_system).in_set(GameSets::PreUpdate::PlayerInput),
+        )
+        .add_systems(
+            Update,
+            (
+                first_and_third_person_view_system,
+                toggle_debug_system,
+                chunk_force_reload_system,
+                local_player_visibility_system,
+                (
+                    spawn_players_system,
+                    update_players_system,
+                    player_labels_system,
+                    update_frame_inputs_system,
+                    player_movement_system,
+                    camera_control_system,
+                )
+                    .chain(),
+                handle_mouse_system,
+            )
+                .in_set(GameSets::Update::PlayerInput),
+        );
     }
 }

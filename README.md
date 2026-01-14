@@ -20,7 +20,6 @@ Minecraft game clone written in Rust, using the Bevy game engine.
 - [How to Build](#how-to-build)
     - [Prerequisites](#prerequisites)
     - [Running the Project](#running-the-project)
-- [Documentation for Developers](#documentation-for-developers)
 - [Contributing](#contributing)
     - [Guidelines](#guidelines)
 
@@ -153,7 +152,7 @@ To compile and run the game locally, use the following commands:
 
 ```sh
 # Clone the repository
-git clone https://github.com/c2i-junia/rustcraft
+git clone https://github.com/kmorrisongr/rustcraft
 
 # Navigate to the project directory
 cd rustcraft
@@ -176,68 +175,6 @@ just generate-release-folder
 
 ./release/bin/rustcraft-server  # (optional) do this only to test multiplayer features
 ```
-
-<br>
-
-# Documentation for Developers
-
-Comprehensive documentation is available to help you understand and extend the Rustcraft codebase:
-
-## 📚 Core Documentation
-
-- **[Documentation Index](./docs/INDEX.md)** - Complete documentation navigation guide
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Complete system architecture overview
-  - Project structure and module organization
-  - Client-server architecture patterns
-  - Core systems (rendering, networking, world generation)
-  - Data flow and dependencies
-  - Performance considerations
-
-- **[DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md)** - Developer onboarding and workflow
-  - Getting started guide
-  - Development workflow and best practices
-  - Common development tasks (adding blocks, items, mobs, etc.)
-  - Testing and debugging techniques
-  - Troubleshooting guide
-
-## 🔧 Module-Specific Documentation
-
-Located in `docs/modules/`:
-
-- **[WORLD_SYSTEM.md](./docs/modules/WORLD_SYSTEM.md)** - World generation and management
-  - Procedural terrain generation
-  - Chunk system architecture
-  - Meshing and rendering
-  - Save/load system
-  - Network synchronization
-
-- **[NETWORK_SYSTEM.md](./docs/modules/NETWORK_SYSTEM.md)** - Multiplayer networking
-  - Network protocol and channels
-  - Message serialization
-  - Client-server communication
-  - Prediction and reconciliation
-  - Authentication flow
-
-- **[RENDERING_SYSTEM.md](./docs/modules/RENDERING_SYSTEM.md)** - Graphics and UI
-  - Voxel rendering pipeline
-  - Greedy meshing algorithm
-  - Texture atlasing
-  - Camera controls
-  - UI system (HUD, menus, inventory)
-
-- **[PLAYER_ENTITY_SYSTEMS.md](./docs/modules/PLAYER_ENTITY_SYSTEMS.md)** - Game entities
-  - Player mechanics and physics
-  - Collision detection
-  - Inventory system
-  - Mob AI and behavior
-  - Item stack management
-
-## 🚀 Quick Start for Contributors
-
-1. Read [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) for setup and workflow
-2. Review [ARCHITECTURE.md](./ARCHITECTURE.md) to understand the codebase structure
-3. Explore module-specific docs for the area you want to work on
-4. Follow the [Contributing](#contributing) guidelines below
 
 <br>
 
