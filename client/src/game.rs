@@ -1,6 +1,6 @@
 use crate::entities::stack::stack_update_system;
 use crate::mob::MobPlugin;
-use crate::player::PlayerPlugin;
+use crate::player::{spawn_players_system, PlayerPlugin};
 use crate::shaders::{WaterPlugin, WaterSettings};
 use crate::ui::menus::{setup_server_connect_loading_screen, update_server_connect_loading_screen};
 use crate::ui::PlayerUiPlugin;
@@ -96,6 +96,7 @@ pub fn game_plugin(app: &mut App) {
             (
                 emit_server_ready_signal,
                 advance_to_game_on_preload,
+                spawn_players_system,
                 update_server_connect_loading_screen,
             )
                 .run_if(in_state(GameState::PreGameLoading)),
