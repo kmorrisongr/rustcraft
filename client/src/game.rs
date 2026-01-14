@@ -99,7 +99,7 @@ pub fn game_plugin(app: &mut App) {
                 spawn_players_system,
                 update_server_connect_loading_screen,
             )
-                .run_if(in_state(GameState::PreGameLoading)),
+                .in_set(PreGameLoadingSets::Update::Initialize),
         )
         .add_systems(
             Update,
