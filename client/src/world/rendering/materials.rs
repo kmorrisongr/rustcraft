@@ -6,9 +6,7 @@ use bevy::platform::collections::HashMap as BevyHashMap;
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
 use bevy_asset_loader::prelude::*;
-use shared::GameFolderPaths;
 use std::collections::HashMap;
-use std::fs;
 
 use super::meshing::UvCoords;
 
@@ -172,64 +170,28 @@ pub fn setup_atlas_materials(
 pub fn configure_dynamic_texture_assets(
     mut dynamic_assets: ResMut<DynamicAssets>,
     texture_path: Res<TexturePath>,
-    paths: Res<GameFolderPaths>,
 ) {
-    let blocks_path = paths
-        .assets_folder_path
-        .join(&texture_path.path)
-        .join("blocks");
+    // Build the relative path from the assets folder
+    // Note: Folder is not supported for web builds - use Files variant if web support is needed
+    let blocks_path = format!("{}/blocks", texture_path.path);
 
-    info!("Configuring dynamic assets from: {}", blocks_path.display());
+    info!("Configuring dynamic assets from folder: {}", blocks_path);
 
-    // Collect all PNG files from the blocks directory
-    if let Ok(dir) = fs::read_dir(&blocks_path) {
-        let texture_files: Vec<String> = dir
-            .filter_map(|entry| {
-                let entry = entry.ok()?;
-                let path = entry.path();
-                if path.extension()?.to_str()? == "png" {
-                    Some(
-                        blocks_path
-                            .join(path.file_name()?)
-                            .to_string_lossy()
-                            .into_owned(),
-                    )
-                } else {
-                    None
-                }
-            })
-            .collect();
+    // Register block textures using Folder - bevy_asset_loader will discover all files
+    dynamic_assets.register_asset(
+        "block_textures",
+        Box::new(StandardDynamicAsset::Folder {
+            path: blocks_path.clone(),
+        }),
+    );
 
-        info!("Found {} block textures", texture_files.len());
+    // Register item textures using the same folder
+    dynamic_assets.register_asset(
+        "item_textures",
+        Box::new(StandardDynamicAsset::Folder { path: blocks_path }),
+    );
 
-        // Register as dynamic assets using Files collection
-        dynamic_assets.register_asset(
-            "block_textures",
-            Box::new(StandardDynamicAsset::Files {
-                paths: texture_files.clone(),
-            }),
-        );
-        dynamic_assets.register_asset(
-            "item_textures",
-            Box::new(StandardDynamicAsset::Files {
-                paths: texture_files,
-            }),
-        );
-    } else {
-        warn!(
-            "Could not read block textures directory: {}",
-            blocks_path.display()
-        );
-        // Register empty collections to prevent loading state from hanging
-        dynamic_assets.register_asset(
-            "block_textures",
-            Box::new(StandardDynamicAsset::Files { paths: vec![] }),
-        );
-        dynamic_assets.register_asset(
-            "item_textures",
-            Box::new(StandardDynamicAsset::Files { paths: vec![] }),
-        );
-    }
+    info!("Dynamic texture assets configured for folder loading");
 }
 
 /// Builds a texture atlas from a list of image handles and names.
