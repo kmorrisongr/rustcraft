@@ -7,6 +7,7 @@ use crate::ui::PlayerUiPlugin;
 use crate::world::{RenderingPlugin, WorldPlugin};
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
+use iyes_progress::prelude::*;
 use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerSpawnEvent, PlayerUpdateEvent};
 use shared::physics::RustcraftPhysicsPlugin;
@@ -22,24 +23,6 @@ use crate::network::{NetworkPlugin, TargetServer, TargetServerState};
 
 use shared::game_state::GameState;
 
-#[derive(Resource)]
-pub struct PreLoadingCompletion {
-    pub textures_loaded: bool,
-    pub empty_handles_warning_emitted: bool,
-}
-
-#[derive(Resource, Default)]
-struct PreloadGate {
-    textures_ready: bool,
-    server_ready: bool,
-}
-
-#[derive(Event, Debug, Clone, Copy)]
-pub enum PreloadSignal {
-    TexturesReady,
-    ServerReady,
-}
-
 pub fn game_plugin(app: &mut App) {
     configure_sets(app);
     app.add_plugins(PlayerUiPlugin)
@@ -53,6 +36,12 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(RustcraftPhysicsPlugin)
         .add_plugins(NetworkPlugin)
         .add_plugins(PlayerPlugin)
+        .add_plugins(
+            ProgressPlugin::<GameState>::new()
+                .with_state_transition(GameState::PreGameLoading, GameState::Game)
+                .with_asset_tracking()
+                .auto_clear_assets(true, true),
+        )
         .insert_resource(WaterSettings {
             height: 0.0,       // Sea level for voxel world
             amplitude: 0.2,    // Gentle waves for block-based water
@@ -65,11 +54,6 @@ pub fn game_plugin(app: &mut App) {
             brightness: 400.0,
             ..default()
         })
-        .insert_resource(PreLoadingCompletion {
-            textures_loaded: false,
-            empty_handles_warning_emitted: false,
-        })
-        .insert_resource(PreloadGate::default())
         .insert_resource(WireframeConfig {
             // The global wireframe config enables drawing of wireframes on every mesh,
             // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
@@ -82,21 +66,19 @@ pub fn game_plugin(app: &mut App) {
         .insert_resource(ViewMode::FirstPerson)
         .insert_resource(Inventory::new())
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
-        .add_event::<PreloadSignal>()
         .add_event::<PlayerSpawnEvent>()
         .add_event::<PlayerUpdateEvent>()
         .add_event::<MobUpdateEvent>()
         .add_event::<ItemStackUpdateEvent>()
         .add_systems(
             OnEnter(GameState::PreGameLoading),
-            (reset_preload_tracking, setup_server_connect_loading_screen)
+            (setup_server_connect_loading_screen,)
                 .in_set(PreGameLoadingSets::OnEnter::Initialize),
         )
         .add_systems(
             Update,
             (
-                emit_server_ready_signal,
-                advance_to_game_on_preload,
+                check_server_ready.track_progress::<GameState>(),
                 spawn_players_system,
                 update_server_connect_loading_screen,
             )
@@ -108,41 +90,11 @@ pub fn game_plugin(app: &mut App) {
         );
 }
 
-fn reset_preload_tracking(
-    mut loading: ResMut<PreLoadingCompletion>,
-    mut gate: ResMut<PreloadGate>,
-) {
-    loading.textures_loaded = false;
-    gate.textures_ready = false;
-    gate.server_ready = false;
-}
-
-fn emit_server_ready_signal(
-    target_server: Res<TargetServer>,
-    mut signals: EventWriter<PreloadSignal>,
-    mut gate: ResMut<PreloadGate>,
-) {
-    if !gate.server_ready && target_server.state == TargetServerState::FullyReady {
-        signals.write(PreloadSignal::ServerReady);
-        gate.server_ready = true;
-    }
-}
-
-fn advance_to_game_on_preload(
-    mut signals: EventReader<PreloadSignal>,
-    mut gate: ResMut<PreloadGate>,
-    mut game_state: ResMut<NextState<GameState>>,
-) {
-    for signal in signals.read() {
-        match signal {
-            PreloadSignal::TexturesReady => gate.textures_ready = true,
-            PreloadSignal::ServerReady => {} // Gate updated in emit_server_ready_signal
-        }
-    }
-
-    if gate.textures_ready && gate.server_ready {
-        game_state.set(GameState::Game);
-    }
+/// Returns progress indicating whether the server connection is fully ready.
+/// iyes_progress will automatically track this and transition state when all progress is complete.
+fn check_server_ready(target_server: Res<TargetServer>) -> Progress {
+    let ready = target_server.state == TargetServerState::FullyReady;
+    Progress::from(ready)
 }
 
 fn configure_sets(app: &mut App) {

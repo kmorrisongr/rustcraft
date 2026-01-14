@@ -22,6 +22,7 @@ bevy-inspector-egui = "0.31"
 egui = "0.31"
 bevy_image = "0.16.1"
 bevy_rapier3d = "0.30"
+iyes_progress = { version = "0.14", features = ["assets"] }
 
 [lints]
 workspace = true
