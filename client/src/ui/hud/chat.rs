@@ -34,11 +34,7 @@ const CHAT_MAX_MESSAGES: usize = 2;
 const ANIMATION_BEGIN_FADE: u64 = 5_000;
 const ANIMATION_HIDE: u64 = 2_000;
 
-pub fn setup_chat(
-    mut commands: Commands,
-    ui_assets: Res<UiAssets>,
-    _paths: Res<GameFolderPaths>,
-) {
+pub fn setup_chat(mut commands: Commands, ui_assets: Res<UiAssets>, _paths: Res<GameFolderPaths>) {
     commands
         .spawn((
             Name::new("ChatRoot"),
