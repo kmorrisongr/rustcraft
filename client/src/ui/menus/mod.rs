@@ -72,7 +72,15 @@ impl Plugin for MenusPlugin {
 
 /// Tag component for scrolling UI lists
 fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>, mut commands: Commands) {
-    commands.spawn((Camera2d, MenuCamera, StateScoped(GameState::Menu)));
+    commands.spawn((
+        Camera2d,
+        Camera {
+            order: 0,
+            ..default()
+        },
+        MenuCamera,
+        StateScoped(GameState::Menu),
+    ));
     menu_state.set(MenuState::Main);
 }
 

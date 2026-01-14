@@ -11,7 +11,14 @@ pub struct CancelButtonMarker;
 pub struct LoadingTextMarker;
 
 pub fn setup_server_connect_loading_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn((Camera2d, StateScoped(GameState::PreGameLoading)));
+    commands.spawn((
+        Camera2d,
+        Camera {
+            order: 1,
+            ..default()
+        },
+        StateScoped(GameState::PreGameLoading),
+    ));
 
     let root_bundle = (
         Node {

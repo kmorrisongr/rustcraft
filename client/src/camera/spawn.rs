@@ -40,6 +40,10 @@ impl From<Quat> for CameraController {
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
+        Camera {
+            order: 2,
+            ..default()
+        },
         Projection::Perspective(PerspectiveProjection {
             fov: f32::to_radians(60.0),
             ..Default::default()
