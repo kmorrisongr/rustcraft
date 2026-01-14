@@ -86,7 +86,7 @@ pub fn setup_pause_menu(
                                     ..Default::default()
                                 },
                                 BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-                                BorderColor(Color::BLACK),
+                                BorderColor::all(Color::BLACK),
                             ),
                         ))
                         .with_children(|btn| {
@@ -147,10 +147,10 @@ pub fn render_pause_menu(
                 }
             },
             Interaction::Hovered => {
-                bcolor.0 = Color::WHITE;
+                bcolor.set_all(Color::WHITE);
             }
             Interaction::None => {
-                bcolor.0 = Color::BLACK;
+                bcolor.set_all(Color::BLACK);
             }
         }
     }

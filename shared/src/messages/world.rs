@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use crate::world::{ItemStack, MobId, ServerChunk, ServerMob};
-use bevy::{
-    math::{IVec3, Vec3},
-    prelude::Event,
-};
+use bevy::math::{IVec3, Vec3};
 use bevy_ecs::message::Message;
 use serde::{Deserialize, Serialize};
 

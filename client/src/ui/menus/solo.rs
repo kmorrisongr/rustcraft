@@ -11,7 +11,7 @@ use bevy::{
     color::Color,
     prelude::{
         Button, Changed, Commands, Component, Entity, MessageWriter, NextState, Query, Res, ResMut,
-        StateScoped, Text, With,
+        Text, With,
     },
     ui::{
         AlignContent, AlignItems, BackgroundColor, BorderColor, Display, FlexDirection,
@@ -104,7 +104,7 @@ pub fn solo_menu_setup(
                     border: UiRect::all(Val::Px(2.)),
                     ..Default::default()
                 },
-                BorderColor(BACKGROUND_COLOR),
+                BorderColor::all(BACKGROUND_COLOR),
             ))
             .with_children(|w| {
                 w.spawn((
@@ -138,7 +138,7 @@ pub fn solo_menu_setup(
                     };
                     wrapper.spawn((
                         (
-                            BorderColor(BACKGROUND_COLOR),
+                            BorderColor::all(BACKGROUND_COLOR),
                             BackgroundColor(Color::BLACK),
                             node,
                         ),
@@ -165,7 +165,7 @@ pub fn solo_menu_setup(
                         .spawn((
                             (
                                 Button,
-                                BorderColor(Color::BLACK),
+                                BorderColor::all(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 {
                                     let mut style = btn_style.clone();
@@ -184,7 +184,7 @@ pub fn solo_menu_setup(
                         .spawn((
                             (
                                 Button,
-                                BorderColor(Color::BLACK),
+                                BorderColor::all(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 {
                                     let mut style = btn_style.clone();

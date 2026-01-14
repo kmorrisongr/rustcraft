@@ -15,16 +15,18 @@
 //! 2. Add `WaterVolume` component for physics interactions (bucket, player effects)
 //! 3. Water blocks (`BlockId::Water`) can remain for placement/removal via bucket
 
-use bevy::{
-    prelude::*,
-    render::mesh::{Indices, PrimitiveTopology},
-};
+use bevy::prelude::*;
+
+use bevy_light::{NotShadowCaster, NotShadowReceiver};
+use bevy_mesh::Indices;
+use wgpu_types::PrimitiveTopology;
+
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use crate::shaders::water::{StandardWaterMaterial, WaterMaterial, WaterMesh};
 use crate::world::{ClientWorldMap, WorldRenderRequestUpdateEvent};
 use crate::GameState;
-use bevy::pbr::{ExtendedMaterial, NotShadowCaster, NotShadowReceiver};
+use bevy::pbr::ExtendedMaterial;
 use shared::world::{to_global_pos, BlockId, WorldMap};
 use shared::CHUNK_SIZE;
 

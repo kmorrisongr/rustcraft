@@ -6,10 +6,8 @@ use crate::{
     constants::{CELESTIAL_DISTANCE, CELESTIAL_SIZE, DAY_DURATION_IN_TICKS},
     world::GlobalMaterial,
 };
-use bevy::{
-    pbr::{NotShadowCaster, NotShadowReceiver},
-    prelude::*,
-};
+use bevy::prelude::*;
+use bevy_light::{NotShadowCaster, NotShadowReceiver};
 use std::f32::consts::PI;
 
 //

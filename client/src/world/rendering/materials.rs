@@ -140,7 +140,7 @@ pub fn setup_atlas_materials(
 
     // Create block material
     let block_material = materials.add(StandardMaterial {
-        base_color_texture: Some(atlases.blocks.texture.clone_weak()),
+        base_color_texture: Some(atlases.blocks.texture.clone()),
         perceptual_roughness: BASE_ROUGHNESS,
         reflectance: BASE_SPECULAR_HIGHLIGHT,
         alpha_mode: AlphaMode::AlphaToCoverage,
@@ -152,7 +152,7 @@ pub fn setup_atlas_materials(
 
     // Create item material
     let item_material = materials.add(StandardMaterial {
-        base_color_texture: Some(atlases.items.texture.clone_weak()),
+        base_color_texture: Some(atlases.items.texture.clone()),
         perceptual_roughness: BASE_ROUGHNESS,
         reflectance: BASE_SPECULAR_HIGHLIGHT,
         alpha_mode: AlphaMode::Blend,
@@ -223,7 +223,7 @@ fn build_texture_atlas(
     let mut uvs = HashMap::new();
 
     for (handle, name) in handles {
-        handle_map.insert(name.clone(), handle.clone_weak());
+        handle_map.insert(name.clone(), handle.clone());
 
         let rect = sources
             .texture_rect(&layout, handle.id())

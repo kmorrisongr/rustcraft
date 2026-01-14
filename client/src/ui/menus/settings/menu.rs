@@ -6,7 +6,7 @@ use bevy::text::{TextColor, TextFont};
 use bevy::ui::BackgroundColor;
 use bevy::utils::default;
 use bevy::{
-    prelude::{Commands, Res, StateScoped},
+    prelude::{Commands, Res},
     ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, Val},
 };
 

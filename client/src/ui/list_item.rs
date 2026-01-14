@@ -33,7 +33,7 @@ pub struct ListItemEntities {
 /// - Storing the row entity in the list's HashMap
 pub fn spawn_list_item_row(commands: &mut Commands, config: ListItemConfig) -> ListItemEntities {
     let row = commands
-        .spawn((BorderColor(BACKGROUND_COLOR), list_item_row_style()))
+        .spawn((BorderColor::all(BACKGROUND_COLOR), list_item_row_style()))
         .id();
 
     let play_btn = commands

@@ -41,7 +41,7 @@ pub fn setup_hotbar(mut commands: Commands, texture_atlases: Res<TextureAtlases>
                     InventoryCell { id: i },
                     (
                         Button,
-                        BorderColor(Color::srgb(0.3, 0.3, 0.3)),
+                        BorderColor::all(Color::srgb(0.3, 0.3, 0.3)),
                         FocusPolicy::Block,
                         Node {
                             width: Val::Px(HOTBAR_CELL_SIZE),
@@ -74,11 +74,11 @@ pub fn setup_hotbar(mut commands: Commands, texture_atlases: Res<TextureAtlases>
                             ..Default::default()
                         },
                         ImageNode::from_atlas_image(
-                            atlas.texture.clone_weak(),
+                            atlas.texture.clone(),
                             atlas
                                 .sources
                                 .handle(
-                                    atlas.layout.clone_weak(),
+                                    atlas.layout.clone(),
                                     if let Some(handle) = atlas.handles.get("Dirt").as_ref() {
                                         handle.id()
                                     } else {

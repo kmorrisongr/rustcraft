@@ -48,8 +48,8 @@ pub struct CurrentPlayerProfile {
 
 impl CurrentPlayerProfile {
     pub(crate) fn new() -> Self {
-        let mut rng = rand::thread_rng();
-        let id: u64 = rng.gen();
+        let mut rng = rand::rng();
+        let id: u64 = rng.random();
         Self {
             id,
             name: format!("Player-{id}"),
