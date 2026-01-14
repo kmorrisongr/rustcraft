@@ -1,12 +1,11 @@
 use crate::constants::{BASE_ROUGHNESS, BASE_SPECULAR_HIGHLIGHT};
 use crate::world::GlobalMaterial;
 use crate::TexturePath;
-use bevy::asset::LoadState;
 use bevy::image::ImageSampler;
+use bevy::platform::collections::HashMap as BevyHashMap;
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
-use iyes_progress::prelude::*;
-use shared::game_state::GameState;
+use bevy_asset_loader::prelude::*;
 use shared::world::{BlockId, GameElementId, ItemId};
 use shared::GameFolderPaths;
 use std::collections::HashMap;
@@ -14,6 +13,21 @@ use std::fs;
 use std::marker::PhantomData;
 
 use super::meshing::UvCoords;
+
+/// Asset collection for block textures loaded dynamically from a folder.
+/// Uses bevy_asset_loader with iyes_progress integration.
+#[derive(AssetCollection, Resource)]
+pub struct BlockTextureAssets {
+    #[asset(key = "block_textures", collection(typed, mapped))]
+    pub textures: BevyHashMap<String, Handle<Image>>,
+}
+
+/// Asset collection for item textures (same as block textures).
+#[derive(AssetCollection, Resource)]
+pub struct ItemTextureAssets {
+    #[asset(key = "item_textures", collection(typed, mapped))]
+    pub textures: BevyHashMap<String, Handle<Image>>,
+}
 
 #[derive(Resource, Debug)]
 pub struct AtlasWrapper {
@@ -49,15 +63,75 @@ impl<T> Default for AtlasHandles<T> {
     }
 }
 
-pub fn setup_materials(
-    asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut material_resource: ResMut<MaterialResource>,
-    mut block_atlas_handles: ResMut<AtlasHandles<BlockId>>,
-    mut item_atlas_handles: ResMut<AtlasHandles<ItemId>>,
+/// Configures dynamic assets for bevy_asset_loader based on the texture paths.
+/// This runs before the loading state to set up the dynamic asset keys.
+pub fn configure_dynamic_texture_assets(
+    mut dynamic_assets: ResMut<DynamicAssets>,
     texture_path: Res<TexturePath>,
     paths: Res<GameFolderPaths>,
-    mut assets_loading: ResMut<AssetsLoading<GameState>>,
+) {
+    let blocks_path = paths
+        .assets_folder_path
+        .join(&texture_path.path)
+        .join("blocks");
+
+    info!("Configuring dynamic assets from: {}", blocks_path.display());
+
+    // Collect all PNG files from the blocks directory
+    if let Ok(dir) = fs::read_dir(&blocks_path) {
+        let texture_files: Vec<String> = dir
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let path = entry.path();
+                if path.extension()?.to_str()? == "png" {
+                    Some(
+                        blocks_path
+                            .join(path.file_name()?)
+                            .to_string_lossy()
+                            .into_owned(),
+                    )
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        info!("Found {} block textures", texture_files.len());
+
+        // Register as dynamic assets using Files collection
+        dynamic_assets.register_asset(
+            "block_textures",
+            Box::new(StandardDynamicAsset::Files {
+                paths: texture_files.clone(),
+            }),
+        );
+        dynamic_assets.register_asset(
+            "item_textures",
+            Box::new(StandardDynamicAsset::Files {
+                paths: texture_files,
+            }),
+        );
+    } else {
+        warn!(
+            "Could not read block textures directory: {}",
+            blocks_path.display()
+        );
+        // Register empty collections to prevent loading state from hanging
+        dynamic_assets.register_asset(
+            "block_textures",
+            Box::new(StandardDynamicAsset::Files { paths: vec![] }),
+        );
+        dynamic_assets.register_asset(
+            "item_textures",
+            Box::new(StandardDynamicAsset::Files { paths: vec![] }),
+        );
+    }
+}
+
+/// Sets up basic materials (sun, moon) that don't require loaded textures.
+pub fn setup_basic_materials(
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut material_resource: ResMut<MaterialResource>,
 ) {
     let sun_material = materials.add(StandardMaterial {
         base_color: Color::srgb(1., 0.95, 0.1),
@@ -81,71 +155,64 @@ pub fn setup_materials(
     material_resource
         .global_materials
         .insert(GlobalMaterial::Moon, moon_material);
+}
 
-    let blocks_path = paths
-        .assets_folder_path
-        .join(&texture_path.path)
-        .join("blocks/");
+/// Initializes block atlas handles from the loaded BlockTextureAssets.
+/// Called via `finally_init_resource` after bevy_asset_loader finishes loading.
+pub fn init_block_atlas_handles(
+    mut atlas_handles: ResMut<AtlasHandles<BlockId>>,
+    block_assets: Res<BlockTextureAssets>,
+) {
+    atlas_handles.handles = block_assets
+        .textures
+        .iter()
+        .map(|(name, handle)| {
+            // Extract just the filename without path and extension
+            let filename = std::path::Path::new(name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(name)
+                .to_string();
+            (handle.clone(), filename)
+        })
+        .collect();
 
-    info!("Block textures : {}", blocks_path.display());
+    info!(
+        "Initialized {} block atlas handles",
+        atlas_handles.handles.len()
+    );
+}
 
-    if let Ok(dir) = fs::read_dir(blocks_path.clone()) {
-        block_atlas_handles.handles = dir
-            .map(|file| {
-                let binding = file.unwrap().path();
-                let filename = binding.file_stem().unwrap().to_str().unwrap();
-                let handle: Handle<Image> = asset_server.load(
-                    blocks_path
-                        .join(filename)
-                        .with_extension("png")
-                        .to_string_lossy()
-                        .into_owned(),
-                );
-                // Register with iyes_progress for asset tracking
-                assets_loading.add(&handle);
-                (handle, filename.to_owned())
-            })
-            .collect();
-        info!("Block textures loaded");
-    } else {
-        warn!(
-            "Block textures could not be loaded. This could crash the game : {:?}",
-            blocks_path.display()
-        );
-    }
+/// Initializes item atlas handles from the loaded ItemTextureAssets.
+/// Called via `finally_init_resource` after bevy_asset_loader finishes loading.
+pub fn init_item_atlas_handles(
+    mut atlas_handles: ResMut<AtlasHandles<ItemId>>,
+    item_assets: Res<ItemTextureAssets>,
+) {
+    atlas_handles.handles = item_assets
+        .textures
+        .iter()
+        .map(|(name, handle)| {
+            // Extract just the filename without path and extension
+            let filename = std::path::Path::new(name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(name)
+                .to_string();
+            (handle.clone(), filename)
+        })
+        .collect();
 
-    // Items use the same textures as blocks - load from blocks folder
-    if let Ok(dir) = fs::read_dir(blocks_path.clone()) {
-        item_atlas_handles.handles = dir
-            .map(|file| {
-                let binding = file.unwrap().path();
-                let filename = binding.file_stem().unwrap().to_str().unwrap();
-                let handle: Handle<Image> = asset_server.load(
-                    blocks_path
-                        .join(filename)
-                        .with_extension("png")
-                        .to_string_lossy()
-                        .into_owned(),
-                );
-                // Register with iyes_progress for asset tracking
-                assets_loading.add(&handle);
-                (handle, filename.to_owned())
-            })
-            .collect();
-        info!("Item textures loaded from blocks folder");
-    } else {
-        warn!(
-            "Item textures could not be loaded. This could crash the game : {:?}",
-            blocks_path.display()
-        );
-    }
+    info!(
+        "Initialized {} item atlas handles",
+        atlas_handles.handles.len()
+    );
 }
 
 /// Creates texture atlases from loaded assets.
-/// This system runs during preloading and builds the atlases once all texture assets are loaded.
-/// iyes_progress tracks the asset loading separately via AssetsLoading.
+/// This system runs after bevy_asset_loader has finished loading all textures.
+/// The assets are guaranteed to be loaded when this runs.
 pub fn create_all_atlases(
-    asset_server: Res<AssetServer>,
     mut atlases: (ResMut<AtlasHandles<BlockId>>, ResMut<AtlasHandles<ItemId>>),
     mut images: ResMut<Assets<Image>>,
     mut material_resource: ResMut<MaterialResource>,
@@ -157,32 +224,13 @@ pub fn create_all_atlases(
         return;
     }
 
-    let mut all_handles = Vec::new();
-    all_handles.extend(atlases.0.handles.iter().map(|h| h.0.id()));
-    all_handles.extend(atlases.1.handles.iter().map(|h| h.0.id()));
-
-    if all_handles.is_empty() {
-        return;
-    }
-
-    let all_loaded = all_handles
-        .iter()
-        .all(|id| matches!(asset_server.get_load_state(*id), Some(LoadState::Loaded)));
-
-    let any_failed = all_handles
-        .iter()
-        .any(|id| matches!(asset_server.get_load_state(*id), Some(LoadState::Failed(_))));
-
-    if any_failed {
-        warn!("Texture loading failed; check asset paths and filenames");
-    }
-
-    if !all_loaded {
+    // Skip if no handles loaded yet
+    if atlases.0.handles.is_empty() && atlases.1.handles.is_empty() {
         return;
     }
 
     // Build block atlas
-    if material_resource.blocks.is_none() {
+    if !atlases.0.loaded && !atlases.0.handles.is_empty() && material_resource.blocks.is_none() {
         if let Some(blocks) = build_texture_atlas(
             &mut atlases.0,
             &mut images,
@@ -204,13 +252,11 @@ pub fn create_all_atlases(
             material_resource.blocks = Some(blocks);
             atlases.0.loaded = true;
             info!("Block texture atlas created");
-        } else {
-            warn!("Failed to finalize block textures after load");
         }
     }
 
     // Build item atlas
-    if material_resource.items.is_none() {
+    if !atlases.1.loaded && !atlases.1.handles.is_empty() && material_resource.items.is_none() {
         if let Some(items) = build_texture_atlas(
             &mut atlases.1,
             &mut images,
@@ -231,8 +277,6 @@ pub fn create_all_atlases(
             material_resource.items = Some(items);
             atlases.1.loaded = true;
             info!("Item texture atlas created");
-        } else {
-            warn!("Failed to finalize item textures after load");
         }
     }
 }

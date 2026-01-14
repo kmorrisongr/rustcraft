@@ -38,9 +38,7 @@ pub fn game_plugin(app: &mut App) {
         .add_plugins(PlayerPlugin)
         .add_plugins(
             ProgressPlugin::<GameState>::new()
-                .with_state_transition(GameState::PreGameLoading, GameState::Game)
-                .with_asset_tracking()
-                .auto_clear_assets(true, true),
+                .with_state_transition(GameState::PreGameLoading, GameState::Game),
         )
         .insert_resource(WaterSettings {
             height: 0.0,       // Sea level for voxel world

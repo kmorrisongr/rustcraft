@@ -12,14 +12,15 @@ pub use render_distance::*;
 // to avoid polluting the rendering namespace
 
 use bevy::prelude::*;
+use bevy_asset_loader::prelude::*;
 use shared::{
-    sets::{GameSets, PreGameLoadingSets},
+    game_state::GameState,
+    sets::GameSets,
     world::{BlockId, ItemId},
 };
 
-use crate::{
-    world::water::{water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle},
-    GameState,
+use crate::world::water::{
+    water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle,
 };
 
 pub struct RenderingPlugin;
@@ -32,14 +33,26 @@ impl Plugin for RenderingPlugin {
             .init_resource::<MaterialResource>()
             .init_resource::<AtlasHandles<BlockId>>()
             .init_resource::<AtlasHandles<ItemId>>()
+            // Configure dynamic assets before loading state starts
             .add_systems(
                 OnEnter(GameState::PreGameLoading),
-                (setup_materials,).in_set(PreGameLoadingSets::OnEnter::Resources),
+                (configure_dynamic_texture_assets, setup_basic_materials).chain(),
             )
+            // Configure the loading state with bevy_asset_loader
+            .add_loading_state(
+                LoadingState::new(GameState::PreGameLoading)
+                    .load_collection::<BlockTextureAssets>()
+                    .load_collection::<ItemTextureAssets>(),
+            )
+            // Initialize atlas handles after assets are loaded, then create atlases
             .add_systems(
-                Update,
-                (setup_materials, create_all_atlases)
-                    .in_set(PreGameLoadingSets::Update::Initialize),
+                OnEnter(GameState::Game),
+                (
+                    init_block_atlas_handles,
+                    init_item_atlas_handles,
+                    create_all_atlases,
+                )
+                    .chain(),
             )
             .add_systems(
                 Update,
