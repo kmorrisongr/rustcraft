@@ -12,14 +12,10 @@ pub use render_distance::*;
 // to avoid polluting the rendering namespace
 
 use bevy::prelude::*;
-use shared::{
-    sets::{GameSets, PreGameLoadingSets},
-    world::{BlockId, ItemId},
-};
+use shared::sets::{GameLoadingSets, GameSets};
 
-use crate::{
-    world::water::{water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle},
-    GameState,
+use crate::world::water::{
+    water_cleanup_system, water_render_system, WaterEntities, WaterMaterialHandle,
 };
 
 pub struct RenderingPlugin;
@@ -29,17 +25,9 @@ impl Plugin for RenderingPlugin {
             .init_resource::<WaterMaterialHandle>()
             .init_resource::<RenderDistance>()
             .init_resource::<LodTransitionTimer>()
-            .init_resource::<MaterialResource>()
-            .init_resource::<AtlasHandles<BlockId>>()
-            .init_resource::<AtlasHandles<ItemId>>()
-            .add_systems(
-                OnEnter(GameState::PreGameLoading),
-                (setup_materials,).in_set(PreGameLoadingSets::OnEnter::Resources),
-            )
             .add_systems(
                 Update,
-                (setup_materials, create_all_atlases)
-                    .in_set(PreGameLoadingSets::Update::Initialize),
+                (setup_materials, create_all_atlases).in_set(GameLoadingSets::Update::Resources),
             )
             .add_systems(
                 Update,
