@@ -2976,6 +2976,7 @@ dependencies = [
  "bevy-inspector-egui",
  "bevy_asset_loader",
  "bevy_image 0.17.3",
+ "bevy_mesh 0.17.3",
  "bevy_panorbit_camera",
  "bevy_rapier3d",
  "bevy_renet",

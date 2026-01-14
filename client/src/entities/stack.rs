@@ -1,4 +1,5 @@
-use bevy::{prelude::*, render::mesh::VertexAttributeValues};
+use bevy::prelude::*;
+use bevy_mesh::VertexAttributeValues;
 use shared::{
     messages::ItemStackUpdateEvent,
     world::{ItemStack, ItemType},
@@ -88,7 +89,7 @@ pub fn stack_update_system(
                             .global_materials
                             .get(&crate::world::GlobalMaterial::Items)
                             .unwrap()
-                            .clone_weak(),
+                            .clone(),
                     ),
                     Transform::from_translation(pos),
                 ));

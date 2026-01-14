@@ -19,6 +19,7 @@ bincode = { workspace = true }
 
 bevy_water = "0.17"
 bevy_image = "0.17"
+bevy_mesh = "0.17"
 
 lazy_static = "1.5.0"
 bevy_simple_text_input = "0.11"
