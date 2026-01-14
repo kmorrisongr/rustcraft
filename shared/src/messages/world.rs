@@ -5,6 +5,7 @@ use bevy::{
     math::{IVec3, Vec3},
     prelude::Event,
 };
+use bevy_ecs::message::Message;
 use serde::{Deserialize, Serialize};
 
 /// WorldUpdate is a message sent from the server to the client to update the client's world state.
