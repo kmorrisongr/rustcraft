@@ -1104,6 +1104,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_easings"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8067573482c20f7b42f54b1b0185d70af6a3d7c017bdcad6850af003b237fb7d"
+dependencies = [
+ "bevy_app 0.17.3",
+ "bevy_color 0.17.3",
+ "bevy_ecs 0.17.3",
+ "bevy_math 0.17.3",
+ "bevy_render 0.17.3",
+ "bevy_sprite 0.17.3",
+ "bevy_text 0.17.3",
+ "bevy_time 0.17.3",
+ "bevy_transform 0.17.3",
+ "bevy_ui 0.17.3",
+ "interpolation",
+]
+
+[[package]]
 name = "bevy_ecs"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2718,12 +2737,13 @@ dependencies = [
 
 [[package]]
 name = "bevy_water"
-version = "0.16.1"
+version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d51e61f475b3e24013868c1470bc445a7b04e386d20a23c4cae2a75b79bb7de5"
+checksum = "aee21452c3009efebfac3708af4a4c9a6b6b70d3bc85988903280406be46f57b"
 dependencies = [
  "anyhow",
- "bevy 0.16.1",
+ "bevy 0.17.3",
+ "bevy_easings",
 ]
 
 [[package]]
@@ -3195,7 +3215,7 @@ dependencies = [
  "bevy-inspector-egui",
  "bevy_asset_loader",
  "bevy_atmosphere",
- "bevy_image 0.16.1",
+ "bevy_image 0.17.3",
  "bevy_panorbit_camera",
  "bevy_rapier3d",
  "bevy_renet",
@@ -4665,6 +4685,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "interpolation"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9c13ae9d91148fcb4aab6654c4c2a7d02a15395ea9e23f65170f175f8b269ce"
 
 [[package]]
 name = "inventory"
@@ -6634,7 +6660,7 @@ name = "server"
 version = "0.0.0"
 dependencies = [
  "bevy 0.17.3",
- "bevy_app 0.16.1",
+ "bevy_app 0.17.3",
  "bevy_ecs 0.17.3",
  "bevy_log 0.17.3",
  "bevy_rapier3d",
@@ -6667,7 +6693,7 @@ dependencies = [
  "bevy 0.17.3",
  "bevy_ecs 0.17.3",
  "bevy_log 0.17.3",
- "bevy_platform 0.16.1",
+ "bevy_platform 0.17.3",
  "bevy_rapier3d",
  "bevy_renet",
  "bincode",
