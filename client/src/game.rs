@@ -115,6 +115,10 @@ fn configure_sets(app: &mut App) {
         GameSets::FixedUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
     )
     .configure_sets(
+        FixedPostUpdate,
+        GameSets::FixedPostUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
+    )
+    .configure_sets(
         PostUpdate,
         GameSets::PostUpdate::chained_schedule_configs().run_if(in_state(GameState::Game)),
     )
