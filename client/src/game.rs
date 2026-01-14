@@ -104,7 +104,7 @@ pub fn game_plugin(app: &mut App) {
         )
         .add_systems(
             Update,
-            (stack_update_system,).run_if(in_state(GameState::Game)),
+            (stack_update_system,).in_set(GameSets::Update::WorldPhysics),
         );
 }
 
