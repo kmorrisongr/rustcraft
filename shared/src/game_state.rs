@@ -7,6 +7,5 @@ pub enum GameState {
     #[default]
     Menu,
     PreGameLoading,
-    GameLoading,
     Game,
 }

@@ -22,18 +22,6 @@ pub mod PreGameLoadingSets {
 }
 
 #[allow(non_snake_case)]
-pub mod GameLoadingSets {
-    use bevy::prelude::SystemSet;
-    use derive_linear_schedule_set::LinearSystemSet;
-
-    #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash, LinearSystemSet)]
-    pub enum Update {
-        Resources,
-        Rest,
-    }
-}
-
-#[allow(non_snake_case)]
 pub mod GameSets {
     use bevy::prelude::SystemSet;
     use derive_linear_schedule_set::LinearSystemSet;
