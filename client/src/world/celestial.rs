@@ -118,8 +118,14 @@ pub fn setup_camera_atmosphere(
         commands.entity(camera_entity).insert((
             // Use Earth-like atmosphere preset
             Atmosphere::EARTH,
-            // Default atmosphere settings work well for most scenes
-            AtmosphereSettings::default(),
+            // Atmosphere settings tuned for the game's scale
+            AtmosphereSettings {
+                // Extended distance for aerial perspective on distant terrain
+                aerial_view_lut_max_distance: 3.2e5,
+                // Scale factor: 1 game unit = 1 meter (block-sized units)
+                scene_units_to_m: 1.0,
+                ..default()
+            },
         ));
     }
 }

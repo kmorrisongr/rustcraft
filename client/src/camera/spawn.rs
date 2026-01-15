@@ -1,4 +1,8 @@
-use bevy::{prelude::*, state::state_scoped::DespawnOnExit};
+use bevy::{
+    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
+    render::view::Hdr, state::state_scoped::DespawnOnExit,
+};
+use bevy_camera::Exposure;
 use bevy_panorbit_camera::PanOrbitCamera;
 
 use crate::GameState;
@@ -11,9 +15,13 @@ pub const MOUSE_SENSITIVITY: f32 = 0.003;
 struct GameCameraBundle {
     camera: Camera,
     camera_3d: Camera3d,
+    hdr: Hdr,
     projection: Projection,
     transform: Transform,
     pan_orbit_camera: PanOrbitCamera,
+    exposure: Exposure,
+    tonemapping: Tonemapping,
+    bloom: Bloom,
     despawn_on_exit: DespawnOnExit<GameState>,
 }
 
@@ -24,6 +32,7 @@ pub fn spawn_camera(mut commands: Commands) {
             ..Camera::default()
         },
         camera_3d: Camera3d::default(),
+        hdr: Hdr,
         projection: Projection::Perspective(PerspectiveProjection {
             fov: f32::to_radians(60.0),
             ..Default::default()
@@ -44,6 +53,10 @@ pub fn spawn_camera(mut commands: Commands) {
             touch_enabled: false,
             ..PanOrbitCamera::default()
         },
+        // Recommended settings for use with Atmosphere
+        exposure: Exposure::SUNLIGHT,
+        tonemapping: Tonemapping::AcesFitted,
+        bloom: Bloom::NATURAL,
         despawn_on_exit: DespawnOnExit(GameState::Game),
     });
 }

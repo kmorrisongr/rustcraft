@@ -2153,6 +2153,7 @@ dependencies = [
  "bevy-inspector-egui",
  "bevy_asset",
  "bevy_asset_loader",
+ "bevy_camera",
  "bevy_image",
  "bevy_light",
  "bevy_mesh",
