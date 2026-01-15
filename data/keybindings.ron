@@ -15,12 +15,9 @@
                 "KeyCode": F5,
             },
         ],
-        MoveBackward: [
+        OpenChat: [
             {
-                "KeyCode": KeyS,
-            },// [0]
-            {
-                "KeyCode": ArrowDown,
+                "KeyCode": KeyT,
             },
         ],
         ToggleBlockWireframeDebugMode: [
@@ -28,14 +25,17 @@
                 "KeyCode": F6,
             },
         ],
-        OpenChat: [
-            {
-                "KeyCode": KeyT,
-            },
-        ],
         ToggleFps: [
             {
                 "KeyCode": F3,
+            },
+        ],
+        MoveBackward: [
+            {
+                "KeyCode": KeyS,
+            },// [0]
+            {
+                "KeyCode": ArrowDown,
             },
         ],
         RenderDistancePlus: [

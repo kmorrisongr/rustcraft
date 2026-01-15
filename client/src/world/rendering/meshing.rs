@@ -151,6 +151,12 @@ pub(crate) fn generate_chunk_mesh(
             })
             .collect();
 
+        // Rotate normals to match vertex rotation
+        let local_normals: Vec<[f32; 3]> = local_normals
+            .iter()
+            .map(|n| rotate_normals(n, &block.direction))
+            .collect();
+
         solid_mesh_creator.vertices.extend(local_vertices);
         solid_mesh_creator.indices.extend(local_indices);
         solid_mesh_creator.normals.extend(local_normals);
@@ -220,6 +226,17 @@ pub(crate) fn is_block_surrounded(
 }
 
 pub fn rotate_vertices(v: &[f32; 3], direction: &BlockDirection) -> [f32; 3] {
+    rotate_around_y(v, direction)
+}
+
+/// Rotate normals around Y axis based on block direction.
+/// Uses the same rotation logic as vertices to keep normals aligned.
+pub fn rotate_normals(n: &[f32; 3], direction: &BlockDirection) -> [f32; 3] {
+    rotate_around_y(n, direction)
+}
+
+/// Rotate a 3D vector around the Y axis based on block direction.
+fn rotate_around_y(v: &[f32; 3], direction: &BlockDirection) -> [f32; 3] {
     let angle = match *direction {
         BlockDirection::Front => 0.,
         BlockDirection::Right => -PI / 2.,
@@ -411,6 +428,12 @@ pub(crate) fn generate_chunk_mesh_lod(
                         let v = rotate_vertices(v, &block.direction);
                         [v[0] + x, v[1] + y, v[2] + z]
                     })
+                    .collect();
+
+                // Rotate normals to match vertex rotation for proper lighting
+                let local_normals: Vec<[f32; 3]> = local_normals
+                    .iter()
+                    .map(|n| rotate_normals(n, &block.direction))
                     .collect();
 
                 solid_mesh_creator.vertices.extend(local_vertices);
