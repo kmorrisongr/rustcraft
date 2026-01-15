@@ -1,8 +1,11 @@
 (
     buttonlike_map: {
-        ToggleInventory: [
+        MoveForward: [
             {
-                "KeyCode": KeyE,
+                "KeyCode": KeyW,
+            },// [0]
+            {
+                "KeyCode": ArrowUp,
             },
         ],
         ToggleFlyMode: [
@@ -10,78 +13,19 @@
                 "KeyCode": KeyF,
             },
         ],
-        ToggleViewMode: [
-            {
-                "KeyCode": F5,
-            },
-        ],
-        MoveBackward: [
-            {
-                "KeyCode": KeyS,
-            },// [0]
-            {
-                "KeyCode": ArrowDown,
-            },
-        ],
-        ToggleBlockWireframeDebugMode: [
-            {
-                "KeyCode": F6,
-            },
-        ],
-        OpenChat: [
-            {
-                "KeyCode": KeyT,
-            },
-        ],
-        ToggleFps: [
-            {
-                "KeyCode": F3,
-            },
-        ],
         RenderDistancePlus: [
             {
                 "KeyCode": KeyP,
             },
         ],
-        ToggleRaycastDebugMode: [
+        ToggleInventory: [
             {
-                "KeyCode": F7,
-            },
-        ],
-        ToggleChunkDebugMode: [
-            {
-                "KeyCode": F4,
-            },
-        ],
-        FlyDown: [
-            {
-                "KeyCode": ShiftLeft,
+                "KeyCode": KeyE,
             },
         ],
         FlyUp: [
             {
                 "KeyCode": Space,
-            },
-        ],
-        RenderDistanceMinus: [
-            {
-                "KeyCode": KeyO,
-            },
-        ],
-        MoveRight: [
-            {
-                "KeyCode": KeyD,
-            },// [0]
-            {
-                "KeyCode": ArrowRight,
-            },
-        ],
-        MoveForward: [
-            {
-                "KeyCode": KeyW,
-            },// [0]
-            {
-                "KeyCode": ArrowUp,
             },
         ],
         ReloadChunks: [
@@ -99,12 +43,68 @@
                 "KeyCode": Escape,
             },
         ],
+        ToggleRaycastDebugMode: [
+            {
+                "KeyCode": F7,
+            },
+        ],
+        ToggleBlockWireframeDebugMode: [
+            {
+                "KeyCode": F6,
+            },
+        ],
         MoveLeft: [
             {
                 "KeyCode": KeyA,
             },// [0]
             {
                 "KeyCode": ArrowLeft,
+            },
+        ],
+        ToggleViewMode: [
+            {
+                "KeyCode": F5,
+            },
+        ],
+        RenderDistanceMinus: [
+            {
+                "KeyCode": KeyO,
+            },
+        ],
+        MoveBackward: [
+            {
+                "KeyCode": KeyS,
+            },// [0]
+            {
+                "KeyCode": ArrowDown,
+            },
+        ],
+        ToggleChunkDebugMode: [
+            {
+                "KeyCode": F4,
+            },
+        ],
+        OpenChat: [
+            {
+                "KeyCode": KeyT,
+            },
+        ],
+        MoveRight: [
+            {
+                "KeyCode": KeyD,
+            },// [0]
+            {
+                "KeyCode": ArrowRight,
+            },
+        ],
+        ToggleFps: [
+            {
+                "KeyCode": F3,
+            },
+        ],
+        FlyDown: [
+            {
+                "KeyCode": ShiftLeft,
             },
         ],
     },
