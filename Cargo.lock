@@ -1614,6 +1614,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_sun_move"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5d7d486e0c66e77fb6bcc17e642f7c600eabed7af9d414c1549bbff3809d40a"
+dependencies = [
+ "bevy",
+ "rand 0.9.2",
+]
+
+[[package]]
 name = "bevy_tasks"
 version = "0.17.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2150,6 +2160,7 @@ dependencies = [
  "bevy_rapier3d",
  "bevy_renet",
  "bevy_simple_text_input",
+ "bevy_sun_move",
  "bevy_water",
  "bincode",
  "clap",

@@ -4,7 +4,6 @@ use crate::TexturePath;
 use bevy::image::ImageSampler;
 use bevy::platform::collections::HashMap as BevyHashMap;
 use bevy::prelude::*;
-use bevy::render::render_resource::Face;
 use bevy_asset_loader::prelude::*;
 use std::collections::HashMap;
 
@@ -115,29 +114,6 @@ pub fn setup_atlas_materials(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut material_resource: ResMut<MaterialResource>,
 ) {
-    // Create sun and moon materials
-    let sun_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(1., 0.95, 0.1),
-        emissive: LinearRgba::new(1., 0.95, 0.1, 0.5),
-        emissive_exposure_weight: 0.5,
-        cull_mode: Some(Face::Front),
-        ..Default::default()
-    });
-    material_resource
-        .global_materials
-        .insert(GlobalMaterial::Sun, sun_material);
-
-    let moon_material = materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        emissive: LinearRgba::WHITE,
-        emissive_exposure_weight: 0.5,
-        cull_mode: Some(Face::Front),
-        ..Default::default()
-    });
-    material_resource
-        .global_materials
-        .insert(GlobalMaterial::Moon, moon_material);
-
     // Create block material
     let block_material = materials.add(StandardMaterial {
         base_color_texture: Some(atlases.blocks.texture.clone()),

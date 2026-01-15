@@ -1,133 +1,82 @@
-use crate::player::CurrentPlayerMarker;
-use crate::world::materials::MaterialResource;
-use crate::world::time::ClientTime;
+//! Celestial bodies and day/night cycle using Bevy's Atmosphere and bevy_sun_move.
+//!
+//! This module sets up:
+//! - A DirectionalLight as the sun, controlled by bevy_sun_move's SkyCenter
+//! - Bevy's built-in Atmosphere component on the camera for realistic sky rendering
+//! - A configurable day/night cycle duration
+
+use crate::constants::DAY_DURATION_IN_TICKS;
 use crate::GameState;
-use crate::{
-    constants::{CELESTIAL_DISTANCE, CELESTIAL_SIZE, DAY_DURATION_IN_TICKS},
-    world::GlobalMaterial,
+use bevy::{
+    light::light_consts::lux,
+    pbr::{Atmosphere, AtmosphereSettings},
+    prelude::*,
 };
-use bevy::prelude::*;
-use bevy_light::{NotShadowCaster, NotShadowReceiver};
-use std::f32::consts::PI;
+use bevy_sun_move::SkyCenter;
+use shared::TICKS_PER_SECOND;
 
-//
-#[derive(Component)]
-pub struct CelestialRoot;
-
-// Main light source : the sun
+/// Marker component for the sun entity
 #[derive(Component)]
 pub struct SunLight;
 
-// Secondary main light source : the moon
-#[derive(Component)]
-pub struct MoonLight;
+/// System to set up the sun and sky center for day/night cycles.
+/// This spawns the DirectionalLight (sun) and a SkyCenter entity to control it.
+pub fn setup_sun_and_sky(mut commands: Commands) {
+    // Calculate cycle duration in seconds from tick-based duration
+    // DAY_DURATION_IN_TICKS is the full day cycle, TICKS_PER_SECOND converts to real time
+    let cycle_duration_secs = DAY_DURATION_IN_TICKS as f32 / TICKS_PER_SECOND as f32;
 
-pub fn setup_main_lighting(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    material_resource: Res<MaterialResource>,
-    player: Query<Entity, With<CurrentPlayerMarker>>,
-) {
-    // No fancy stuff ; Only acts as an anchor to move celestial bodies easily
-    let celestial_root = commands
-        .spawn((
-            CelestialRoot,
-            DespawnOnExit(GameState::Game),
-            Transform::default(),
-        ))
-        .id();
-
-    let mut light_transform = Transform::from_translation(Vec3::new(0., 0., 0.));
-
-    let sun_light = commands
+    // Spawn the sun (DirectionalLight)
+    // Using RAW_SUNLIGHT illuminance as recommended for use with Atmosphere
+    let sun_entity = commands
         .spawn((
             SunLight,
-            (
-                DirectionalLight {
-                    illuminance: 5000.,
-                    shadows_enabled: true,
-                    ..default()
-                },
-                light_transform,
-            ),
+            DirectionalLight {
+                illuminance: lux::RAW_SUNLIGHT,
+                shadows_enabled: true,
+                ..default()
+            },
+            Transform::default(),
+            DespawnOnExit(GameState::Game),
         ))
-        .with_children(|parent| {
-            parent.spawn((
-                (
-                    Mesh3d(meshes.add(Rectangle::new(CELESTIAL_SIZE, CELESTIAL_SIZE))),
-                    MeshMaterial3d(
-                        material_resource
-                            .global_materials
-                            .get(&GlobalMaterial::Sun)
-                            .expect("Sun material not found !")
-                            .clone(),
-                    ),
-                    Transform {
-                        translation: Vec3::new(0., 0., CELESTIAL_DISTANCE),
-                        ..default()
-                    },
-                ),
-                NotShadowCaster,
-                NotShadowReceiver,
-            ));
-        })
-        .id();
-    light_transform.rotate_y(PI);
-
-    let moon_light = commands
-        .spawn((
-            MoonLight,
-            (
-                DirectionalLight {
-                    illuminance: 500.,
-                    color: Color::Srgba(Srgba::hex("c9d2de").unwrap()),
-                    shadows_enabled: true,
-                    ..default()
-                },
-                light_transform,
-            ),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                (
-                    Mesh3d(meshes.add(Rectangle::new(CELESTIAL_SIZE, CELESTIAL_SIZE))),
-                    MeshMaterial3d(
-                        material_resource
-                            .global_materials
-                            .get(&GlobalMaterial::Moon)
-                            .expect("Moon material not found !")
-                            .clone(),
-                    ),
-                    Transform {
-                        translation: Vec3::new(0., 0., CELESTIAL_DISTANCE),
-                        ..Default::default()
-                    },
-                ),
-                NotShadowCaster,
-                NotShadowReceiver,
-            ));
-        })
         .id();
 
-    commands
-        .entity(celestial_root)
-        .add_children(&[sun_light, moon_light]);
-
-    commands
-        .entity(player.single().expect("Player should exist"))
-        .add_child(celestial_root);
+    // Spawn SkyCenter to control the sun's movement
+    // This uses bevy_sun_move to handle realistic sun positioning
+    commands.spawn((
+        SkyCenter {
+            // Latitude affects sun path across the sky
+            // ~45° gives a nice temperate zone sun arc
+            latitude_degrees: 45.0,
+            // Earth-like axial tilt
+            planet_tilt_degrees: 23.5,
+            // Start at "morning" (around 0.25 is roughly 6am equivalent)
+            year_fraction: 0.0,
+            // Full day/night cycle duration
+            cycle_duration_secs,
+            // Reference to the sun entity
+            sun: sun_entity,
+            // Start time within the cycle (0.25 = ~morning)
+            current_cycle_time: cycle_duration_secs * 0.25,
+        },
+        Transform::default(),
+        Visibility::default(),
+        DespawnOnExit(GameState::Game),
+    ));
 }
 
-pub fn update_celestial_bodies(
-    mut query: Query<&mut Transform, With<CelestialRoot>>,
-    time: Res<ClientTime>,
+/// System to add Atmosphere to the game camera.
+/// This runs after the camera is spawned to add atmospheric scattering effects.
+pub fn setup_camera_atmosphere(
+    mut commands: Commands,
+    camera_query: Query<Entity, (With<Camera3d>, Without<Atmosphere>)>,
 ) {
-    // Calculate the angle for the rotation (normalization between 0 and 1)
-    let normalized_time = (time.0 % DAY_DURATION_IN_TICKS) as f32 / DAY_DURATION_IN_TICKS as f32;
-    let angle = normalized_time * 2.0 * PI;
-
-    // Apply the rotation to celestial bodies
-    for mut tr in query.iter_mut() {
-        tr.rotation = Quat::from_rotation_x(angle);
+    for camera_entity in camera_query.iter() {
+        commands.entity(camera_entity).insert((
+            // Use Earth-like atmosphere preset
+            Atmosphere::EARTH,
+            // Default atmosphere settings work well for most scenes
+            AtmosphereSettings::default(),
+        ));
     }
 }

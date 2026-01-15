@@ -29,6 +29,7 @@ bevy-inspector-egui = "0.35"
 bevy_asset_loader = { version = "0.24", features = ["progress_tracking", "standard_dynamic_assets"] }
 leafwing-input-manager = "0.19"
 iyes_progress = "0.15"
+bevy_sun_move = "0.2"
 
 lazy_static = "1.5.0"
 egui = "0.33"
