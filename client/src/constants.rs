@@ -3,7 +3,9 @@ pub const BASE_ROUGHNESS: f32 = 0.6;
 pub const BASE_SPECULAR_HIGHLIGHT: f32 = 0.;
 
 // 20 ticks * 60 seconds * 20 minutes
-pub const DAY_DURATION_IN_TICKS: u64 = 20 * 60 * 20;
+// pub const DAY_DURATION_IN_TICKS: u64 = 20 * 60 * 20;
+// Debug/testing: 1 minute
+pub const DAY_DURATION_IN_TICKS: u64 = 20 * 60;
 
 pub const MAX_HOTBAR_SLOTS: u32 = 9;
 
