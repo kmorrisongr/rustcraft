@@ -32,6 +32,25 @@ pub struct MoonLight;
 /// Day length in seconds, derived from tick-based duration
 const DAY_LENGTH_SECS: f32 = DAY_DURATION_IN_TICKS as f32 / TICKS_PER_SECOND as f32;
 
+/// Minimum angular change (in radians) before updating celestial bodies.
+/// This throttles updates to reduce environment map regeneration overhead.
+///
+/// At 20 minutes per day cycle:
+/// - 1° (~0.0175 rad) = ~3.3 seconds between updates
+/// - 2° (~0.0349 rad) = ~6.7 seconds between updates
+/// - 5° (~0.0873 rad) = ~16.7 seconds between updates
+const SUN_UPDATE_THRESHOLD_RADIANS: f32 = 0.0175; // ~1 degree
+
+/// Resource tracking the last angle at which celestial bodies were updated.
+/// Used to throttle updates based on angular change rather than time.
+#[derive(Resource, Default)]
+pub struct CelestialState {
+    /// The sun's angle (in radians) at the last update
+    last_sun_angle: f32,
+    /// Whether the celestial bodies have been initialized
+    initialized: bool,
+}
+
 /// System to set up the sun and moon for day/night cycles.
 /// Spawns DirectionalLights for both celestial bodies.
 pub fn setup_sun_and_sky(mut commands: Commands) {
@@ -69,10 +88,11 @@ pub fn setup_sun_and_sky(mut commands: Commands) {
 /// - The sun orbits in the XY plane (Y is up)
 /// - The moon is always opposite the sun
 ///
-/// This gives us direct control over update frequency, making it easy to
-/// throttle updates or synchronize with environment map regeneration.
+/// Updates are throttled based on angular change (see `SUN_UPDATE_THRESHOLD_RADIANS`)
+/// to reduce environment map regeneration overhead while keeping visual quality.
 pub fn update_celestial_bodies(
     client_time: Res<ClientTime>,
+    mut celestial_state: ResMut<CelestialState>,
     mut sun_query: Query<
         (&mut Transform, &mut DirectionalLight),
         (With<SunLight>, Without<MoonLight>),
@@ -90,19 +110,29 @@ pub fn update_celestial_bodies(
     };
 
     // Convert game ticks to day phase (0.0 to 1.0)
-    // Adding 0.25 offset so t=0 is midnight (sun below horizon)
     let elapsed_secs = client_time.0 as f32 / TICKS_PER_SECOND as f32;
     let t = (elapsed_secs / DAY_LENGTH_SECS) % 1.0;
 
     // Convert to angle (0 = midnight/below horizon, PI = noon/zenith)
-    let angle = t * TAU;
+    let current_angle = t * TAU;
+
+    // Check if we need to update based on angular change
+    // Always update on first frame (not initialized) or when threshold exceeded
+    let angle_delta = angular_distance(celestial_state.last_sun_angle, current_angle);
+    if celestial_state.initialized && angle_delta < SUN_UPDATE_THRESHOLD_RADIANS {
+        return; // Skip update - sun hasn't moved enough
+    }
+
+    // Update state for next frame
+    celestial_state.last_sun_angle = current_angle;
+    celestial_state.initialized = true;
 
     // Sun direction: orbits in the XZ-Y plane
     // At t=0 (angle=0), sun is at (1, 0, 0) - horizon east
     // At t=0.25 (angle=PI/2), sun is at (0, 1, 0) - zenith
     // At t=0.5 (angle=PI), sun is at (-1, 0, 0) - horizon west
     // At t=0.75 (angle=3PI/2), sun is at (0, -1, 0) - nadir (below ground)
-    let sun_dir = Vec3::new(angle.cos(), angle.sin(), 0.0).normalize();
+    let sun_dir = Vec3::new(current_angle.cos(), current_angle.sin(), 0.0).normalize();
 
     // Update sun transform - point the light toward origin from the sun direction
     sun_transform.look_to(-sun_dir, Vec3::Z);
@@ -139,6 +169,17 @@ pub fn update_celestial_bodies(
 fn smooth_step(edge0: f32, edge1: f32, x: f32) -> f32 {
     let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
+}
+
+/// Calculate the shortest angular distance between two angles (in radians).
+/// Handles wraparound at TAU (2π) correctly.
+fn angular_distance(a: f32, b: f32) -> f32 {
+    let diff = (b - a).rem_euclid(TAU);
+    if diff > std::f32::consts::PI {
+        TAU - diff
+    } else {
+        diff
+    }
 }
 
 /// System to add Atmosphere to the game camera.
