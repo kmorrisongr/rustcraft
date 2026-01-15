@@ -1,5 +1,4 @@
-use bevy::prelude::*;
-use bevy_atmosphere::prelude::AtmosphereCamera;
+use bevy::{prelude::*, state::state_scoped::DespawnOnExit};
 use bevy_panorbit_camera::PanOrbitCamera;
 
 use crate::GameState;
@@ -8,20 +7,30 @@ pub const DEFAULT_THIRD_PERSON_RADIUS: f32 = 10.0;
 pub const FIRST_PERSON_RADIUS: f32 = 0.0;
 pub const MOUSE_SENSITIVITY: f32 = 0.003;
 
+#[derive(Bundle)]
+struct GameCameraBundle {
+    camera: Camera,
+    camera_3d: Camera3d,
+    projection: Projection,
+    transform: Transform,
+    pan_orbit_camera: PanOrbitCamera,
+    despawn_on_exit: DespawnOnExit<GameState>,
+}
+
 pub fn spawn_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera3d::default(),
-        Camera {
+    commands.spawn(GameCameraBundle {
+        camera: Camera {
             order: 2,
-            ..default()
+            ..Camera::default()
         },
-        Projection::Perspective(PerspectiveProjection {
+        camera_3d: Camera3d::default(),
+        projection: Projection::Perspective(PerspectiveProjection {
             fov: f32::to_radians(60.0),
             ..Default::default()
         }),
-        Transform::from_translation(Vec3::new(0.0, 5.0, 10.0))
+        transform: Transform::from_translation(Vec3::new(0.0, 5.0, 10.0))
             .looking_at(Vec3::new(0.0, 0.5, 0.0), Vec3::Y),
-        PanOrbitCamera {
+        pan_orbit_camera: PanOrbitCamera {
             // Start in first-person mode
             radius: Some(FIRST_PERSON_RADIUS),
             target_radius: FIRST_PERSON_RADIUS,
@@ -33,9 +42,8 @@ pub fn spawn_camera(mut commands: Commands) {
             zoom_sensitivity: 0.0,
             pan_sensitivity: 0.0,
             touch_enabled: false,
-            ..default()
+            ..PanOrbitCamera::default()
         },
-        AtmosphereCamera::default(),
-        StateScoped(GameState::Game),
-    ));
+        despawn_on_exit: DespawnOnExit(GameState::Game),
+    });
 }

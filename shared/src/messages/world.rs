@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
 use crate::world::{ItemStack, MobId, ServerChunk, ServerMob};
-use bevy::{
-    math::{IVec3, Vec3},
-    prelude::Event,
-};
+use bevy::math::{IVec3, Vec3};
+use bevy_ecs::message::Message;
 use serde::{Deserialize, Serialize};
 
 /// WorldUpdate is a message sent from the server to the client to update the client's world state.
@@ -18,7 +16,7 @@ pub struct WorldUpdate {
     pub item_stacks: Vec<ItemStackUpdateEvent>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Event)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Message)]
 pub struct ItemStackUpdateEvent {
     pub id: u128,
     /// `None` if the stack has been deleted, `Some` if it has been updated in any way (position, number of items...)

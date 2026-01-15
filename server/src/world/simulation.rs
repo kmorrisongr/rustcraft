@@ -11,14 +11,14 @@ use shared::{
 
 use crate::network::extensions::SendGameMessageExtension;
 
-#[derive(Event, Debug)]
+#[derive(Message, Debug)]
 pub struct PlayerInputsEvent {
     pub client_id: ClientId,
     pub input: PlayerFrameInput,
 }
 
 pub fn handle_player_inputs_system(
-    mut events: EventReader<PlayerInputsEvent>,
+    mut events: MessageReader<PlayerInputsEvent>,
     mut world_map: ResMut<ServerWorldMap>,
     mut server: ResMut<RenetServer>,
 ) {

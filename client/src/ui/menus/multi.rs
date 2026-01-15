@@ -9,9 +9,7 @@ use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::{
     color::Color,
-    prelude::{
-        Button, Changed, Commands, Component, Entity, Query, Res, StateScoped, With, Without,
-    },
+    prelude::{Button, Changed, Commands, Component, Entity, Query, Res, With, Without},
     ui::{
         AlignContent, AlignItems, BackgroundColor, BorderColor, Display, FlexDirection, GridTrack,
         Interaction, JustifyContent, Node, Overflow, UiRect, Val,
@@ -64,7 +62,7 @@ pub fn multiplayer_menu_setup(
 
     commands
         .spawn((
-            StateScoped(MenuState::Multi),
+            DespawnOnExit(MenuState::Multi),
             (
                 Node {
                     width: Val::Vw(100.0),
@@ -95,7 +93,7 @@ pub fn multiplayer_menu_setup(
             ));
 
             root.spawn((
-                BorderColor(BACKGROUND_COLOR),
+                BorderColor::all(BACKGROUND_COLOR),
                 Node {
                     width: Val::Percent(100.0),
                     height: Val::Percent(50.0),
@@ -132,7 +130,7 @@ pub fn multiplayer_menu_setup(
                 .with_children(|wrapper| {
                     wrapper.spawn((
                         (
-                            BorderColor(BACKGROUND_COLOR),
+                            BorderColor::all(BACKGROUND_COLOR),
                             BackgroundColor(Color::BLACK),
                             btn_style.clone(),
                         ),
@@ -155,7 +153,7 @@ pub fn multiplayer_menu_setup(
 
                     wrapper.spawn((
                         (
-                            BorderColor(BACKGROUND_COLOR),
+                            BorderColor::all(BACKGROUND_COLOR),
                             BackgroundColor(Color::BLACK),
                             btn_style.clone(),
                         ),
@@ -180,7 +178,7 @@ pub fn multiplayer_menu_setup(
                         .spawn((
                             (
                                 Button,
-                                BorderColor(Color::BLACK),
+                                BorderColor::all(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 btn_style.clone(),
                                 ImageNode::new(buttons.normal_large.clone()),
@@ -195,7 +193,7 @@ pub fn multiplayer_menu_setup(
                         .spawn((
                             (
                                 Button,
-                                BorderColor(Color::BLACK),
+                                BorderColor::all(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 btn_style.clone(),
                                 ImageNode::new(buttons.normal_large.clone()),

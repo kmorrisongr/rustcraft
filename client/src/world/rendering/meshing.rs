@@ -3,15 +3,13 @@ use std::f32::consts::PI;
 use std::time::Instant;
 
 use crate::world::{ClientChunk, ClientWorldMap};
-use bevy::{
-    math::IVec3,
-    prelude::*,
-    render::mesh::{Indices, PrimitiveTopology},
-};
+use bevy::{math::IVec3, prelude::*};
+use bevy_mesh::Indices;
 use shared::world::{
     to_global_pos, BlockDirection, BlockId, BlockTransparency, LodLevel, WorldMap,
 };
 use shared::CHUNK_SIZE;
+use wgpu_types::PrimitiveTopology;
 
 use super::voxel::{Face, FaceDirection, VoxelShape};
 

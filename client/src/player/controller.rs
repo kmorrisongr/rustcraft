@@ -182,7 +182,7 @@ pub fn toggle_debug_system(
 pub fn chunk_force_reload_system(
     mut world_map: ResMut<ClientWorldMap>,
     action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
-    mut ev_writer: EventWriter<WorldRenderRequestUpdateEvent>,
+    mut ev_writer: MessageWriter<WorldRenderRequestUpdateEvent>,
     mut commands: Commands,
 ) {
     let Ok(action_state) = action_query.single() else {

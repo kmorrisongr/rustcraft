@@ -38,7 +38,7 @@ pub fn setup_chat(mut commands: Commands, ui_assets: Res<UiAssets>, _paths: Res<
     commands
         .spawn((
             Name::new("ChatRoot"),
-            StateScoped(crate::GameState::Game),
+            DespawnOnExit(crate::GameState::Game),
             ChatRoot,
             UiDialog,
             (
@@ -127,7 +127,7 @@ pub fn render_chat(
         >,
     ),
     mut last_render_ts: Local<u64>,
-    mut event: EventReader<TextInputSubmitEvent>,
+    mut event: MessageReader<TextInputSubmitMessage>,
     mut commands: Commands,
     _paths: Res<GameFolderPaths>,
 ) {

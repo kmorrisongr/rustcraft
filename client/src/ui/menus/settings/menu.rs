@@ -6,7 +6,7 @@ use bevy::text::{TextColor, TextFont};
 use bevy::ui::BackgroundColor;
 use bevy::utils::default;
 use bevy::{
-    prelude::{Commands, Res, StateScoped},
+    prelude::{Commands, Res},
     ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, Val},
 };
 
@@ -43,7 +43,7 @@ pub fn settings_menu_setup(mut commands: Commands, ui_assets: Res<UiAssets>) {
                 BackgroundColor(Color::NONE),
             ),
             ImageNode::new(ui_assets.background.clone()),
-            StateScoped(MenuState::Settings),
+            DespawnOnExit(MenuState::Settings),
         ))
         .with_children(|parent| {
             parent

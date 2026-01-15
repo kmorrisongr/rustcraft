@@ -68,7 +68,7 @@ pub fn lod_transition_system(
     render_distance: Res<RenderDistance>,
     world_map: Res<ClientWorldMap>,
     player_query: Query<&Transform, With<CurrentPlayerMarker>>,
-    mut ev_render: EventWriter<WorldRenderRequestUpdateEvent>,
+    mut ev_render: MessageWriter<WorldRenderRequestUpdateEvent>,
 ) {
     // Only check periodically to avoid performance impact
     if !timer.0.tick(time.delta()).just_finished() {

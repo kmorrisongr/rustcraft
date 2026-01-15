@@ -1,4 +1,5 @@
-use bevy::{prelude::*, render::mesh::VertexAttributeValues};
+use bevy::prelude::*;
+use bevy_mesh::VertexAttributeValues;
 use shared::{
     messages::ItemStackUpdateEvent,
     world::{ItemStack, ItemType},
@@ -52,7 +53,7 @@ fn create_stack_mesh(stack: &ItemStack, texture_atlases: &TextureAtlases) -> Mes
 }
 
 pub fn stack_update_system(
-    mut events: EventReader<ItemStackUpdateEvent>,
+    mut events: MessageReader<ItemStackUpdateEvent>,
     mut commands: Commands,
     mut stacks: Query<(Entity, &mut StackMarker, &mut Transform), Without<CurrentPlayerMarker>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -88,7 +89,7 @@ pub fn stack_update_system(
                             .global_materials
                             .get(&crate::world::GlobalMaterial::Items)
                             .unwrap()
-                            .clone_weak(),
+                            .clone(),
                     ),
                     Transform::from_translation(pos),
                 ));

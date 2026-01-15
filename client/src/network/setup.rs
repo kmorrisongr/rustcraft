@@ -48,8 +48,8 @@ pub struct CurrentPlayerProfile {
 
 impl CurrentPlayerProfile {
     pub(crate) fn new() -> Self {
-        let mut rng = rand::thread_rng();
-        let id: u64 = rng.gen();
+        let mut rng = rand::rng();
+        let id: u64 = rng.random();
         Self {
             id,
             name: format!("Player-{id}"),
@@ -156,11 +156,11 @@ pub fn poll_network_messages(
     // mut chat_state: ResMut<CachedChatConversation>,
     // client_time: ResMut<ClientTime>,
     mut world: ResMut<ClientWorldMap>,
-    mut ev_render: EventWriter<WorldRenderRequestUpdateEvent>,
-    mut ev_player_spawn: EventWriter<PlayerSpawnEvent>,
-    mut ev_mob_update: EventWriter<MobUpdateEvent>,
-    mut ev_item_stacks_update: EventWriter<ItemStackUpdateEvent>,
-    mut ev_player_update: EventWriter<PlayerUpdateEvent>,
+    mut ev_render: MessageWriter<WorldRenderRequestUpdateEvent>,
+    mut ev_player_spawn: MessageWriter<PlayerSpawnEvent>,
+    mut ev_mob_update: MessageWriter<MobUpdateEvent>,
+    mut ev_item_stacks_update: MessageWriter<ItemStackUpdateEvent>,
+    mut ev_player_update: MessageWriter<PlayerUpdateEvent>,
 ) {
     // poll_reliable_ordered_messages(&mut client, &mut chat_state);
     update_world_from_network(
@@ -233,7 +233,7 @@ pub fn init_server_connection(
     })
 }
 
-pub fn network_failure_handler(mut renet_error: EventReader<NetcodeTransportError>) {
+pub fn network_failure_handler(mut renet_error: MessageReader<NetcodeTransportError>) {
     for e in renet_error.read() {
         error!("network error: {}", e);
     }
@@ -243,7 +243,7 @@ pub fn establish_authenticated_connection_to_server(
     mut client: ResMut<RenetClient>,
     mut target: ResMut<TargetServer>,
     current_profile: Res<CurrentPlayerProfile>,
-    mut ev_spawn: EventWriter<PlayerSpawnEvent>,
+    mut ev_spawn: MessageWriter<PlayerSpawnEvent>,
     mut client_time: ResMut<ClientTime>,
     mut world_seed: ResMut<shared::world::WorldSeed>,
 ) {

@@ -320,18 +320,14 @@ pub fn rapier_movement_system(
         &mut RustcraftPhysicsBody,
         &Collider,
     )>,
-    rapier_context: Query<(
-        &RapierContextColliders,
-        &RapierRigidBodySet,
-        &RapierQueryPipeline,
-    )>,
+    rapier_context_ref: ReadRapierContext,
 ) {
     let delta = time.delta_secs();
     if delta <= 0.0 {
         return;
     }
 
-    let Ok((colliders, rigidbody_set, query_pipeline)) = rapier_context.single() else {
+    let Ok(rapier_context) = rapier_context_ref.single() else {
         return;
     };
 
@@ -375,13 +371,11 @@ pub fn rapier_movement_system(
             transform.translation += movement;
 
             // Ground check using shape cast
-            let ground_check = query_pipeline.cast_shape(
-                colliders,
-                rigidbody_set,
+            let ground_check = rapier_context.cast_shape(
                 transform.translation,
                 Quat::IDENTITY,
                 Vec3::NEG_Y,
-                collider,
+                collider.raw.as_ref(),
                 ShapeCastOptions {
                     max_time_of_impact: 0.1,
                     ..default()

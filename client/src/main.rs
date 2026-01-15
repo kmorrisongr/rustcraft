@@ -61,7 +61,7 @@ pub struct MenuCamera;
 
 pub const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct LoadWorldEvent {
     pub world_name: String,
 }
@@ -140,17 +140,15 @@ fn main() {
             }),
     );
 
-    app.add_plugins(EguiPlugin {
-        enable_multipass_for_primary_context: false,
-    })
-    .add_plugins(DefaultInspectorConfigPlugin)
-    .add_systems(Update, inspector_ui);
+    app.add_plugins(EguiPlugin::default())
+        .add_plugins(DefaultInspectorConfigPlugin)
+        .add_systems(Update, inspector_ui);
 
     // Add leafwing-input-manager for action-based input handling
     app.add_plugins(InputManagerPlugin::<GameAction>::default())
         .add_systems(Startup, spawn_global_input_manager);
 
-    app.add_event::<LoadWorldEvent>();
+    app.add_message::<LoadWorldEvent>();
     network::add_base_netcode(&mut app);
     app.insert_resource(LoadedInputMap(get_bindings(&game_folder_paths)))
         .insert_resource(SelectedWorld::default())
@@ -163,7 +161,6 @@ fn main() {
             name: args.player_name.unwrap_or_else(|| "Player".to_string()),
         })
         .init_state::<GameState>()
-        .enable_state_scoped_entities::<GameState>()
         // Adds the plugins for each state
         .add_plugins((splash::splash_plugin, MenusPlugin, game::game_plugin))
         .run();

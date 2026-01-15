@@ -26,7 +26,6 @@ pub struct MenusPlugin;
 impl Plugin for MenusPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<MenuState>()
-            .enable_state_scoped_entities::<MenuState>()
             .add_systems(OnEnter(GameState::Menu), menu_setup)
             // Systems to handle the main menu screen
             .add_systems(OnEnter(MenuState::Main), home_setup)
@@ -79,7 +78,7 @@ fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>, mut commands: Comman
             ..default()
         },
         MenuCamera,
-        StateScoped(GameState::Menu),
+        DespawnOnExit(GameState::Menu),
     ));
     menu_state.set(MenuState::Main);
 }
@@ -89,7 +88,7 @@ fn menu_action(
         (&Interaction, &MenuButtonAction),
         (Changed<Interaction>, With<Button>),
     >,
-    mut app_exit_events: EventWriter<AppExit>,
+    mut app_exit_events: MessageWriter<AppExit>,
     mut menu_state: ResMut<NextState<MenuState>>,
 ) {
     for (interaction, menu_button_action) in &interaction_query {
@@ -113,7 +112,7 @@ fn menu_action(
 
 fn escape_button(
     keys: Res<ButtonInput<KeyCode>>,
-    mut app_exit_events: EventWriter<AppExit>,
+    mut app_exit_events: MessageWriter<AppExit>,
     menu_state: ResMut<State<MenuState>>,
     mut next_menu_state: ResMut<NextState<MenuState>>,
 ) {
@@ -133,7 +132,7 @@ fn escape_button(
 }
 
 pub fn mouse_scroll(
-    mut mouse_wheel_events: EventReader<MouseWheel>,
+    mut mouse_wheel_events: MessageReader<MouseWheel>,
     mut query_list: Query<(&mut ScrollingList, &mut Node, &ChildOf, &ComputedNode)>,
     query_node: Query<&ComputedNode>,
 ) {

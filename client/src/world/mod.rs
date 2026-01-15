@@ -48,7 +48,7 @@ impl Plugin for WorldPlugin {
                 OnExit(GameState::Game),
                 (clear_resources).in_set(GameSets::OnExit::World),
             )
-            .add_event::<WorldRenderRequestUpdateEvent>();
+            .add_message::<WorldRenderRequestUpdateEvent>();
     }
 }
 

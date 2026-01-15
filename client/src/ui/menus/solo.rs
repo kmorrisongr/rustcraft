@@ -10,8 +10,8 @@ use bevy::prelude::*;
 use bevy::{
     color::Color,
     prelude::{
-        Button, Changed, Commands, Component, Entity, EventWriter, NextState, Query, Res, ResMut,
-        StateScoped, Text, With,
+        Button, Changed, Commands, Component, Entity, MessageWriter, NextState, Query, Res, ResMut,
+        Text, With,
     },
     ui::{
         AlignContent, AlignItems, BackgroundColor, BorderColor, Display, FlexDirection,
@@ -68,7 +68,7 @@ pub fn solo_menu_setup(
 
     commands
         .spawn((
-            StateScoped(MenuState::Solo),
+            DespawnOnExit(MenuState::Solo),
             (Node {
                 width: Val::Vw(100.0),
                 height: Val::Vh(100.0),
@@ -104,7 +104,7 @@ pub fn solo_menu_setup(
                     border: UiRect::all(Val::Px(2.)),
                     ..Default::default()
                 },
-                BorderColor(BACKGROUND_COLOR),
+                BorderColor::all(BACKGROUND_COLOR),
             ))
             .with_children(|w| {
                 w.spawn((
@@ -138,7 +138,7 @@ pub fn solo_menu_setup(
                     };
                     wrapper.spawn((
                         (
-                            BorderColor(BACKGROUND_COLOR),
+                            BorderColor::all(BACKGROUND_COLOR),
                             BackgroundColor(Color::BLACK),
                             node,
                         ),
@@ -165,7 +165,7 @@ pub fn solo_menu_setup(
                         .spawn((
                             (
                                 Button,
-                                BorderColor(Color::BLACK),
+                                BorderColor::all(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 {
                                     let mut style = btn_style.clone();
@@ -184,7 +184,7 @@ pub fn solo_menu_setup(
                         .spawn((
                             (
                                 Button,
-                                BorderColor(Color::BLACK),
+                                BorderColor::all(Color::BLACK),
                                 BackgroundColor(BACKGROUND_COLOR),
                                 {
                                     let mut style = btn_style.clone();
@@ -317,7 +317,7 @@ pub fn solo_action(
         ResMut<SelectedWorld>,
     ),
     mut commands: Commands,
-    mut load_event: EventWriter<LoadWorldEvent>,
+    mut load_event: MessageWriter<LoadWorldEvent>,
     paths: Res<GameFolderPaths>,
 ) {
     if list_query.is_empty() {

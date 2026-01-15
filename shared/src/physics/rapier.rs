@@ -227,7 +227,6 @@ fn configure_rapier_context(mut query: Query<&mut RapierConfiguration>) {
     for mut config in query.iter_mut() {
         config.gravity = Vec3::new(0.0, constants::GRAVITY, 0.0);
         config.physics_pipeline_active = true;
-        config.query_pipeline_active = true;
     }
 }
 

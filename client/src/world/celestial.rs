@@ -6,10 +6,8 @@ use crate::{
     constants::{CELESTIAL_DISTANCE, CELESTIAL_SIZE, DAY_DURATION_IN_TICKS},
     world::GlobalMaterial,
 };
-use bevy::{
-    pbr::{NotShadowCaster, NotShadowReceiver},
-    prelude::*,
-};
+use bevy::prelude::*;
+use bevy_light::{NotShadowCaster, NotShadowReceiver};
 use std::f32::consts::PI;
 
 //
@@ -34,7 +32,7 @@ pub fn setup_main_lighting(
     let celestial_root = commands
         .spawn((
             CelestialRoot,
-            StateScoped(GameState::Game),
+            DespawnOnExit(GameState::Game),
             Transform::default(),
         ))
         .id();

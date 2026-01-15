@@ -405,7 +405,7 @@ impl BlockId {
 
         // Choose drop items
         for _ in 0..nb_drops {
-            let mut nb = rand::thread_rng().gen_range(0..total);
+            let mut nb = rand::rng().random_range(0..total);
             for item in table.iter() {
                 if nb < item.0 {
                     drops.insert(item.1, *drops.get(&item.1).unwrap_or(&0) + item.2);

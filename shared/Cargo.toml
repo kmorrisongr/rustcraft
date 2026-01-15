@@ -4,20 +4,22 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-bevy_log = { version = "0.16", default-features=false }
-bevy_ecs = { version = "0.16", default-features=false}
-log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
-serde = { version = "1.0.210", features = ["derive"] }
-bevy = { version = "0.16", default-features = false, features = ["serialize"]}
-noiz = "0.2"
-rand = "0.8"
-bevy_renet = "2.0.0"
-bincode = "1.3.3"
-lz4 = "1.28.1"
-bevy_platform = "0.16.1"
-nonempty = "0.12.0"
-bevy_rapier3d = "0.30"
 derive-linear-schedule-set = { path = "../derive-linear-schedule-set" }
+
+bevy = { workspace = true }
+bevy_log = { workspace = true }
+bevy_ecs = { workspace = true }
+bevy_renet = { workspace = true }
+noiz = { workspace = true }
+rand = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+bevy_rapier3d = { workspace = true }
+bincode = { workspace = true }
+
+lz4 = "1.28.1"
+bevy_platform = "0.17"
+nonempty = "0.12.0"
 
 [lints]
 workspace = true

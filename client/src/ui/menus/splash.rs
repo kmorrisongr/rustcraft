@@ -31,7 +31,7 @@ fn splash_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 height: Val::Percent(100.0),
                 ..default()
             }),
-            StateScoped(GameState::Splash),
+            DespawnOnExit(GameState::Splash),
         ))
         .with_children(|parent| {
             parent.spawn((
