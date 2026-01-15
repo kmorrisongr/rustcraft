@@ -9,13 +9,12 @@ pub use data::*;
 pub use rendering::*;
 
 use bevy::prelude::*;
-use bevy_sun_move::SunMovePlugin;
 use shared::{sets::GameSets, world::WorldSeed};
 
 use crate::{
     camera::spawn_camera,
     world::{
-        celestial::{setup_camera_atmosphere, setup_sun_and_sky, update_moon_position},
+        celestial::{setup_camera_atmosphere, setup_sun_and_sky, update_celestial_bodies},
         time::{time_update_system, ClientTime},
     },
     GameState,
@@ -27,8 +26,7 @@ pub struct FirstChunkReceived(pub bool);
 pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(SunMovePlugin)
-            .init_resource::<WorldSeed>()
+        app.init_resource::<WorldSeed>()
             .init_resource::<ClientTime>()
             .init_resource::<FirstChunkReceived>()
             .init_resource::<ClientWorldMap>()
@@ -40,7 +38,7 @@ impl Plugin for WorldPlugin {
             )
             .add_systems(
                 Update,
-                (setup_camera_atmosphere, update_moon_position)
+                (setup_camera_atmosphere, update_celestial_bodies)
                     .in_set(GameSets::Update::WorldInput),
             )
             .add_systems(

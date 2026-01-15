@@ -1,12 +1,16 @@
-//! Celestial bodies and day/night cycle using Bevy's Atmosphere and bevy_sun_move.
+//! Celestial bodies and day/night cycle with custom sun movement.
 //!
 //! This module sets up:
-//! - A DirectionalLight as the sun, controlled by bevy_sun_move's SkyCenter
+//! - A DirectionalLight as the sun with a simple parametric orbit
 //! - A DirectionalLight as the moon, moving opposite to the sun
 //! - Bevy's built-in Atmosphere component on the camera for realistic sky rendering
 //! - A configurable day/night cycle duration
+//!
+//! This approach gives us direct control over update frequency and timing,
+//! which is important for performance when using atmosphere-based environment maps.
 
 use crate::constants::DAY_DURATION_IN_TICKS;
+use crate::world::time::ClientTime;
 use crate::GameState;
 use bevy::{
     light::light_consts::lux,
@@ -14,8 +18,8 @@ use bevy::{
     prelude::*,
 };
 use bevy_light::AtmosphereEnvironmentMapLight;
-use bevy_sun_move::SkyCenter;
 use shared::TICKS_PER_SECOND;
+use std::f32::consts::TAU;
 
 /// Marker component for the sun entity
 #[derive(Component)]
@@ -25,34 +29,18 @@ pub struct SunLight;
 #[derive(Component)]
 pub struct MoonLight;
 
-/// System to set up the sun and sky center for day/night cycles.
-/// This spawns the DirectionalLight (sun) and a SkyCenter entity to control it.
-pub fn setup_sun_and_sky(mut commands: Commands) {
-    // Calculate cycle duration in seconds from tick-based duration
-    // DAY_DURATION_IN_TICKS is the full day cycle, TICKS_PER_SECOND converts to real time
-    let cycle_duration_secs = DAY_DURATION_IN_TICKS as f32 / TICKS_PER_SECOND as f32;
+/// Day length in seconds, derived from tick-based duration
+const DAY_LENGTH_SECS: f32 = DAY_DURATION_IN_TICKS as f32 / TICKS_PER_SECOND as f32;
 
+/// System to set up the sun and moon for day/night cycles.
+/// Spawns DirectionalLights for both celestial bodies.
+pub fn setup_sun_and_sky(mut commands: Commands) {
     // Spawn the sun (DirectionalLight)
     // Using RAW_SUNLIGHT illuminance as recommended for use with Atmosphere
-    let sun_entity = commands
-        .spawn((
-            SunLight,
-            DirectionalLight {
-                illuminance: lux::RAW_SUNLIGHT,
-                shadows_enabled: true,
-                ..default()
-            },
-            Transform::default(),
-            DespawnOnExit(GameState::Game),
-        ))
-        .id();
-
-    // Spawn the moon (DirectionalLight with lower illuminance)
-    // Moon position is updated by update_moon_position system to be opposite the sun
     commands.spawn((
-        MoonLight,
+        SunLight,
         DirectionalLight {
-            illuminance: lux::FULL_DAYLIGHT,
+            illuminance: lux::RAW_SUNLIGHT,
             shadows_enabled: true,
             ..default()
         },
@@ -60,53 +48,97 @@ pub fn setup_sun_and_sky(mut commands: Commands) {
         DespawnOnExit(GameState::Game),
     ));
 
-    // Starting time for the sun (0.25 = ~morning)
-    let sun_start_time = cycle_duration_secs * 0.25;
-
-    // Spawn SkyCenter to control the sun's movement
-    // This uses bevy_sun_move to handle realistic sun positioning
+    // Spawn the moon (DirectionalLight with lower illuminance)
+    // Moon position is updated by update_celestial_bodies to be opposite the sun
     commands.spawn((
-        SkyCenter {
-            // Latitude affects sun path across the sky
-            // ~45° gives a nice temperate zone sun arc
-            latitude_degrees: 45.0,
-            // Earth-like axial tilt
-            planet_tilt_degrees: 23.5,
-            // Start at "morning" (around 0.25 is roughly 6am equivalent)
-            year_fraction: 0.0,
-            // Full day/night cycle duration
-            cycle_duration_secs,
-            // Reference to the sun entity
-            sun: sun_entity,
-            // Start time within the cycle (0.25 = ~morning)
-            current_cycle_time: sun_start_time,
+        MoonLight,
+        DirectionalLight {
+            illuminance: lux::FULL_DAYLIGHT * 0.1, // Moonlight is much dimmer
+            shadows_enabled: true,
+            ..default()
         },
         Transform::default(),
-        Visibility::default(),
         DespawnOnExit(GameState::Game),
     ));
 }
 
-/// System to update the moon's position to be opposite the sun.
-/// The moon's direction is the inverse of the sun's direction.
-pub fn update_moon_position(
-    sun_query: Query<&Transform, (With<SunLight>, Without<MoonLight>)>,
-    mut moon_query: Query<&mut Transform, With<MoonLight>>,
+/// System to update sun and moon positions based on game time.
+///
+/// Uses a simple parametric model where:
+/// - t=0.0 is midnight, t=0.25 is sunrise, t=0.5 is noon, t=0.75 is sunset
+/// - The sun orbits in the XY plane (Y is up)
+/// - The moon is always opposite the sun
+///
+/// This gives us direct control over update frequency, making it easy to
+/// throttle updates or synchronize with environment map regeneration.
+pub fn update_celestial_bodies(
+    client_time: Res<ClientTime>,
+    mut sun_query: Query<
+        (&mut Transform, &mut DirectionalLight),
+        (With<SunLight>, Without<MoonLight>),
+    >,
+    mut moon_query: Query<
+        (&mut Transform, &mut DirectionalLight),
+        (With<MoonLight>, Without<SunLight>),
+    >,
 ) {
-    let Ok(sun_transform) = sun_query.single() else {
+    let Ok((mut sun_transform, mut sun_light)) = sun_query.single_mut() else {
         return;
     };
-    let Ok(mut moon_transform) = moon_query.single_mut() else {
+    let Ok((mut moon_transform, mut moon_light)) = moon_query.single_mut() else {
         return;
     };
 
-    // bevy_sun_move sets the sun's translation to its direction vector
-    // The moon should be in the opposite direction
-    let moon_direction = -sun_transform.translation;
+    // Convert game ticks to day phase (0.0 to 1.0)
+    // Adding 0.25 offset so t=0 is midnight (sun below horizon)
+    let elapsed_secs = client_time.0 as f32 / TICKS_PER_SECOND as f32;
+    let t = (elapsed_secs / DAY_LENGTH_SECS) % 1.0;
 
-    moon_transform.translation = moon_direction;
-    // Point the moon's light toward the origin (same pattern as sun)
-    moon_transform.look_at(Vec3::ZERO, Vec3::Y);
+    // Convert to angle (0 = midnight/below horizon, PI = noon/zenith)
+    let angle = t * TAU;
+
+    // Sun direction: orbits in the XZ-Y plane
+    // At t=0 (angle=0), sun is at (1, 0, 0) - horizon east
+    // At t=0.25 (angle=PI/2), sun is at (0, 1, 0) - zenith
+    // At t=0.5 (angle=PI), sun is at (-1, 0, 0) - horizon west
+    // At t=0.75 (angle=3PI/2), sun is at (0, -1, 0) - nadir (below ground)
+    let sun_dir = Vec3::new(angle.cos(), angle.sin(), 0.0).normalize();
+
+    // Update sun transform - point the light toward origin from the sun direction
+    sun_transform.look_to(-sun_dir, Vec3::Z);
+
+    // Adjust sun illuminance based on height above horizon
+    // sun_dir.y > 0 means sun is above horizon
+    let sun_height = sun_dir.y;
+    if sun_height > 0.0 {
+        // Daytime: scale illuminance by height for softer sunrise/sunset
+        // Using a smoothstep-like curve for more natural lighting transitions
+        let intensity = smooth_step(0.0, 0.3, sun_height);
+        sun_light.illuminance = lux::RAW_SUNLIGHT * intensity;
+    } else {
+        // Nighttime: sun provides no direct light
+        sun_light.illuminance = 0.0;
+    }
+
+    // Moon is opposite the sun
+    let moon_dir = -sun_dir;
+    moon_transform.look_to(-moon_dir, Vec3::Z);
+
+    // Moon illuminance based on its height above horizon
+    let moon_height = moon_dir.y;
+    if moon_height > 0.0 {
+        let intensity = smooth_step(0.0, 0.3, moon_height);
+        moon_light.illuminance = lux::FULL_DAYLIGHT * 0.1 * intensity;
+    } else {
+        moon_light.illuminance = 0.0;
+    }
+}
+
+/// Attempt to provide a smoother lighting transition
+/// between night and day
+fn smooth_step(edge0: f32, edge1: f32, x: f32) -> f32 {
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }
 
 /// System to add Atmosphere to the game camera.
