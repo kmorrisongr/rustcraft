@@ -116,8 +116,13 @@ pub fn setup_camera_atmosphere(
 ) {
     for camera_entity in camera_query.iter() {
         commands.entity(camera_entity).insert((
-            // Use Earth-like atmosphere preset
-            Atmosphere::EARTH,
+            // Earth-like atmosphere with higher ground albedo for better indirect lighting
+            // Higher ground_albedo means more light bounces off terrain, providing fill light
+            Atmosphere {
+                // Increased from EARTH's 0.3 - makes daytime brighter and nights less pitch black
+                ground_albedo: Vec3::splat(0.9),
+                ..Atmosphere::EARTH
+            },
             // Atmosphere settings tuned for the game's scale
             AtmosphereSettings {
                 // Extended distance for aerial perspective on distant terrain
