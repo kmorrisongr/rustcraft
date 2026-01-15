@@ -15,7 +15,7 @@ use shared::{sets::GameSets, world::WorldSeed};
 use crate::{
     camera::spawn_camera,
     world::{
-        celestial::{setup_camera_atmosphere, setup_sun_and_sky, update_ambient_light},
+        celestial::{setup_camera_atmosphere, setup_sun_and_sky},
         time::{time_update_system, ClientTime},
     },
     GameState,
@@ -40,8 +40,7 @@ impl Plugin for WorldPlugin {
             )
             .add_systems(
                 Update,
-                (setup_camera_atmosphere, update_ambient_light)
-                    .in_set(GameSets::Update::WorldInput),
+                (setup_camera_atmosphere).in_set(GameSets::Update::WorldInput),
             )
             .add_systems(
                 FixedPostUpdate,

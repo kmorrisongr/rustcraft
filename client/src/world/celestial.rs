@@ -16,11 +16,6 @@ use bevy::{
 use bevy_sun_move::SkyCenter;
 use shared::TICKS_PER_SECOND;
 
-/// Maximum ambient light brightness during the day
-const AMBIENT_BRIGHTNESS_DAY: f32 = 400.0;
-/// Minimum ambient light brightness at night (moonlight equivalent)
-const AMBIENT_BRIGHTNESS_NIGHT: f32 = 50.0;
-
 /// Marker component for the sun entity
 #[derive(Component)]
 pub struct SunLight;
@@ -85,41 +80,4 @@ pub fn setup_camera_atmosphere(
             AtmosphereSettings::default(),
         ));
     }
-}
-
-/// System to update ambient light based on sun position.
-/// This creates a realistic day/night lighting transition by dimming ambient light
-/// when the sun goes below the horizon.
-pub fn update_ambient_light(
-    sun_query: Query<&Transform, With<SunLight>>,
-    mut ambient_light: ResMut<AmbientLight>,
-) {
-    let Ok(sun_transform) = sun_query.single() else {
-        return;
-    };
-
-    // The sun's Y position in its transform indicates altitude
-    // bevy_sun_move sets transform.translation to the sun direction vector
-    // Y > 0 means sun is above horizon, Y < 0 means below
-    let sun_altitude = sun_transform.translation.y;
-
-    // Calculate ambient brightness based on sun altitude
-    // Use a smooth transition around the horizon (sunrise/sunset)
-    let transition_factor = if sun_altitude > 0.1 {
-        // Full day - sun well above horizon
-        1.0
-    } else if sun_altitude < -0.1 {
-        // Full night - sun well below horizon
-        0.0
-    } else {
-        // Twilight transition - smooth interpolation around horizon
-        // Map [-0.1, 0.1] to [0.0, 1.0]
-        (sun_altitude + 0.1) / 0.2
-    };
-
-    // Interpolate between night and day brightness
-    let brightness = AMBIENT_BRIGHTNESS_NIGHT
-        + (AMBIENT_BRIGHTNESS_DAY - AMBIENT_BRIGHTNESS_NIGHT) * transition_factor;
-
-    ambient_light.brightness = brightness;
 }
