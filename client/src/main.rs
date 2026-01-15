@@ -96,6 +96,7 @@ fn main() {
         // These occur when Bevy resources are accessed during shutdown
         if panic_message.contains("Resource requested by")
             && panic_message.contains("does not exist")
+            && (panic_message.contains("bevy_") || panic_message.contains("Bevy"))
         {
             eprintln!("Application exiting...");
             // TODO: This will not allow further unwinding, but it prevents annoying popups :shrug:
