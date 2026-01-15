@@ -14,6 +14,7 @@ use crate::world::time::ClientTime;
 use crate::GameState;
 use bevy::{
     light::light_consts::lux,
+    math::UVec2,
     pbr::{Atmosphere, AtmosphereSettings},
     prelude::*,
 };
@@ -205,7 +206,14 @@ pub fn setup_camera_atmosphere(
                 scene_units_to_m: 1.0,
                 ..default()
             },
-            AtmosphereEnvironmentMapLight { ..default() },
+            // Environment map from atmosphere for indirect lighting (reflections + ambient)
+            // NOTE: This regenerates every frame the sun moves, which is expensive.
+            // Reduce `size` for better performance at the cost of reflection quality.
+            // Set to 64x64 for testing; 128x128 or 256x256 for production if needed.
+            AtmosphereEnvironmentMapLight {
+                size: UVec2::splat(64), // Default is 256; lower = faster regeneration
+                ..default()
+            },
         ));
     }
 }
