@@ -451,10 +451,7 @@ pub(crate) fn generate_chunk_mesh_lod(
     // Generate tangents for proper lighting calculations
     if should_return_solid {
         if let Err(e) = solid_mesh.generate_tangents() {
-            warn!(
-                "Error while generating tangents for LOD mesh: {:?}",
-                e
-            );
+            warn!("Error while generating tangents for LOD mesh: {:?}", e);
         }
     }
 
