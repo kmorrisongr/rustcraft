@@ -91,25 +91,25 @@ fn create_water_material(
     materials.add(ExtendedMaterial {
         base: StandardMaterial {
             // Solid water color - AlphaToCoverage handles the transparency effect
-            base_color: Color::srgba(0.12, 0.32, 0.48, 0.92),
+            base_color: Color::srgba(0.18, 0.42, 0.55, 0.85),
             // AlphaToCoverage: Uses MSAA for transparency, MUCH faster than Blend
             // with Atmosphere because it can use deferred rendering path
             alpha_mode: AlphaMode::AlphaToCoverage,
             // Moderate reflectance for water-like specular
-            reflectance: 0.5,
+            reflectance: 0.75,
             // Low roughness for shiny water surface
-            perceptual_roughness: 0.1,
+            perceptual_roughness: 0.04,
             ..default()
         },
         extension: WaterMaterial {
             // Reduced amplitude for performance and voxel aesthetic
             amplitude: 0.2,
             // Moderate clarity - balances visibility with performance
-            clarity: 0.4,
-            deep_color: Color::srgba(0.06, 0.18, 0.30, 0.95),
-            shallow_color: Color::srgba(0.18, 0.40, 0.52, 0.90),
-            edge_color: Color::srgba(0.75, 0.88, 0.95, 0.7),
-            edge_scale: 0.1,
+            clarity: 0.55,
+            deep_color: Color::srgba(0.04, 0.14, 0.26, 0.95),
+            shallow_color: Color::srgba(0.22, 0.46, 0.60, 0.90),
+            edge_color: Color::srgba(0.75, 0.88, 0.95, 0.55),
+            edge_scale: 0.14,
             coord_scale: Vec2::new(1.0, 1.0),
             coord_offset: Vec2::ZERO,
             // Low quality for better performance
