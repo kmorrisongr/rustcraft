@@ -13,6 +13,7 @@ use bevy::{
     pbr::{Atmosphere, AtmosphereSettings},
     prelude::*,
 };
+use bevy_light::AtmosphereEnvironmentMapLight;
 use bevy_sun_move::SkyCenter;
 use shared::TICKS_PER_SECOND;
 
@@ -131,6 +132,7 @@ pub fn setup_camera_atmosphere(
                 scene_units_to_m: 1.0,
                 ..default()
             },
+            AtmosphereEnvironmentMapLight { ..default() },
         ));
     }
 }
