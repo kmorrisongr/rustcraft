@@ -51,7 +51,7 @@ pub fn setup_sun_and_sky(mut commands: Commands) {
     commands.spawn((
         MoonLight,
         DirectionalLight {
-            illuminance: lux::FULL_MOON_NIGHT,
+            illuminance: lux::FULL_DAYLIGHT,
             shadows_enabled: true,
             ..default()
         },
