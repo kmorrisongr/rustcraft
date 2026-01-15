@@ -445,10 +445,19 @@ pub(crate) fn generate_chunk_mesh_lod(
         }
     }
 
-    let solid_mesh = build_mesh(&solid_mesh_creator);
+    let mut solid_mesh = build_mesh(&solid_mesh_creator);
     let should_return_solid = !solid_mesh_creator.vertices.is_empty();
 
-    // Skip tangent generation for LOD meshes (no visual benefit at distance)
+    // Generate tangents for proper lighting calculations
+    if should_return_solid {
+        if let Err(e) = solid_mesh.generate_tangents() {
+            warn!(
+                "Error while generating tangents for LOD mesh: {:?}",
+                e
+            );
+        }
+    }
+
     trace!("LOD render time : {:?}", Instant::now() - start);
 
     // Water rendering at LOD 1 is handled by the separate water system,
