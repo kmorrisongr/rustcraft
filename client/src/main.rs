@@ -27,6 +27,7 @@ use input::{data::GameAction, keyboard::get_bindings, spawn_global_input_manager
 use leafwing_input_manager::prelude::*;
 use menus::solo::SelectedWorld;
 use shared::{game_state::GameState, get_game_folder_paths, SpecialFlag};
+use std::panic;
 use ui::{
     hud::debug::inspector::inspector_ui,
     menus::{self, splash},
@@ -81,6 +82,31 @@ pub struct PlayerNameSupplied {
 }
 
 fn main() {
+    // Set up a custom panic hook to handle macOS CMD+Q gracefully.
+    // When the user presses CMD+Q on macOS, the window close sequence can trigger
+    // a panic because Bevy's ECS resources may be in an inconsistent state during
+    // the Cocoa/AppKit termination sequence. This hook suppresses the scary stack
+    // trace for that specific panic while still allowing normal unwinding to occur
+    // so that destructors run and resources are properly released.
+    let original_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        let panic_message = panic_info.to_string();
+
+        // Check if this is the macOS window-close panic we want to suppress
+        if panic_message.contains("Resource requested by")
+            && panic_message.contains("does not exist")
+            && panic_message.contains("bevy_window")
+        {
+            eprintln!("Application terminated by user (CMD+Q)");
+            // TODO: This will not allow further unwinding, but it prevents annoying popups :shrug:
+            // Replace in the future.
+            std::process::exit(0);
+        }
+
+        // For all other panics, use the default behavior
+        original_hook(panic_info);
+    }));
+
     // Parse command-line arguments
     let args = Args::parse();
 
