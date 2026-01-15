@@ -82,22 +82,22 @@ pub struct PlayerNameSupplied {
 }
 
 fn main() {
-    // Set up a custom panic hook to handle macOS CMD+Q gracefully.
-    // When the user presses CMD+Q on macOS, the window close sequence can trigger
-    // a panic because Bevy's ECS resources may be in an inconsistent state during
-    // the Cocoa/AppKit termination sequence. This hook suppresses the scary stack
-    // trace for that specific panic while still allowing normal unwinding to occur
-    // so that destructors run and resources are properly released.
+    // Set up a custom panic hook to handle application exit gracefully.
+    // During shutdown (whether from CMD+Q on macOS or clicking the Quit button),
+    // Bevy's ECS resources may be in an inconsistent state, causing panics when
+    // systems try to access resources that are being cleaned up. This hook suppresses
+    // the scary stack trace for these shutdown-related panics while still allowing
+    // normal unwinding so that destructors run and resources are properly released.
     let original_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
         let panic_message = panic_info.to_string();
 
-        // Check if this is the macOS window-close panic we want to suppress
+        // Check if this is an app-exit panic we want to suppress
+        // These occur when Bevy resources are accessed during shutdown
         if panic_message.contains("Resource requested by")
             && panic_message.contains("does not exist")
-            && panic_message.contains("bevy_window")
         {
-            eprintln!("Application terminated by user (CMD+Q)");
+            eprintln!("Application exiting...");
             // TODO: This will not allow further unwinding, but it prevents annoying popups :shrug:
             // Replace in the future.
             std::process::exit(0);
