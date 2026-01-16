@@ -28,7 +28,7 @@ impl VoxelWorld {
         }
     }
 
-    pub fn set_block(&self, pos: BlockPos, block: BlockId) {
+    pub fn set_block(&self, pos: BlockPos, block: BlockData) {
         let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(pos);
         self.chunks
             .get_or_insert_with(chunk_pos, || RwLock::new(Chunk::new()))
@@ -38,7 +38,7 @@ impl VoxelWorld {
         self.mark_change(chunk_pos, chunked_pos, block);
     }
 
-    pub fn set_block_safe(&self, pos: BlockPos, block: BlockId) -> bool {
+    pub fn set_block_safe(&self, pos: BlockPos, block: BlockData) -> bool {
         if pos.y < 0 || pos.y >= MAX_HEIGHT as i32 {
             return false;
         }
@@ -52,7 +52,7 @@ impl VoxelWorld {
         (x, z): IntraColPos,
         top: i32,
         mut height: usize,
-        block: BlockId,
+        block: BlockData,
     ) {
         // USED BY TERRAIN GENERATION - bypasses change detection for efficiency
         let (mut cy, mut dy) = chunked(top);
@@ -75,7 +75,7 @@ impl VoxelWorld {
         }
     }
 
-    pub fn set_if_empty(&self, pos: BlockPos, block: BlockId) {
+    pub fn set_if_empty(&self, pos: BlockPos, block: BlockData) {
         let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(pos);
         if self
             .chunks
@@ -88,23 +88,23 @@ impl VoxelWorld {
         }
     }
 
-    pub fn get_block(&self, pos: BlockPos) -> BlockId {
+    pub fn get_block(&self, pos: BlockPos) -> BlockData {
         let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(pos);
         match self.chunks.get(&chunk_pos) {
-            None => BlockId::Air,
+            None => BlockData::new(BlockId::Air, Face::Front),
             Some(chunk) => chunk.value().read().get(chunked_pos).clone(),
         }
     }
 
-    pub fn get_block_safe(&self, pos: BlockPos) -> BlockId {
+    pub fn get_block_safe(&self, pos: BlockPos) -> BlockData {
         if pos.y < 0 || pos.y >= MAX_HEIGHT as i32 {
-            BlockId::Air
+            BlockData::new(BlockId::Air, Face::Front)
         } else {
             self.get_block(pos)
         }
     }
 
-    pub fn top_block(&self, pos: BlockPos2d) -> (BlockId, i32) {
+    pub fn top_block(&self, pos: BlockPos2d) -> (BlockData, i32) {
         let (col_pos, pos2d) = pos.into();
         for y in (0..Y_CHUNKS as i32).rev() {
             let chunk_pos = ChunkPos {
@@ -115,12 +115,12 @@ impl VoxelWorld {
             };
             if let Some(chunk) = self.chunks.get(&chunk_pos) {
                 let (&block, block_y) = chunk.value().read().top(pos2d);
-                if block != BlockId::Air {
+                if !matches!(block.id, BlockId::Air) {
                     return (block.clone(), y * CHUNK_S1 as i32 + block_y as i32);
                 }
             }
         }
-        (BlockId::Air, 0)
+        (BlockData::new(BlockId::Air, Face::Front), 0)
     }
 
     pub fn is_col_loaded(&self, player_pos: Vec3, realm: Realm) -> bool {
@@ -217,7 +217,7 @@ impl VoxelWorld {
     }
 
     /// Mark a block change, reflecting in neighboring chunks if needed
-    fn mark_change(&self, chunk_pos: ChunkPos, (x, y, z): IntraChunkPos, block: BlockId) {
+    fn mark_change(&self, chunk_pos: ChunkPos, (x, y, z): IntraChunkPos, block: BlockData) {
         self.chunk_changes
             .send(chunk_pos)
             .expect("Failed to send chunk change");
@@ -284,7 +284,7 @@ impl WorldMap for VoxelWorld {
         unimplemented!()
     }
 
-    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<BlockId> {
+    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<BlockData> {
         let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(*position);
         self.chunks
             .get(&chunk_pos)
@@ -292,11 +292,11 @@ impl WorldMap for VoxelWorld {
     }
 
     fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> bool {
-        self.set_block_safe(*global_block_pos, BlockId::Air)
+        self.set_block_safe(*global_block_pos, BlockData::new(BlockId::Air, Face::Front))
     }
 
     fn set_block(&mut self, position: &BlockPos, block: BlockData) {
-        self.set_block_safe(*position, block.id);
+        self.set_block_safe(*position, block);
     }
 
     fn mark_block_for_update(&mut self, position: &BlockPos) {
@@ -356,7 +356,7 @@ impl WorldMap for VoxelWorld {
                 pos.z += sz;
                 t_max_z += slope_z;
             }
-            if !matches!(self.get_block_safe(pos), BlockId::Air) {
+            if !matches!(self.get_block_safe(pos).id, BlockId::Air) {
                 return Some(BlockRayCastHit {
                     pos,
                     normal: Vec3 {

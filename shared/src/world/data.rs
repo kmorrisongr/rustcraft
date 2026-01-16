@@ -69,7 +69,7 @@ pub struct ItemStack {
 pub trait WorldMap {
     fn has_chunk(&self, chunk_pos: &ChunkPos) -> bool;
     fn get_block_mut_by_coordinates(&mut self, position: &BlockPos) -> Option<BlockData>;
-    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<BlockId>;
+    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<BlockData>;
     fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> bool;
     fn set_block(&mut self, position: &BlockPos, block: BlockData);
     fn raycast(&self, realm: Realm, start: Vec3, dir: Vec3, dist: f32) -> Option<BlockRayCastHit>;
@@ -118,11 +118,11 @@ pub trait WorldMap {
                     if let Some(block) =
                         self.get_block_by_coordinates(&BlockPos::overworld(x, y, z))
                     {
-                        match block.get_hitbox() {
+                        match block.id.get_hitbox() {
                             BlockHitbox::FullBlock => return true,
                             BlockHitbox::None => {
                                 // Check if this is a water block and if we should check dynamic surface
-                                if matches!(block, BlockId::Water) {
+                                if matches!(block.id, BlockId::Water) {
                                     if let Some(get_height) = water_height_fn {
                                         // Check if hitbox intersects with dynamic water surface
                                         let water_height =

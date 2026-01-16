@@ -2,8 +2,7 @@ use crate::{
     messages::{NetworkAction, PlayerFrameInput},
     players::Player,
     world::{
-        blocks::blocks::{BlockData, BlockDirection},
-        BlockPos, ItemStack, ItemType, Realm, WorldMap,
+        blocks::blocks::BlockData, face::Face, BlockPos, ItemStack, ItemType, Realm, WorldMap,
     },
 };
 use bevy::math::{IVec3, NormedVectorSpace, Vec3};
@@ -114,7 +113,7 @@ fn handle_block_breaking(
         );
         return;
     }
-    let block = block.unwrap();
+    let mut block = block.unwrap();
 
     // Try to break the block
     block.breaking_progress += 1;
@@ -304,7 +303,7 @@ fn handle_block_placement(
             player.inventory.remove_item_from_stack(inventory_slot, 1);
 
             // Place the block
-            let block = BlockData::new(block_id, BlockDirection::Front);
+            let block = BlockData::new(block_id, Face::Front);
             world_map.set_block(
                 &BlockPos::overworld(
                     block_to_create_pos.x,
