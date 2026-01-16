@@ -1,56 +1,76 @@
-use simdnoise::*;
-// manual scaling required because library oversight 
-// https://github.com/verpeteren/rust-simd-noise/issues/23
-const S_FBM: f32 = 0.765;
-const S_RIDGE: f32 = 6.58;
-const C_RIDGE: f32 = -2.8482;
+use noise::{Fbm, MultiFractal, NoiseFn, Perlin, RidgedMulti};
 
-/// 2D FBM with 3 octaves in [0;1]
+/// 2D FBM with 5 octaves in [0;1]
 pub fn fbm(x: f32, width: usize, z: f32, height: usize, seed: u32, freq: f32) -> Vec<f32> {
-    let (res, _, _) = NoiseBuilder::fbm_2d_offset(x, width, z, height)
-        .with_seed(seed as i32)
-        .with_freq(freq)
-        .with_octaves(5)
-        .generate();
-    res.into_iter().map(|v| v*S_FBM + 0.5).collect()
+    let noise: Fbm<Perlin> = Fbm::new(seed)
+        .set_octaves(5)
+        .set_frequency(freq as f64);
+    
+    let mut res = Vec::with_capacity(width * height);
+    for zi in 0..height {
+        for xi in 0..width {
+            let sample = noise.get([(x as f64 + xi as f64), (z as f64 + zi as f64)]);
+            // Fbm output is approximately [-1, 1], scale to [0, 1]
+            res.push((sample * 0.5 + 0.5) as f32);
+        }
+    }
+    res
 }
 
-/// 2D FBM with 3 octaves in [min;max]
+/// 2D FBM with 5 octaves in [min;max]
 pub fn fbm_scaled(
     x: f32, width: usize, z: f32, height: usize, seed: u32, freq: f32, min: f32, max: f32
 ) -> Vec<f32> {
-    let delta = max-min;
-    let s = S_FBM*delta;
-    let c = 0.5*delta + min;
-    let (res, _, _) = NoiseBuilder::fbm_2d_offset(x, width, z, height)
-        .with_seed(seed as i32)
-        .with_freq(freq)
-        .with_octaves(5)
-        .generate();
-    res.into_iter().map(|v| v * s + c).collect()
+    let noise: Fbm<Perlin> = Fbm::new(seed)
+        .set_octaves(5)
+        .set_frequency(freq as f64);
+    
+    let delta = (max - min) as f64;
+    let mut res = Vec::with_capacity(width * height);
+    for zi in 0..height {
+        for xi in 0..width {
+            let sample = noise.get([(x as f64 + xi as f64), (z as f64 + zi as f64)]);
+            // Fbm output is approximately [-1, 1], scale to [min, max]
+            res.push((sample * 0.5 * delta + 0.5 * delta + min as f64) as f32);
+        }
+    }
+    res
 }
 
 /// 2D Ridge noise in [0;1]
 pub fn ridge(x: f32, width: usize, z: f32, height: usize, seed: u32, freq: f32) -> Vec<f32> {
-    let (res, _, _) = NoiseBuilder::ridge_2d_offset(x, width, z, height)
-        .with_seed(seed as i32)
-        .with_freq(freq)
-        .generate();
-    res.into_iter().map(|v| (v + C_RIDGE) * S_RIDGE).collect()
+    let noise: RidgedMulti<Perlin> = RidgedMulti::new(seed)
+        .set_frequency(freq as f64);
+    
+    let mut res = Vec::with_capacity(width * height);
+    for zi in 0..height {
+        for xi in 0..width {
+            let sample = noise.get([(x as f64 + xi as f64), (z as f64 + zi as f64)]);
+            // RidgedMulti output is approximately [-1, 1], scale to [0, 1]
+            res.push(((sample + 1.0) * 0.5).clamp(0.0, 1.0) as f32);
+        }
+    }
+    res
 }
 
 /// 2D Ridge noise in [min;max]
 pub fn ridge_scaled(
     x: f32, width: usize, z: f32, height: usize, seed: u32, freq: f32, min: f32, max: f32
 ) -> Vec<f32> {
-    let delta = max - min;
-    let s = S_RIDGE*delta;
-    let c = S_RIDGE*delta*C_RIDGE + min;
-    let (res, _, _) = NoiseBuilder::ridge_2d_offset(x, width, z, height)
-        .with_seed(seed as i32)
-        .with_freq(freq)
-        .generate();
-    res.into_iter().map(|v| v * s + c).collect()
+    let noise: RidgedMulti<Perlin> = RidgedMulti::new(seed)
+        .set_frequency(freq as f64);
+    
+    let delta = (max - min) as f64;
+    let mut res = Vec::with_capacity(width * height);
+    for zi in 0..height {
+        for xi in 0..width {
+            let sample = noise.get([(x as f64 + xi as f64), (z as f64 + zi as f64)]);
+            // RidgedMulti output is approximately [-1, 1], scale to [min, max]
+            let normalized = ((sample + 1.0) * 0.5).clamp(0.0, 1.0);
+            res.push((normalized * delta + min as f64) as f32);
+        }
+    }
+    res
 }
 
 pub fn quantize(sample: &mut Vec<f32>, step: f32) {
