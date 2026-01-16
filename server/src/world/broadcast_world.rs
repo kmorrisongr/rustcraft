@@ -8,7 +8,7 @@ use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerId, ServerToClientMessage, WorldUpdate};
 use shared::players::Player;
 use shared::world::{
-    world_position_to_chunk_position, ServerChunk, ServerChunkWorldMap, ServerWorldMap,
+    ChunkPos, ServerChunk, ServerChunkWorldMap, ServerWorldMap, world_position_to_chunk_position
 };
 use shared::{GameServerConfig, CHUNK_SIZE, LOD1_MULTIPLIER};
 use std::collections::HashMap;
@@ -74,9 +74,9 @@ fn get_chunk_render_score(chunk_pos: IVec3, player_chunk_pos: IVec3, forward: Ve
 }
 
 fn order_chunks_by_render_score(
-    a: &IVec3,
-    b: &IVec3,
-    player_chunk_pos: IVec3,
+    a: &ChunkPos,
+    b: &ChunkPos,
+    player_chunk_pos: ChunkPos,
     forward: Vec3,
 ) -> std::cmp::Ordering {
     let score_a = get_chunk_render_score(*a, player_chunk_pos, forward);
@@ -221,11 +221,11 @@ fn get_items_stacks() -> Vec<ItemStackUpdateEvent> {
 ///
 /// Resulting vector is partially sorted to prioritize chunks in front of the player
 /// up to max_chunks.
-fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize) -> Vec<IVec3> {
+fn get_player_chunks_prioritized(player: &Player, radius: i32, max_chunks: usize) -> Vec<ChunkPos> {
     let player_chunk_pos = world_position_to_chunk_position(player.position);
     let forward = player.camera_transform.forward();
 
-    let mut chunks: Vec<IVec3> = get_player_nearby_chunks_coords(player_chunk_pos, radius)
+    let mut chunks: Vec<ChunkPos> = get_player_nearby_chunks_coords(player_chunk_pos, radius)
         .into_iter()
         .filter(|chunk_pos| {
             let offset = *chunk_pos - player_chunk_pos;
@@ -253,14 +253,14 @@ pub fn get_all_active_chunks(
     players: &HashMap<PlayerId, Player>,
     radius: i32,
     requesting_player: &Player,
-) -> Vec<IVec3> {
-    let player_chunks: Vec<IVec3> = players
+) -> Vec<ChunkPos> {
+    let player_chunks: Vec<ChunkPos> = players
         .values()
         .map(|v| world_position_to_chunk_position(v.position))
         .flat_map(|v| get_player_nearby_chunks_coords(v, radius))
         .collect();
 
-    let mut chunks: Vec<IVec3> = Vec::new();
+    let mut chunks: Vec<ChunkPos> = Vec::new();
 
     for c in player_chunks {
         if !chunks.contains(&c) {
@@ -289,10 +289,10 @@ pub fn get_all_active_chunks(
 ///
 /// Resulting vector is not sorted in any way.
 fn get_player_nearby_chunks_coords(
-    player_chunk_position: IVec3,
+    player_chunk_position: ChunkPos,
     render_distance: i32,
-) -> Vec<IVec3> {
-    let mut chunks: Vec<IVec3> = Vec::new();
+) -> Vec<ChunkPos> {
+    let mut chunks: Vec<ChunkPos> = Vec::new();
     let radius_squared = render_distance * render_distance;
 
     for x in -render_distance..=render_distance {
