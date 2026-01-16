@@ -16,6 +16,8 @@ log = { workspace = true }
 serde = { workspace = true }
 bevy_rapier3d = { workspace = true }
 bincode = { workspace = true }
+itertools = { workspace = true }
+packed-uints = { workspace = true }
 
 lz4 = "1.28.1"
 bevy_platform = "0.17"

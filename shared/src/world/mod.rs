@@ -1,5 +1,6 @@
 pub mod blocks;
 pub mod biome;
+pub mod chunk;
 pub mod constants;
 pub mod data;
 pub mod items;
@@ -9,6 +10,7 @@ pub mod pos;
 pub mod raycast;
 pub mod realm;
 pub mod tree;
+pub mod utils;
 
 pub use blocks::*;
 pub use biome::*;
