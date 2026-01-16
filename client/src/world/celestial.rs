@@ -214,6 +214,15 @@ pub fn setup_camera_atmosphere(
                 size: UVec2::splat(64), // Default is 256; lower = faster regeneration
                 ..default()
             },
+            DistanceFog {
+                color: Color::srgb(0.7, 0.8, 1.0),
+                directional_light_color: Color::srgb(1.0, 0.95, 0.8),
+                directional_light_exponent: 16.0,
+                falloff: FogFalloff::Atmospheric {
+                    extinction: Vec3::splat(0.00025),
+                    inscattering: Vec3::splat(0.00015),
+                },
+            },
         ));
     }
 }
