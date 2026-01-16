@@ -188,13 +188,13 @@ fn apply_movement_with_collision<W: WorldMap>(
 
     // Try horizontal movement (X axis)
     let candidate_x = player.position + Vec3::new(horizontal_displacement.x, 0.0, 0.0);
-    if !world_map.check_collision_box(&Aabb3d::new(candidate_x, half_extents)) {
+    if !world_map.check_collision_box(&Aabb3d::new(Vec3::from(candidate_x), half_extents)) {
         player.position.x = candidate_x.x;
     }
 
     // Try horizontal movement (Z axis)
     let candidate_z = player.position + Vec3::new(0.0, 0.0, horizontal_displacement.z);
-    if !world_map.check_collision_box(&Aabb3d::new(candidate_z, half_extents)) {
+    if !world_map.check_collision_box(&Aabb3d::new(Vec3::from(candidate_z), half_extents)) {
         player.position.z = candidate_z.z;
     }
 
@@ -203,13 +203,13 @@ fn apply_movement_with_collision<W: WorldMap>(
         // In fly mode, use direction for vertical movement
         let fly_vertical = Vec3::new(0.0, direction.y * speed * delta, 0.0);
         let candidate_y = player.position + fly_vertical;
-        if !world_map.check_collision_box(&Aabb3d::new(candidate_y, half_extents)) {
+        if !world_map.check_collision_box(&Aabb3d::new(Vec3::from(candidate_y), half_extents)) {
             player.position.y = candidate_y.y;
         }
     } else {
         // Normal gravity-based vertical movement
         let candidate_y = player.position + vertical_displacement;
-        if world_map.check_collision_box(&Aabb3d::new(candidate_y, half_extents)) {
+        if world_map.check_collision_box(&Aabb3d::new(Vec3::from(candidate_y), half_extents)) {
             // Collision detected
             if player.velocity.y <= 0.0 {
                 player.on_ground = true;

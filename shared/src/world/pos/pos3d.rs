@@ -1,4 +1,4 @@
-use std::ops::{Add, BitXor};
+use std::ops::{Add, BitXor, Sub};
 use bevy::prelude::Vec3;
 use serde::{Deserialize, Serialize};
 use crate::world::{CHUNK_S1, Realm};
@@ -36,6 +36,36 @@ impl<const U: usize> Pos3d<U> {
     pub fn prng(&self, seed: i32) -> usize {
         let n = self._prng(seed as usize);
         self._prng(n)
+    }
+
+    pub fn as_vec3(&self) -> Vec3 {
+        Vec3::new(self.x as f32, self.y as f32, self.z as f32)
+    }
+}
+
+impl<const U: usize> Add for Pos3d<U>{
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Pos3d {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+            realm: self.realm
+        }
+    }
+}
+
+impl<const U: usize> Sub for Pos3d<U>{
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Pos3d {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+            realm: self.realm
+        }
     }
 }
 

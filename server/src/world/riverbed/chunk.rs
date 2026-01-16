@@ -1,9 +1,9 @@
 use itertools::Itertools;
 use packed_uints::PackedUints;
-use shared::world::{blocks::blocks::BlockId, face::Face};
-use crate::world::riverbed::CHUNK_S1I;
+use shared::world::{CHUNK_S1, CHUNK_S1I, CHUNKP_S1, CHUNKP_S2, CHUNKP_S3, ChunkedPos, ColedPos, blocks::blocks::BlockId, face::Face};
 
-use super::{pos::{ChunkedPos, ColedPos}, utils::Palette, CHUNKP_S1, CHUNKP_S2, CHUNKP_S3, CHUNK_S1};
+use crate::world::riverbed::utils::Palette;
+
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -123,9 +123,9 @@ impl Chunk {
 
 #[cfg(test)]
 mod tests {
-    use shared::world::face::Face;
+    use shared::world::{CHUNK_S1, CHUNK_S1I, CHUNKP_S1, CHUNKP_S2, face::Face};
 
-    use crate::world::riverbed::{CHUNK_S1, CHUNK_S1I, CHUNKP_S1, CHUNKP_S2, linearize};
+    use crate::world::riverbed::linearize;
 
 
     fn plane(face: Face)  -> [usize; 3] {

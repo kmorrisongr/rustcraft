@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use hashbrown::HashMap;
-use crate::world::riverbed::{BlockPos, ColPos, ColUnloadEvent};
+use shared::world::{BlockPos, ColPos};
+use crate::world::riverbed::{ColUnloadEvent};
 
 #[derive(Default, Clone, Resource)]
 pub struct BlockEntities(HashMap<ColPos, HashMap<(usize, i32, usize), Entity>>);

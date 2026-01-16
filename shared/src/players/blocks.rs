@@ -53,7 +53,7 @@ fn handle_block_breaking(
     let block_position = raycast::raycast(
         world_map,
         &action.camera,
-        &player.position,
+        &Vec3::from(player.position),
         action.view_mode,
     );
 
@@ -79,7 +79,7 @@ fn handle_block_breaking(
     let block_pos_vec = block_position.unwrap().position;
     let block_pos = BlockPos::overworld(block_pos_vec.x, block_pos_vec.y, block_pos_vec.z);
 
-    let distance = (block_pos_vec.as_vec3() + Vec3::splat(0.5) - player.position).norm();
+    let distance = (block_pos_vec.as_vec3() + Vec3::splat(0.5) - Vec3::from(player.position)).norm();
     log::debug!(
         "{} Calculated distance to block center: {:.2} (block pos: {:?}, player pos: {:?})",
         caller_type.as_str(),
@@ -169,7 +169,7 @@ fn handle_block_placement(
     let raycast_response = raycast::raycast(
         world_map,
         &action.camera,
-        &player.position,
+        &Vec3::from(player.position),
         action.view_mode,
     );
 
@@ -219,7 +219,7 @@ fn handle_block_placement(
 
     let target_cube_center = block_to_create_pos_vec3 + (unit_cube / 2.);
 
-    let distance = (collision_pos.as_vec3() + Vec3::splat(0.5) - player.position).norm();
+    let distance = (collision_pos.as_vec3() + Vec3::splat(0.5) - Vec3::from(player.position)).norm();
 
     // Validate interaction distance
     if distance > INTERACTION_DISTANCE {
@@ -247,7 +247,7 @@ fn handle_block_placement(
         return;
     }
 
-    let delta = player.position - target_cube_center;
+    let delta = Vec3::from(player.position) - target_cube_center;
     let distance = delta.abs();
 
     log::debug!(

@@ -66,7 +66,7 @@ pub struct ServerWorldMap {
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct ServerChunkWorldMap {
-    pub map: HashMap<BlockPos, ServerChunk>,
+    pub map: HashMap<ChunkPos, ServerChunk>,
     pub chunks_to_update: Vec<ChunkPos>,
 }
 

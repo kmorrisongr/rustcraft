@@ -1,15 +1,11 @@
-use crate::world::riverbed::CHUNKP_S1;
-
-use super::{
-    chunked, pos2d::chunks_in_col, BlockPos, BlockPos2d, Chunk, ChunkPos, ChunkedPos, ColPos,
-    ColedPos, Realm, CHUNK_S1, MAX_HEIGHT, Y_CHUNKS,
-};
 use bevy::prelude::{Resource, Vec3};
 use crossbeam::channel::Sender;
 use crossbeam_skiplist::{map::Entry, SkipMap};
 use parking_lot::RwLock;
-use shared::world::{WorldMap, blocks::blocks::{BlockData, BlockId}, face::Face};
+use shared::world::{BlockPos, BlockPos2d, CHUNK_S1, CHUNKP_S1, ChunkPos, ChunkedPos, ColPos, ColedPos, MAX_HEIGHT, Realm, WorldMap, Y_CHUNKS, blocks::blocks::{BlockData, BlockId}, chunked, face::Face, pos2d::chunks_in_col};
 use std::sync::Arc;
+
+use crate::world::riverbed::Chunk;
 
 pub struct BlockRayCastHit {
     pub pos: BlockPos,
@@ -92,23 +88,23 @@ impl VoxelWorld {
         }
     }
 
-    pub fn get_block(&self, pos: BlockPos) -> BlockId {
+    pub fn get_block(&self, pos: BlockPos) -> Option<BlockId> {
         let (chunk_pos, chunked_pos) = <(ChunkPos, ChunkedPos)>::from(pos);
         match self.chunks.get(&chunk_pos) {
-            None => BlockId::Air,
-            Some(chunk) => chunk.value().read().get(chunked_pos).clone(),
+            None => None,
+            Some(chunk) => Some(chunk.value().read().get(chunked_pos).clone()),
         }
     }
 
-    pub fn get_block_safe(&self, pos: BlockPos) -> BlockId {
+    pub fn get_block_safe(&self, pos: BlockPos) -> Option<BlockId> {
         if pos.y < 0 || pos.y >= MAX_HEIGHT as i32 {
-            BlockId::Air
+            None
         } else {
-            self.get_block(pos)
+            Some(self.get_block(pos)?)
         }
     }
 
-    pub fn top_block(&self, pos: BlockPos2d) -> (BlockId, i32) {
+    pub fn top_block(&self, pos: BlockPos2d) -> Option<(BlockId, i32)> {
         let (col_pos, pos2d) = pos.into();
         for y in (0..Y_CHUNKS as i32).rev() {
             let chunk_pos = ChunkPos {
@@ -119,12 +115,10 @@ impl VoxelWorld {
             };
             if let Some(chunk) = self.chunks.get(&chunk_pos) {
                 let (&block, block_y) = chunk.value().read().top(pos2d);
-                if block != BlockId::Air {
-                    return (block.clone(), y * CHUNK_S1 as i32 + block_y as i32);
-                }
+                return Some((block.clone(), y * CHUNK_S1 as i32 + block_y as i32));
             }
         }
-        (BlockId::Air, 0)
+        None
     }
 
     pub fn is_col_loaded(&self, player_pos: Vec3, realm: Realm) -> bool {
@@ -303,16 +297,14 @@ impl VoxelWorld {
                 pos.z += sz;
                 t_max_z += slope_z;
             }
-            if self.get_block_safe(pos).is_targetable() {
-                return Some(BlockRayCastHit {
-                    pos,
-                    normal: Vec3 {
-                        x: (last_pos.x - pos.x) as f32,
-                        y: (last_pos.y - pos.y) as f32,
-                        z: (last_pos.z - pos.z) as f32,
-                    },
-                });
-            }
+            return Some(BlockRayCastHit {
+                pos,
+                normal: Vec3 {
+                    x: (last_pos.x - pos.x) as f32,
+                    y: (last_pos.y - pos.y) as f32,
+                    z: (last_pos.z - pos.z) as f32,
+                },
+            });
         }
     }
 }
@@ -334,7 +326,7 @@ impl WorldMap for VoxelWorld {
         unimplemented!()
     }
 
-    fn mark_block_for_update(&mut self, position: &bevy::math::BlockPos) {
+    fn mark_block_for_update(&mut self, position: &BlockPos) {
         unimplemented!()
     }
 }
