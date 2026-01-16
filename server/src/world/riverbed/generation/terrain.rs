@@ -1,5 +1,7 @@
 use riverbed_noise::*;
-use crate::{generation::{biome_params::{BiomeParameters, BiomePoints}, biomes::Biome, coverage::CoverageTrait, layer::LayerTag, plant_params::PlantRanges}, world::{unchunked, BlockPos, BlockPos2d, ColPos, VoxelWorld, CHUNK_S1, CHUNK_S1I, MAX_GEN_HEIGHT}, Block};
+use shared::world::{Biome, BlockPos, BlockPos2d, CHUNK_S1, CHUNK_S1I, ColPos, MAX_GEN_HEIGHT, blocks::blocks::BlockId, unchunked};
+
+use crate::world::riverbed::{VoxelWorld, generation::{biome_params::{BiomeParameters, BiomePoints}, biomes::BiomeGeneration, coverage::CoverageTrait, layer::LayerTag, plant_params::PlantRanges, tree::Growable}};
 const BIOME_SHARPENING: f32 = 50.;
 
 pub struct TerrainGenerator {
@@ -99,10 +101,10 @@ impl TerrainGenerator {
                     }
                     let block = dominant_block.unwrap();
                     let layer_width = (height-last_height).max(1);
-                    if block == Block::GrassBlock {
+                    if block == BlockId::Grass {
                         world.set_yrange(col, (dx, dz), height, 1, block);
                         if layer_width > 1 {
-                            world.set_yrange(col, (dx, dz), height-1, (layer_width-1) as usize, Block::Dirt);
+                            world.set_yrange(col, (dx, dz), height-1, (layer_width-1) as usize, BlockId::Dirt);
                         }
                     } else {
                         world.set_yrange(col, (dx, dz), height, layer_width as usize, block);
@@ -137,7 +139,9 @@ impl TerrainGenerator {
                 continue;
             }
             let h = (rng >> 6) & 0b11;
-            let (block, y) = world.top_block((col, (dx, dz)).into());
+            let Some((block, y)) = world.top_block((col, (dx, dz)).into()) else {
+                continue;
+            };
             if !block.is_fertile_soil() {
                 continue;
             }

@@ -8,6 +8,7 @@ mod layer;
 mod biomes;
 mod terrain;
 use std::ops::Range;
+use shared::world::blocks::blocks::BlockId;
 pub use terrain::TerrainGenerator;
 
 type Soils = Vec<([Range<f32>; 2], BlockId)>;
