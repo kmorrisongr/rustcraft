@@ -1,30 +1,46 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::init::ServerTime;
 use crate::network::extensions::SendGameMessageExtension;
+use crate::world::riverbed::{ChunkChangesReceiver, VoxelWorld};
 use bevy::prelude::*;
 use bevy_ecs::system::ResMut;
 use bevy_renet::renet::RenetServer;
 use shared::messages::mob::MobUpdateEvent;
-use shared::messages::{ItemStackUpdateEvent, ServerToClientMessage, WorldUpdate};
+use shared::messages::{ItemStackUpdateEvent, PlayerId, ServerToClientMessage, WorldUpdate};
 use shared::players::Player;
 use shared::world::{
-    ChunkPos, ServerChunk, ServerChunkWorldMap, ServerWorldMap 
+    ChunkPos, SerdablePackedUints, ServerChunk, ServerWorldMap,
 };
 use shared::{GameServerConfig, CHUNK_SIZE, LOD1_MULTIPLIER};
-use std::collections::HashMap;
 
 /// Maximum number of chunks to send to a client per update
 const MAX_CHUNKS_PER_UPDATE: usize = 50;
 
-// Scaling factor for chunk limit based on render distance
-// With the default render distance of 8, this gives 48 chunks per tick
-// The factor of 6 provides a good balance between initial load speed and bandwidth usage
-const CHUNKS_PER_RENDER_DISTANCE: i32 = 6;
+/// Tracks which chunks have been sent to which clients
+#[derive(Resource, Default)]
+pub struct ChunkSendTracker {
+    pub sent_to_clients: HashMap<ChunkPos, HashSet<PlayerId>>,
+}
+
+/// System to process chunk change notifications and invalidate send tracker
+pub fn process_chunk_changes(
+    chunk_changes: Res<ChunkChangesReceiver>,
+    mut send_tracker: ResMut<ChunkSendTracker>,
+) {
+    // Drain all pending chunk changes and clear their sent status
+    while let Ok(chunk_pos) = chunk_changes.0.try_recv() {
+        send_tracker.sent_to_clients.remove(&chunk_pos);
+    }
+}
 
 
 pub fn broadcast_world_state(
     mut server: ResMut<RenetServer>,
     time: Res<ServerTime>,
     mut world_map: ResMut<ServerWorldMap>,
+    voxel_world: Res<VoxelWorld>,
+    mut send_tracker: ResMut<ChunkSendTracker>,
     config: Res<GameServerConfig>,
 ) {
     let ts = std::time::SystemTime::now()
@@ -36,7 +52,6 @@ pub fn broadcast_world_state(
 
     let mobs = world_map.mobs.clone();
     let players = &mut world_map.players;
-    let chunks = &mut world_map.chunks;
 
     for client in server.clients_id().iter_mut() {
         let player = players.get_mut(client);
@@ -66,7 +81,7 @@ pub fn broadcast_world_state(
         let msg = WorldUpdate {
             tick: time.0,
             time: ts,
-            new_map: get_world_map_chunks_to_send(chunks, &player, effective_render_distance),
+            new_map: get_world_map_chunks_to_send(&voxel_world, &mut *send_tracker, &player, effective_render_distance),
             mobs: mobs.clone(),
             item_stacks: get_items_stacks(),
         };
@@ -79,58 +94,65 @@ pub fn broadcast_world_state(
 
         server.send_game_message(*client, message);
     }
-
-    // Clear the list of chunks that needed updates after broadcasting to all clients
-    chunks.chunks_to_update.clear();
 }
 
 fn get_world_map_chunks_to_send(
-    chunks: &mut ServerChunkWorldMap,
+    voxel_world: &VoxelWorld,
+    send_tracker: &mut ChunkSendTracker,
     player: &Player,
     broadcast_render_distance: i32,
 ) -> HashMap<ChunkPos, ServerChunk> {
-    // Send only chunks in render distance
     let mut map: HashMap<ChunkPos, ServerChunk> = HashMap::new();
-
-    // Scale chunk limit based on render distance to prevent bandwidth issues
-    // with larger render distances while maintaining good performance
-    // Use saturating multiplication to prevent overflow with very large render distances
-    let chunk_limit = broadcast_render_distance
-        .saturating_mul(CHUNKS_PER_RENDER_DISTANCE)
-        .min(MAX_CHUNKS_PER_UPDATE as i32) as usize;
-
-    let active_chunks =
-        get_player_chunks_prioritized(player, broadcast_render_distance, chunk_limit);
-
-    // First, handle chunks that need to be updated (re-sent due to modifications)
-    for &chunk_pos in &chunks.chunks_to_update {
-        if active_chunks.contains(&chunk_pos) {
-            if let Some(chunk) = chunks.map.get_mut(&chunk_pos) {
-                // Clear sent_to_clients list so the chunk will be re-sent to all players
-                chunk.sent_to_clients.clear();
-            }
+    
+    let player_chunk_x = (player.position.x / CHUNK_SIZE as f32).floor() as i32;
+    let player_chunk_z = (player.position.z / CHUNK_SIZE as f32).floor() as i32;
+    
+    // Collect chunks within render distance, sorted by distance to player
+    let mut candidate_chunks: Vec<(ChunkPos, i32)> = Vec::new();
+    
+    for entry in voxel_world.chunks.iter() {
+        let chunk_pos = *entry.key();
+        
+        // Check if chunk is within render distance (horizontal only)
+        let dx = chunk_pos.x - player_chunk_x;
+        let dz = chunk_pos.z - player_chunk_z;
+        let dist_sq = dx * dx + dz * dz;
+        
+        if dist_sq <= broadcast_render_distance * broadcast_render_distance {
+            candidate_chunks.push((chunk_pos, dist_sq));
         }
     }
-
-    for c in active_chunks {
-        // Should not be necessary due to prior generation, but double-check
-        if map.len() >= chunk_limit {
+    
+    // Sort by distance (closest first)
+    candidate_chunks.sort_by_key(|(_, dist)| *dist);
+    
+    // Send chunks that haven't been sent to this player yet
+    for (chunk_pos, _) in candidate_chunks {
+        if map.len() >= MAX_CHUNKS_PER_UPDATE {
             break;
         }
-
-        let chunk = chunks.map.get_mut(&c);
-
-        // If chunk already exists, transmit it to client
-        if let Some(chunk) = chunk {
-            if chunk.sent_to_clients.contains(&player.id) {
-                continue;
-            }
-
-            map.insert(c, chunk.clone());
-            chunk.sent_to_clients.insert(player.id);
+        
+        // Check if already sent to this player
+        let sent_set = send_tracker.sent_to_clients.entry(chunk_pos).or_default();
+        if sent_set.contains(&player.id) {
+            continue;
+        }
+        
+        // Get chunk and convert to ServerChunk
+        if let Some(chunk_entry) = voxel_world.chunks.get(&chunk_pos) {
+            let chunk = chunk_entry.value().read();
+            let server_chunk = ServerChunk {
+                data: SerdablePackedUints(chunk.data.clone()),
+                palette: chunk.palette.clone(),
+                ts: 0,
+                sent_to_clients: HashSet::new(),
+            };
+            
+            map.insert(chunk_pos, server_chunk);
+            sent_set.insert(player.id);
         }
     }
-
+    
     map
 }
 

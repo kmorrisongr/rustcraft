@@ -3,7 +3,7 @@ use crate::mob::behavior::mob_behavior_system;
 use crate::network::broadcast_chat::*;
 use crate::network::cleanup::cleanup_player_from_world;
 use crate::world;
-use crate::world::broadcast_world::broadcast_world_state;
+use crate::world::broadcast_world::{broadcast_world_state, process_chunk_changes, ChunkSendTracker};
 use crate::world::load_from_file::load_player_data;
 use crate::world::save::SaveRequestEvent;
 use crate::world::simulation::{handle_player_inputs_system, PlayerInputsEvent};
@@ -25,7 +25,7 @@ pub fn setup_resources_and_events(app: &mut App) {
     app.add_message::<SaveRequestEvent>()
         .add_message::<BlockInteractionEvent>()
         .add_message::<PlayerInputsEvent>()
-        .init_resource::<ChunkGenerationTasks>();
+        .init_resource::<ChunkSendTracker>();
 
     setup_chat_resources(app);
 }
@@ -37,15 +37,14 @@ pub fn register_systems(app: &mut App) {
         (server_update_system, world::save::save_world_system).chain(),
     );
 
-    app.add_systems(Update, broadcast_world_state);
+    // Process chunk changes before broadcasting to ensure invalidations are applied
+    app.add_systems(Update, (process_chunk_changes, broadcast_world_state).chain());
 
     app.add_systems(Update, world::handle_block_interactions);
 
     app.add_systems(Update, crate::mob::manage_mob_spawning_system);
 
     app.add_systems(Update, handle_player_inputs_system);
-
-    app.add_systems(Update, background_chunk_generation_system);
 
     app.add_systems(PostUpdate, update_server_time);
 
