@@ -81,13 +81,13 @@ fn find_water_surface_height(world_map: &impl WorldMap, x: i32, z: i32) -> f32 {
     // Search downward from maximum height
     for y in (0..constants::MAX_WATER_SEARCH_HEIGHT).rev() {
         if let Some(block) = world_map.get_block_by_coordinates(&BlockPos::overworld(x, y, z)) {
-            if block.id == BlockId::Water {
+            if matches!(block, BlockId::Water) {
                 // Found water, now find the surface (first air block above water)
                 for surface_y in y..constants::MAX_WATER_SEARCH_HEIGHT {
                     if let Some(above_block) =
                         world_map.get_block_by_coordinates(&BlockPos::overworld(x, surface_y, z))
                     {
-                        if above_block.id != BlockId::Water {
+                        if !matches!(above_block, BlockId::Water) {
                             return surface_y as f32;
                         }
                     } else {

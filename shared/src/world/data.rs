@@ -1,12 +1,13 @@
 use crate::messages::PlayerId;
 use crate::players::Player;
-use crate::world::{BlockPos, ChunkPos};
+use crate::world::block_ray_cast_hit::BlockRayCastHit;
 use crate::world::blocks::blocks::{BlockData, BlockHitbox, BlockId};
+use crate::world::{BlockPos, ChunkPos, Realm};
 use bevy::math::bounding::Aabb3d;
-use bevy::math::{Vec3};
+use bevy::math::Vec3;
 use bevy_ecs::resource::Resource;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use super::{ItemId, ItemType, MobId, ServerMob};
@@ -67,15 +68,20 @@ pub struct ItemStack {
 
 pub trait WorldMap {
     fn has_chunk(&self, chunk_pos: &ChunkPos) -> bool;
-    fn get_block_mut_by_coordinates(&mut self, position: &BlockPos) -> Option<&mut BlockData>;
-    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<&BlockId>;
+    fn get_block_mut_by_coordinates(&mut self, position: &BlockPos) -> Option<BlockData>;
+    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<BlockId>;
     fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> bool;
     fn set_block(&mut self, position: &BlockPos, block: BlockData);
+    fn raycast(&self, realm: Realm, start: Vec3, dir: Vec3, dist: f32) -> Option<BlockRayCastHit>;
 
     fn get_height_ground(&self, position: Vec3) -> i32 {
         for y in (0..256).rev() {
             if self
-                .get_block_by_coordinates(&BlockPos::overworld(position.x as i32, y, position.z as i32))
+                .get_block_by_coordinates(&BlockPos::overworld(
+                    position.x as i32,
+                    y,
+                    position.z as i32,
+                ))
                 .is_some()
             {
                 return y;
@@ -109,7 +115,9 @@ pub trait WorldMap {
         for x in (hitbox.min.x.floor() as i32)..=(hitbox.max.x.floor() as i32) {
             for y in (hitbox.min.y.floor() as i32)..=(hitbox.max.y.floor() as i32) {
                 for z in (hitbox.min.z.floor() as i32)..=(hitbox.max.z.floor() as i32) {
-                    if let Some(block) = self.get_block_by_coordinates(&BlockPos::overworld(x, y, z)) {
+                    if let Some(block) =
+                        self.get_block_by_coordinates(&BlockPos::overworld(x, y, z))
+                    {
                         match block.get_hitbox() {
                             BlockHitbox::FullBlock => return true,
                             BlockHitbox::None => {

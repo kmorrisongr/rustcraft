@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::world::{ChunkPos, ItemStack, MobId, ServerChunk, ServerMob};
+use crate::world::{chunk::ServerChunk, ChunkPos, ItemStack, MobId, ServerMob};
 use bevy::math::{IVec3, Vec3};
 use bevy_ecs::message::Message;
 use serde::{Deserialize, Serialize};
