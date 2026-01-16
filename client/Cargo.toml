@@ -22,6 +22,7 @@ bevy_image = "0.17"
 bevy_mesh = "0.17"
 bevy_light = "0.17"
 bevy_asset = "0.17"
+bevy_camera = "0.17"
 
 bevy_simple_text_input = "0.12"
 bevy_panorbit_camera = "0.33"

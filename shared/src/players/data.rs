@@ -150,6 +150,14 @@ pub struct Player {
 
 impl Player {
     pub fn new(id: PlayerId, name: String, position: Vec3, camera_transform: Transform) -> Self {
+        let mut inventory = Inventory::new();
+        // Give player a flashlight to start with
+        inventory.add_item_to_inventory(crate::world::ItemStack {
+            item_id: crate::world::ItemId::Flashlight,
+            item_type: crate::world::ItemType::Flashlight,
+            nb: 1,
+        });
+
         Self {
             id,
             name,
@@ -158,7 +166,7 @@ impl Player {
             velocity: Vec3::ZERO,
             on_ground: true,
             is_flying: false,
-            inventory: Inventory::new(),
+            inventory,
             height: 1.8,
             width: 0.8,
             last_input_processed: 0,
@@ -177,6 +185,14 @@ impl Player {
 
 impl Default for Player {
     fn default() -> Self {
+        let mut inventory = Inventory::new();
+        // Give player a flashlight to start with
+        inventory.add_item_to_inventory(crate::world::ItemStack {
+            item_id: crate::world::ItemId::Flashlight,
+            item_type: crate::world::ItemType::Flashlight,
+            nb: 1,
+        });
+
         Self {
             id: 0,
             name: "Default".into(),
@@ -185,7 +201,7 @@ impl Default for Player {
             velocity: Vec3::ZERO,
             on_ground: true,
             is_flying: false,
-            inventory: Inventory::new(),
+            inventory,
             height: 1.8,
             width: 0.8,
             last_input_processed: 0,

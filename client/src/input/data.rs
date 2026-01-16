@@ -37,4 +37,5 @@ pub enum GameAction {
     RenderDistanceMinus,
     RenderDistancePlus,
     ReloadChunks,
+    ToggleFlashlight,
 }

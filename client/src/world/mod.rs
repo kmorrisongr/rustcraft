@@ -14,7 +14,9 @@ use shared::{sets::GameSets, world::WorldSeed};
 use crate::{
     camera::spawn_camera,
     world::{
-        celestial::{setup_main_lighting, update_celestial_bodies},
+        celestial::{
+            setup_camera_atmosphere, setup_sun_and_sky, update_celestial_bodies, CelestialState,
+        },
         time::{time_update_system, ClientTime},
     },
     GameState,
@@ -28,17 +30,19 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WorldSeed>()
             .init_resource::<ClientTime>()
+            .init_resource::<CelestialState>()
             .init_resource::<FirstChunkReceived>()
             .init_resource::<ClientWorldMap>()
             .add_systems(
                 OnEnter(GameState::Game),
-                (spawn_camera, setup_main_lighting)
+                (spawn_camera, setup_sun_and_sky)
                     .chain()
                     .in_set(GameSets::OnEnter::Initialize),
             )
             .add_systems(
                 Update,
-                (update_celestial_bodies,).in_set(GameSets::Update::WorldInput),
+                (setup_camera_atmosphere, update_celestial_bodies)
+                    .in_set(GameSets::Update::WorldInput),
             )
             .add_systems(
                 FixedPostUpdate,

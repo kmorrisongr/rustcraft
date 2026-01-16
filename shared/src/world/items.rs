@@ -37,11 +37,15 @@ pub enum ItemId {
     Snow,
     Snowball,
     SpruceLog,
+    Flashlight,
 }
 
 impl ItemId {
     pub fn get_max_stack(&self) -> u32 {
-        64
+        match self {
+            Self::Flashlight => 1, // Flashlight doesn't stack
+            _ => 64,
+        }
     }
 
     pub fn get_default_type(&self) -> ItemType {
@@ -65,6 +69,7 @@ impl ItemId {
             Self::SpruceLog => ItemType::Block(BlockId::SpruceLog),
 
             Self::Snowball => ItemType::Generic,
+            Self::Flashlight => ItemType::Flashlight,
         }
     }
 }
@@ -96,6 +101,7 @@ pub enum ItemType {
     Block(BlockId),
     Tool { durability: u16 },
     Armor(ArmorType),
+    Flashlight,
 }
 
 impl Default for ItemType {

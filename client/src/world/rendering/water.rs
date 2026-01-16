@@ -76,25 +76,44 @@ impl WaterMaterialHandle {
 
 /// Create the water material with ocean-level amplitude.
 /// Using consistent amplitude across all water for seamless chunk boundaries.
+///
+/// ## Performance Notes
+/// AlphaMode::Blend is VERY expensive with Atmosphere because it forces forward
+/// rendering and prevents early-z rejection. We use AlphaToCoverage instead,
+/// which uses MSAA hardware for transparency and allows deferred rendering.
+///
+/// ## Visibility Notes
+/// With AlphaToCoverage, we need solid base colors since the transparency
+/// is handled differently. Higher base_color alpha = more opaque appearance.
 fn create_water_material(
     materials: &mut Assets<StandardWaterMaterial>,
 ) -> Handle<StandardWaterMaterial> {
     materials.add(ExtendedMaterial {
         base: StandardMaterial {
-            base_color: Color::srgba(0.1, 0.3, 0.5, 0.8),
-            alpha_mode: AlphaMode::Blend,
+            // Solid water color - AlphaToCoverage handles the transparency effect
+            base_color: Color::srgba(0.18, 0.42, 0.55, 0.85),
+            // AlphaToCoverage: Uses MSAA for transparency, MUCH faster than Blend
+            // with Atmosphere because it can use deferred rendering path
+            alpha_mode: AlphaMode::AlphaToCoverage,
+            // Moderate reflectance for water-like specular
+            reflectance: 0.75,
+            // Low roughness for shiny water surface
+            perceptual_roughness: 0.04,
             ..default()
         },
         extension: WaterMaterial {
-            amplitude: 0.5, // Ocean amplitude for consistent cross-chunk waves
-            clarity: 0.3,
-            deep_color: Color::srgba(0.05, 0.15, 0.25, 0.9),
-            shallow_color: Color::srgba(0.15, 0.35, 0.45, 0.75),
-            edge_color: Color::srgba(0.8, 0.9, 1.0, 0.5),
-            edge_scale: 0.1,
+            // Reduced amplitude for performance and voxel aesthetic
+            amplitude: 0.2,
+            // Moderate clarity - balances visibility with performance
+            clarity: 0.55,
+            deep_color: Color::srgba(0.04, 0.14, 0.26, 0.95),
+            shallow_color: Color::srgba(0.22, 0.46, 0.60, 0.90),
+            edge_color: Color::srgba(0.75, 0.88, 0.95, 0.55),
+            edge_scale: 0.14,
             coord_scale: Vec2::new(1.0, 1.0),
             coord_offset: Vec2::ZERO,
-            ..default()
+            // Low quality for better performance
+            quality: 1,
         },
     })
 }

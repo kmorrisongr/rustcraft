@@ -47,11 +47,6 @@ pub fn game_plugin(app: &mut App) {
             ..default()
         })
         .add_plugins(WaterPlugin)
-        .insert_resource(AmbientLight {
-            color: Color::WHITE,
-            brightness: 400.0,
-            ..default()
-        })
         .insert_resource(WireframeConfig {
             // The global wireframe config enables drawing of wireframes on every mesh,
             // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
