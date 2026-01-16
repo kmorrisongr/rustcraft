@@ -1,12 +1,14 @@
+use crate::world::riverbed::CHUNKP_S1;
+
 use super::{
     chunked, pos2d::chunks_in_col, BlockPos, BlockPos2d, Chunk, ChunkPos, ChunkedPos, ColPos,
     ColedPos, Realm, CHUNK_S1, MAX_HEIGHT, Y_CHUNKS,
 };
-use crate::{block::Face, world::{chunk, CHUNKP_S1}, Block};
 use bevy::prelude::{Resource, Vec3};
 use crossbeam::channel::Sender;
 use crossbeam_skiplist::{map::Entry, SkipMap};
 use parking_lot::RwLock;
+use shared::world::{WorldMap, blocks::blocks::{BlockData, BlockId}, face::Face};
 use std::sync::Arc;
 
 pub struct BlockRayCastHit {
@@ -34,7 +36,7 @@ impl VoxelWorld {
         }
     }
 
-    pub fn set_block(&self, pos: BlockPos, block: Block) {
+    pub fn set_block(&self, pos: BlockPos, block: BlockId) {
         let (chunk_pos, chunked_pos) = <(ChunkPos, ChunkedPos)>::from(pos);
         self.chunks.get_or_insert_with(chunk_pos, || RwLock::new(Chunk::new()))
             .value()
@@ -43,7 +45,7 @@ impl VoxelWorld {
         self.mark_change(chunk_pos, chunked_pos, block);
     }
 
-    pub fn set_block_safe(&self, pos: BlockPos, block: Block) -> bool {
+    pub fn set_block_safe(&self, pos: BlockPos, block: BlockId) -> bool {
         if pos.y < 0 || pos.y >= MAX_HEIGHT as i32 {
             return false;
         }
@@ -57,7 +59,7 @@ impl VoxelWorld {
         (x, z): ColedPos,
         top: i32,
         mut height: usize,
-        block: Block,
+        block: BlockId,
     ) {
         // USED BY TERRAIN GENERATION - bypasses change detection for efficiency
         let (mut cy, mut dy) = chunked(top);
@@ -79,7 +81,7 @@ impl VoxelWorld {
         }
     }
 
-    pub fn set_if_empty(&self, pos: BlockPos, block: Block) {
+    pub fn set_if_empty(&self, pos: BlockPos, block: BlockId) {
         let (chunk_pos, chunked_pos) = <(ChunkPos, ChunkedPos)>::from(pos);
         if self.chunks.get_or_insert_with(chunk_pos, || RwLock::new(Chunk::new()))
             .value()
@@ -90,23 +92,23 @@ impl VoxelWorld {
         }
     }
 
-    pub fn get_block(&self, pos: BlockPos) -> Block {
+    pub fn get_block(&self, pos: BlockPos) -> BlockId {
         let (chunk_pos, chunked_pos) = <(ChunkPos, ChunkedPos)>::from(pos);
         match self.chunks.get(&chunk_pos) {
-            None => Block::Air,
+            None => BlockId::Air,
             Some(chunk) => chunk.value().read().get(chunked_pos).clone(),
         }
     }
 
-    pub fn get_block_safe(&self, pos: BlockPos) -> Block {
+    pub fn get_block_safe(&self, pos: BlockPos) -> BlockId {
         if pos.y < 0 || pos.y >= MAX_HEIGHT as i32 {
-            Block::Air
+            BlockId::Air
         } else {
             self.get_block(pos)
         }
     }
 
-    pub fn top_block(&self, pos: BlockPos2d) -> (Block, i32) {
+    pub fn top_block(&self, pos: BlockPos2d) -> (BlockId, i32) {
         let (col_pos, pos2d) = pos.into();
         for y in (0..Y_CHUNKS as i32).rev() {
             let chunk_pos = ChunkPos {
@@ -117,12 +119,12 @@ impl VoxelWorld {
             };
             if let Some(chunk) = self.chunks.get(&chunk_pos) {
                 let (&block, block_y) = chunk.value().read().top(pos2d);
-                if block != Block::Air {
+                if block != BlockId::Air {
                     return (block.clone(), y * CHUNK_S1 as i32 + block_y as i32);
                 }
             }
         }
-        (Block::Air, 0)
+        (BlockId::Air, 0)
     }
 
     pub fn is_col_loaded(&self, player_pos: Vec3, realm: Realm) -> bool {
@@ -203,7 +205,7 @@ impl VoxelWorld {
     }
 
     /// Mark a block change, reflecting in neighboring chunks if needed
-    fn mark_change(&self, chunk_pos: ChunkPos, (x, y, z): ChunkedPos, block: Block) {
+    fn mark_change(&self, chunk_pos: ChunkPos, (x, y, z): ChunkedPos, block: BlockId) {
         self.chunk_changes.send(chunk_pos).expect("Failed to send chunk change");
         // register change for neighboring chunks
         let border_sign_x = VoxelWorld::border_sign(x);
@@ -315,3 +317,24 @@ impl VoxelWorld {
     }
 }
 
+impl WorldMap for VoxelWorld {
+    fn get_block_mut_by_coordinates(&mut self, position: &BlockPos) -> Option<&mut BlockData> {
+        unimplemented!()
+    }
+
+    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<&BlockData> {
+        unimplemented!()
+    }
+
+    fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> Option<BlockData> {
+        unimplemented!()
+    }
+
+    fn set_block(&mut self, position: &BlockPos, block: BlockData) {
+        unimplemented!()
+    }
+
+    fn mark_block_for_update(&mut self, position: &bevy::math::BlockPos) {
+        unimplemented!()
+    }
+}

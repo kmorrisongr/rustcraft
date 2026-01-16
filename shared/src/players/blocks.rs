@@ -1,7 +1,7 @@
 use crate::{
     messages::{NetworkAction, PlayerFrameInput},
     players::Player,
-    world::{raycast, BlockData, BlockDirection, FaceDirectionExt, ItemStack, ItemType, WorldMap},
+    world::{BlockPos, FaceDirectionExt, ItemStack, ItemType, WorldMap, blocks::blocks::{BlockData, BlockDirection}, raycast},
 };
 use bevy::math::{NormedVectorSpace, Vec3};
 use bevy_log::info;
@@ -76,9 +76,10 @@ fn handle_block_breaking(
         return;
     }
 
-    let block_pos = block_position.unwrap().position;
+    let block_pos_vec = block_position.unwrap().position;
+    let block_pos = BlockPos::overworld(block_pos_vec.x, block_pos_vec.y, block_pos_vec.z);
 
-    let distance = (block_pos.as_vec3() + Vec3::splat(0.5) - player.position).norm();
+    let distance = (block_pos_vec.as_vec3() + Vec3::splat(0.5) - player.position).norm();
     log::debug!(
         "{} Calculated distance to block center: {:.2} (block pos: {:?}, player pos: {:?})",
         caller_type.as_str(),
@@ -234,7 +235,7 @@ fn handle_block_placement(
 
     // Check if there's already a block at that position
     if world_map
-        .get_block_by_coordinates(&block_to_create_pos)
+        .get_block_by_coordinates(&BlockPos::overworld(block_to_create_pos.x, block_to_create_pos.y, block_to_create_pos.z))
         .is_some()
     {
         log::warn!(
@@ -293,7 +294,7 @@ fn handle_block_placement(
 
             // Place the block
             let block = BlockData::new(block_id, BlockDirection::Front);
-            world_map.set_block(&block_to_create_pos, block);
+            world_map.set_block(&BlockPos::overworld(block_to_create_pos.x, block_to_create_pos.y, block_to_create_pos.z), block);
 
             log::info!(
                 "{} Player {} placed block {:?} at position {:?}",

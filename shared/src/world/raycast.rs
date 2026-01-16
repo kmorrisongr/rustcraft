@@ -4,9 +4,7 @@ use bevy::{
 };
 
 use crate::{
-    players::ViewMode,
-    world::{BlockData, BlockHitbox, WorldMap},
-    HALF_BLOCK,
+    HALF_BLOCK, players::ViewMode, world::{BlockPos, WorldMap, blocks::blocks::{BlockData, BlockHitbox}}
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -106,14 +104,21 @@ pub fn raycast_from_source_position_and_direction(
 
     // Origin, constrained to its voxel (integer) position
     // Explicit flooring needed for negative coordinates
-    let mut voxel = origin.floor().as_ivec3();
+    let voxel_vec = origin.floor().as_ivec3();
+    let mut voxel = BlockPos::overworld(voxel_vec.x, voxel_vec.y, voxel_vec.z);
 
     // Calculate tMax (distance to first voxel boundary)
     // Needed so that the player's position inside a voxel doesn't mess up the ray projection
     let mut t = Vec3::ZERO;
     for i in 0..3 {
+        let voxel_coord = match i {
+            0 => voxel.x as f32,
+            1 => voxel.y as f32,
+            2 => voxel.z as f32,
+            _ => unreachable!(),
+        };
         t[i] = if step[i] != 0 {
-            let next_boundary = voxel[i] + if step[i] > 0 { 1 } else { 0 };
+            let next_boundary = voxel_coord + if step[i] > 0 { 1.0 } else { 0.0 };
             (next_boundary as f32 - origin[i]) / direction[i]
         } else {
             f32::INFINITY
@@ -123,6 +128,7 @@ pub fn raycast_from_source_position_and_direction(
     // Total Euclidean distance
     let mut distance = 0.0;
 
+    let voxel_vec_out = IVec3::new(voxel.x, voxel.y, voxel.z);
     // Actual raycast loop
     while distance < 20.0 {
         if let Some(block) = world_map.get_block_by_coordinates(&voxel) {
@@ -130,7 +136,7 @@ pub fn raycast_from_source_position_and_direction(
                 BlockHitbox::FullBlock => {
                     return Some(RaycastResponse {
                         block: *block,
-                        position: voxel,
+                        position: voxel_vec_out,
                         face: match (axis, step[axis]) {
                             (0, -1) => FaceDirection::PlusX,
                             (0, 1) => FaceDirection::MinusX,
@@ -140,13 +146,13 @@ pub fn raycast_from_source_position_and_direction(
                             (2, 1) => FaceDirection::MinusZ,
                             _ => unreachable!(),
                         },
-                        bbox: Aabb3d::new(voxel.as_vec3() + HALF_BLOCK, HALF_BLOCK),
+                        bbox: Aabb3d::new(voxel_vec_out.as_vec3() + HALF_BLOCK, HALF_BLOCK),
                     })
                 }
                 BlockHitbox::Aabb(hitbox) => {
                     let hitbox = Aabb3d {
-                        min: hitbox.min + voxel.as_vec3a(),
-                        max: hitbox.max + voxel.as_vec3a(),
+                        min: hitbox.min + voxel_vec_out.as_vec3a(),
+                        max: hitbox.max + voxel_vec_out.as_vec3a(),
                     };
                     if let Some((pos, face)) = aabb_ray_hit(&hitbox, &origin, &direction, &inv_dir)
                     {
@@ -178,7 +184,12 @@ pub fn raycast_from_source_position_and_direction(
         // Update the ray's position
         distance += t[axis];
         t[axis] += delta[axis];
-        voxel[axis] += step[axis];
+        match axis {
+            0 => voxel.x += step.x,
+            1 => voxel.y += step.y,
+            2 => voxel.z += step.z,
+            _ => unreachable!(),
+        }
     }
     None
 }

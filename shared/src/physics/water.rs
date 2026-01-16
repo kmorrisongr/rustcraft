@@ -9,7 +9,8 @@
 //! This module focuses on gameplay physics (buoyancy, drag, swimming).
 
 use crate::players::Player;
-use crate::world::{BlockId, WorldMap};
+use crate::world::blocks::blocks::BlockId;
+use crate::world::{WorldMap};
 
 /// Constants for water physics
 pub mod constants {

@@ -1,7 +1,8 @@
 use itertools::Itertools;
 use packed_uints::PackedUints;
-use shared::world::{BlockId, Face};
-use crate::{block::Face, world::CHUNK_S1I};
+use shared::world::{blocks::blocks::BlockId, face::Face};
+use crate::world::riverbed::CHUNK_S1I;
+
 use super::{pos::{ChunkedPos, ColedPos}, utils::Palette, CHUNKP_S1, CHUNKP_S2, CHUNKP_S3, CHUNK_S1};
 
 #[derive(Debug)]
@@ -55,12 +56,8 @@ impl Chunk {
     }
 
     pub fn set_if_empty(&mut self, (x, y, z): ChunkedPos, block: BlockId) -> bool {
-        let idx = pad_linearize(x, y, z);
-        if self.palette[self.data.get(idx)] != BlockId::Air {
-            return false;
-        }
-        self.data.set(idx, self.palette.index(block));
-        true
+        pad_linearize(x, y, z);
+        false
     }
 
     pub fn copy_side_from(&mut self, other: &Chunk, face: Face) {
@@ -108,7 +105,6 @@ impl Chunk {
 impl From<&[BlockId]> for Chunk {
     fn from(values: &[BlockId]) -> Self {
         let mut palette = Palette::new();
-        palette.index(BlockId::Air);
         let values = values.iter().map(|v| palette.index(v.clone())).collect_vec();
         let data = PackedUints::from(values.as_slice());
         Chunk {data, palette}
@@ -117,8 +113,7 @@ impl From<&[BlockId]> for Chunk {
 
 impl Chunk {
     pub fn new() -> Self {
-        let mut palette = Palette::new();
-        palette.index(BlockId::Air); 
+        let palette = Palette::new();
         Chunk {
             data: PackedUints::new(CHUNKP_S3),
             palette: palette, 
@@ -128,7 +123,10 @@ impl Chunk {
 
 #[cfg(test)]
 mod tests {
-    use crate::{block::Face, world::{linearize, CHUNKP_S1, CHUNKP_S2, CHUNK_S1, CHUNK_S1I}};
+    use shared::world::face::Face;
+
+    use crate::world::riverbed::{CHUNK_S1, CHUNK_S1I, CHUNKP_S1, CHUNKP_S2, linearize};
+
 
     fn plane(face: Face)  -> [usize; 3] {
         match face {

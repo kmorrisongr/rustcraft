@@ -3,10 +3,7 @@ use bevy::prelude::*;
 use bevy::log::trace;
 use bevy::tasks::AsyncComputeTaskPool;
 use crossbeam::channel::{unbounded, Receiver, Sender};
-use crate::generation::TerrainGenerator;
-use crate::logging::LogData;
-use crate::world::riverbed::{ColPos, ColUnloadEvent, PlayerCol, Realm, VoxelWorld};
-use crate::WorldRng;
+use crate::{init::WorldRng, world::riverbed::{ColPos, ColUnloadEvent, PlayerCol, Realm, VoxelWorld}};
 
 pub fn setup_load_thread(mut commands: Commands, world: Res<VoxelWorld>, world_rng: Res<WorldRng>) {
     let (player_pos_sender, player_pos_recv) = unbounded::<PlayerColumnUpdate>();

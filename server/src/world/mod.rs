@@ -10,7 +10,8 @@ use bevy::prelude::IVec3;
 use bevy::prelude::ResMut;
 use bevy::prelude::*;
 use bevy_log::{debug, info};
-use shared::world::{BlockData, ItemStack, ServerItemStack, ServerWorldMap, WorldMap};
+use shared::world::blocks::blocks::BlockData;
+use shared::world::{ItemStack, ServerItemStack, ServerWorldMap, WorldMap};
 use ulid::Ulid;
 
 #[derive(Message, Debug)]

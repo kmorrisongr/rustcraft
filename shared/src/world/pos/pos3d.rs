@@ -1,7 +1,8 @@
 use std::ops::{Add, BitXor};
 use bevy::prelude::Vec3;
 use serde::{Deserialize, Serialize};
-use crate::world::{Realm, CHUNK_S1};
+use crate::world::{CHUNK_S1, Realm};
+
 use super::{chunked, unchunked, ColPos, CHUNK_S1I};
 
 #[derive(Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Default, Debug, Hash, Serialize, Deserialize)]
@@ -15,6 +16,10 @@ pub struct Pos3d<const U: usize> {
 const K: usize = 0x517cc1b727220a95;
 
 impl<const U: usize> Pos3d<U> {
+    pub fn overworld(x: i32, y: i32, z: i32) -> Self {
+        Self { x, y, z, realm: Realm::Overworld }
+    }
+
     pub fn dist(&self, other: Pos3d<U>) -> i32 {
         (self.x - other.x).abs()
             .max((self.y - other.y).abs())

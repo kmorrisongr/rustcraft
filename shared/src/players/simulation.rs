@@ -2,10 +2,8 @@ use crate::{
     messages::PlayerFrameInput,
     physics::simulate_player_movement_rapier,
     players::{
-        blocks::{simulate_player_block_interactions, CallerType},
-        Player,
-    },
-    world::WorldMap,
+        Player, blocks::{CallerType, simulate_player_block_interactions}
+    }, world::WorldMap,
 };
 
 pub fn simulate_player_actions(
