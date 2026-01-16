@@ -12,12 +12,7 @@ impl Growable for Tree {
         if !world.get_block_safe(pos).map(is_fertile_soil()).unwrap_or(false) { return; }
         match self {
             Tree::Spruce => grow_spruce(world, pos, seed, dist),
-            Tree::Birch => grow_birch(world, pos, seed, dist),
-            Tree::Cypress => grow_cypress(world, pos, seed, dist),
             Tree::Oak | Tree::Chestnut | Tree::Ironwood => grow_oak(world, pos, seed, dist),
-            Tree::Acacia => grow_acacia(world, pos, seed, dist),
-            Tree::Sequoia => grow_sequoia(world, pos, seed, dist),
-            Tree::Palm | Tree::Baobab => grow_baobab(world, pos, seed, dist),
             _ => {}
         }
     }

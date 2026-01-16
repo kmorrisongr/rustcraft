@@ -3,7 +3,7 @@ mod counter;
 use std::fmt::Debug;
 pub use coverage::CoverageTrait;
 
-use crate::generation::coverage::counter::Counter;
+use crate::world::riverbed::generation::coverage::counter::Counter;
 
 pub fn print_coverage<const D: usize, E: Clone + PartialEq + Debug>(imap: impl CoverageTrait<D, E>, step: f32) {
     let mut coverage = imap.coverage(step);
@@ -19,7 +19,7 @@ pub fn print_coverage<const D: usize, E: Clone + PartialEq + Debug>(imap: impl C
 
 #[cfg(test)]
 mod tests {
-    use crate::generation::{biome_params::BiomePoints, coverage::print_coverage, plant_params::PlantRanges};
+    use crate::world::riverbed::generation::{biome_params::BiomePoints, coverage::print_coverage, plant_params::PlantRanges};
 
     #[test]
     pub fn print_plant_coverage() {

@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use itertools::Itertools;
 
-use crate::generation::coverage::counter::Counter;
+use crate::world::riverbed::generation::coverage::counter::Counter;
 
 pub trait CoverageTrait<const D: usize, E: Clone> {
     /// Returns the closest object from the point and a matching score in ]-inf; 1]. 

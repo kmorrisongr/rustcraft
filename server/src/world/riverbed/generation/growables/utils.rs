@@ -1,5 +1,7 @@
-use crate::world::{BlockPos, VoxelWorld};
-use crate::Block;
+use shared::world::{BlockPos, blocks::blocks::BlockId};
+
+use crate::world::riverbed::VoxelWorld;
+
 
 pub trait Growable: Send + Sync {
     fn grow(&self, dist: f32, pos: BlockPos, world: &VoxelWorld);
@@ -16,7 +18,7 @@ fn signed_comb(x: i32, z: i32) -> Vec<(i32, i32)> {
 }
 
 #[inline]
-pub fn leaf_disk(world: &VoxelWorld, center: BlockPos, dist: u32, leaf: Block) {
+pub fn leaf_disk(world: &VoxelWorld, center: BlockPos, dist: u32, leaf: BlockId) {
     let dist = dist as i32;
     for z in 0..=dist {
         let max_x = ((dist.pow(2)-z.pow(2)) as f32).sqrt() as i32;
