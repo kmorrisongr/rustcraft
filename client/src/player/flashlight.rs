@@ -1,7 +1,6 @@
 //! Flashlight system - attaches a SpotLight to the camera that can be toggled on/off.
 //!
-//! The flashlight follows the camera's direction and provides a cone of light
-//! useful for exploring dark areas or testing the lighting system.
+//! The flashlight follows the camera's direction and provides a cone of light.
 
 use bevy::prelude::*;
 use bevy::state::state_scoped::DespawnOnExit;
@@ -12,23 +11,17 @@ use crate::GameState;
 
 use leafwing_input_manager::prelude::*;
 
-/// Marker component for the flashlight entity
 #[derive(Component)]
 pub struct PlayerFlashlight;
 
-/// Resource tracking flashlight state
 #[derive(Resource, Default)]
 pub struct FlashlightState {
     pub enabled: bool,
 }
 
-/// System to spawn the flashlight attached to the camera.
-/// The flashlight starts disabled.
 pub fn setup_flashlight(mut commands: Commands) {
     commands.insert_resource(FlashlightState { enabled: false });
 
-    // Spawn the flashlight as a SpotLight
-    // It will be positioned relative to the camera each frame
     commands.spawn((
         PlayerFlashlight,
         SpotLight {
@@ -47,7 +40,6 @@ pub fn setup_flashlight(mut commands: Commands) {
     ));
 }
 
-/// System to toggle flashlight on/off with a key press.
 pub fn toggle_flashlight(
     action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
     mut flashlight_state: ResMut<FlashlightState>,
@@ -67,19 +59,9 @@ pub fn toggle_flashlight(
                 Visibility::Hidden
             };
         }
-
-        info!(
-            "Flashlight {}",
-            if flashlight_state.enabled {
-                "ON"
-            } else {
-                "OFF"
-            }
-        );
     }
 }
 
-/// System to update flashlight position and direction to match the camera.
 pub fn update_flashlight_transform(
     camera_query: Query<&Transform, With<Camera3d>>,
     mut flashlight_query: Query<&mut Transform, (With<PlayerFlashlight>, Without<Camera3d>)>,
@@ -98,7 +80,6 @@ pub fn update_flashlight_transform(
         return;
     };
 
-    // Position flashlight at camera location, pointing in camera direction
     // Offset slightly forward and down to simulate being held
     let offset = camera_transform.forward() * 0.3 + camera_transform.down() * 0.1;
     flashlight_transform.translation = camera_transform.translation + offset;
