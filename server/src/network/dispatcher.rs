@@ -3,9 +3,6 @@ use crate::mob::behavior::mob_behavior_system;
 use crate::network::broadcast_chat::*;
 use crate::network::cleanup::cleanup_player_from_world;
 use crate::world;
-use crate::world::background_generation::{
-    background_chunk_generation_system, ChunkGenerationTasks,
-};
 use crate::world::broadcast_world::broadcast_world_state;
 use crate::world::load_from_file::load_player_data;
 use crate::world::save::SaveRequestEvent;

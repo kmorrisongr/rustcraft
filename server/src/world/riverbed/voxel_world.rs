@@ -2,10 +2,8 @@ use bevy::prelude::{Resource, Vec3};
 use crossbeam::channel::Sender;
 use crossbeam_skiplist::{map::Entry, SkipMap};
 use parking_lot::RwLock;
-use shared::world::{BlockPos, BlockPos2d, CHUNK_S1, CHUNKP_S1, ChunkPos, IntraChunkPos, ColPos, IntraColPos, MAX_HEIGHT, Realm, WorldMap, Y_CHUNKS, blocks::blocks::{BlockData, BlockId}, chunked, face::Face, pos2d::chunks_in_col};
+use shared::world::{BlockPos, BlockPos2d, CHUNK_S1, CHUNKP_S1, ChunkPos, ColPos, IntraChunkPos, IntraColPos, MAX_HEIGHT, Realm, WorldMap, Y_CHUNKS, blocks::blocks::{BlockData, BlockId}, chunk::Chunk, chunked, face::Face, pos2d::chunks_in_col};
 use std::sync::Arc;
-
-use crate::world::riverbed::Chunk;
 
 pub struct BlockRayCastHit {
     pub pos: BlockPos,
