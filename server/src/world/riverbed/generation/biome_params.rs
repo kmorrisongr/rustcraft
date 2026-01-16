@@ -1,5 +1,8 @@
 use std::{collections::BTreeMap, str::FromStr};
-use crate::{generation::{biomes::Biome, coverage::CoverageTrait}, world::CHUNK_S1};
+
+use shared::world::Biome;
+
+use crate::world::riverbed::generation::{coverage::CoverageTrait};
 
 pub struct BiomePoints<const D: usize> {
     points: Vec<([f32; D], Biome)>,

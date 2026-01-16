@@ -1,4 +1,5 @@
-use crate::{world::CHUNK_S1, Block};
+use shared::world::{CHUNK_S1, blocks::blocks::BlockId};
+
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LayerTag {
@@ -16,7 +17,7 @@ pub enum Height {
 }
 
 pub struct Layer {
-    pub block: Block,
+    pub block: BlockId,
     pub height: Height,
     pub tag: LayerTag
 }

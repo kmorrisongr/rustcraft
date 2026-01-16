@@ -1,5 +1,7 @@
 use std::{ops::Range, str::FromStr};
-use crate::generation::{coverage::CoverageTrait, range_utils::{range_from_str, RangesUtil}, tree::Tree};
+use shared::world::Tree;
+
+use crate::world::riverbed::generation::{coverage::CoverageTrait, range_utils::{range_from_str, RangesUtil}};
 
 pub struct PlantRanges<const D: usize>(Vec<([Range<f32>; D], Tree)>);
 

@@ -1,30 +1,15 @@
 use std::ops::Range;
-use serde::Deserialize;
-use strum_macros::EnumString;
-use crate::generation::growables::*;
-use crate::world::{BlockPos, VoxelWorld};
+use shared::world::{BlockPos, Tree};
+use crate::world::riverbed::{VoxelWorld, generation::growables::*};
 
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize)]
-#[derive(EnumString)]
-pub enum Tree {
-    Oak,
-    Spruce,
-    Sequoia,
-    Palm,
-    Birch,
-    Chestnut,
-    Cypress,
-    Ironwood,
-    Baobab,
-    Cactus,
-    Acacia,
-    Bamboo
+pub trait Growable {
+    fn grow(&self, world: &VoxelWorld, pos: BlockPos, seed: i32, dist: f32);
 }
 
-impl Tree {
-    pub fn grow(&self, world: &VoxelWorld, pos: BlockPos, seed: i32, dist: f32) {
-        if !world.get_block_safe(pos).is_fertile_soil() { return; }
+impl Growable for Tree {
+    fn grow(&self, world: &VoxelWorld, pos: BlockPos, seed: i32, dist: f32) {
+        if !world.get_block_safe(pos).map(is_fertile_soil()).unwrap_or(false) { return; }
         match self {
             Tree::Spruce => grow_spruce(world, pos, seed, dist),
             Tree::Birch => grow_birch(world, pos, seed, dist),

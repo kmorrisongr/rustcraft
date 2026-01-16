@@ -4,7 +4,7 @@ members = [
     "shared",
     "client",
     "server",
-    "derive-linear-schedule-set",
+    "crates/*",
 ]
 
 [workspace.dependencies]
