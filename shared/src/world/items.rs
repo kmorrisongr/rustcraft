@@ -2,7 +2,9 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use super::{BlockId, GameElementId};
+use crate::world::blocks::blocks::BlockId;
+
+use super::{GameElementId};
 
 #[derive(
     Debug,

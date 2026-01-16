@@ -126,6 +126,7 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
     app.add_plugins(LogDiagnosticsPlugin::default());
     app.add_plugins(LogPlugin::default());
     app.add_plugins(RustcraftPhysicsPlugin);
+    app.add_plugins(TerrainLoadPlugin);
 
     app.insert_resource(ServerLobby::default());
     app.insert_resource(game_folder_paths.clone());

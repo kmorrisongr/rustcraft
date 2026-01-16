@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use shared::{
     world::{global_block_to_chunk_pos, LodLevel},
-    DEFAULT_RENDER_DISTANCE,
+    RENDER_DISTANCE,
 };
 
 #[derive(Resource, Default, Reflect)]
@@ -19,7 +19,7 @@ impl RenderDistance {
     /// Get the LOD 0 (full detail) render distance.
     /// Returns at least MIN_LOD0_DISTANCE to ensure LOD 1 doesn't appear too close.
     pub fn lod0_distance(&self) -> i32 {
-        self.distance.max(DEFAULT_RENDER_DISTANCE)
+        self.distance.max(RENDER_DISTANCE)
     }
 
     /// Get the squared LOD 0 distance (for efficient distance comparisons)
@@ -33,7 +33,7 @@ pub fn render_distance_update_system(
     action_query: Query<&ActionState<GameAction>, With<GlobalInputManager>>,
 ) {
     if render_distance.distance <= 0 {
-        render_distance.distance = DEFAULT_RENDER_DISTANCE;
+        render_distance.distance = RENDER_DISTANCE;
     }
 
     let Ok(action_state) = action_query.single() else {

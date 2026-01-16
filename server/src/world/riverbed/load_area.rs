@@ -1,6 +1,7 @@
-use crate::{world::ColPos, RENDER_DISTANCE};
+use crate::{world::riverbed::ColPos};
 use bevy::prelude::*;
 use itertools::iproduct;
+use shared::RENDER_DISTANCE;
 use std::ops::RangeInclusive;
 
 pub struct PlayerAreaDiff {

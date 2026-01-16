@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
-use super::{GameElementId, ItemId};
 use bevy::math::{bounding::Aabb3d, Vec3A};
 use nonempty::{nonempty, NonEmpty};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+
+use crate::world::{GameElementId, ItemId};
 
 #[derive(Copy, Clone)]
 struct RayHitboxArgs {

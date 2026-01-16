@@ -5,7 +5,7 @@ use bevy::tasks::AsyncComputeTaskPool;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use crate::generation::TerrainGenerator;
 use crate::logging::LogData;
-use crate::world::{ColPos, ColUnloadEvent, PlayerCol, Realm, VoxelWorld};
+use crate::world::riverbed::{ColPos, ColUnloadEvent, PlayerCol, Realm, VoxelWorld};
 use crate::WorldRng;
 
 pub fn setup_load_thread(mut commands: Commands, world: Res<VoxelWorld>, world_rng: Res<WorldRng>) {

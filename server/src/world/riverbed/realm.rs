@@ -5,6 +5,4 @@ use serde::{Deserialize, Serialize};
 pub enum Realm {
     #[default]
     Overworld,
-    Aether,
-    Nether
 }
