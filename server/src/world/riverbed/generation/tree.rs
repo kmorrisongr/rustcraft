@@ -9,7 +9,7 @@ pub trait Growable {
 
 impl Growable for Tree {
     fn grow(&self, world: &VoxelWorld, pos: BlockPos, seed: i32, dist: f32) {
-        if !world.get_block_safe(pos).map(is_fertile_soil()).unwrap_or(false) { return; }
+        if !world.get_block_safe(pos).map(|block| block.is_fertile_soil()).unwrap_or(false) { return; }
         match self {
             Tree::Spruce => grow_spruce(world, pos, seed, dist),
             Tree::Oak | Tree::Chestnut | Tree::Ironwood => grow_oak(world, pos, seed, dist),

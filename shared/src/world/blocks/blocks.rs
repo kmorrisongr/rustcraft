@@ -444,6 +444,10 @@ impl BlockId {
             None => BlockTransparency::Solid,
         }
     }
+
+    pub fn is_fertile_soil(&self) -> bool {
+        matches!(*self, BlockId::Dirt | BlockId::Grass)
+    }
 }
 
 impl GameElementId for BlockId {}
