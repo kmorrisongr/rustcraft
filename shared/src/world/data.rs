@@ -211,11 +211,11 @@ pub trait WorldMap {
             for y in (hitbox.min.y.floor() as i32)..=(hitbox.max.y.floor() as i32) {
                 for z in (hitbox.min.z.floor() as i32)..=(hitbox.max.z.floor() as i32) {
                     if let Some(block) = self.get_block_by_coordinates(&BlockPos::overworld(x, y, z)) {
-                        match block.id.get_hitbox() {
+                        match block.get_hitbox() {
                             BlockHitbox::FullBlock => return true,
                             BlockHitbox::None => {
                                 // Check if this is a water block and if we should check dynamic surface
-                                if block.id == BlockId::Water {
+                                if matches!(block, BlockId::Water) {
                                     if let Some(get_height) = water_height_fn {
                                         // Check if hitbox intersects with dynamic water surface
                                         let water_height =

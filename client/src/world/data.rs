@@ -20,29 +20,10 @@ pub enum GlobalMaterial {
     Items,
 }
 
-#[derive(Clone, Debug)]
-pub struct ClientChunk {
-    pub map: HashMap<IntraChunkPos, BlockData>,
-    pub entity: Option<Entity>,
-    pub last_mesh_ts: Instant, // When was the last time a mesh was created for this chunk ?
-    pub current_lod: LodLevel, // Current LOD level of this chunk's mesh
-}
-
-impl Default for ClientChunk {
-    fn default() -> Self {
-        Self {
-            map: HashMap::new(),
-            entity: None,
-            last_mesh_ts: Instant::now(),
-            current_lod: LodLevel::default(),
-        }
-    }
-}
-
 #[derive(Resource, Clone)]
 pub struct ClientWorldMap {
     pub name: String,
-    pub map: HashMap<ChunkPos, Arc<ClientChunk>>, // Maps global chunk positions to chunks (Arc for cheap cloning)
+    pub map: HashMap<ChunkPos, Arc<Chunk>>,
     pub total_blocks_count: u64,
     pub total_chunks_count: u64,
     pub dirty: bool,
