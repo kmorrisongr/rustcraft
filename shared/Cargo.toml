@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-derive-linear-schedule-set = { path = "../derive-linear-schedule-set" }
+derive-linear-schedule-set = { path = "../crates/derive-linear-schedule-set" }
 
 bevy = { workspace = true }
 bevy_log = { workspace = true }

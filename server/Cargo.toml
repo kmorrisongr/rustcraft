@@ -33,7 +33,7 @@ crossbeam-skiplist = "0.1.3"
 csv = "1.4.0"
 anyhow = "1.0.100"
 
-riverbed_noise = { path = "crates/riverbed_noise", version = "*" }
+riverbed_noise = { path = "../crates/riverbed_noise", version = "*" }
 
 # Define the library target
 [lib]
