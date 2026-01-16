@@ -1,8 +1,7 @@
-pub mod background_generation;
 pub mod broadcast_world;
 pub(crate) mod data;
-pub mod generation;
 pub mod load_from_file;
+pub mod riverbed;
 pub mod save;
 pub mod simulation;
 pub mod stacks;
