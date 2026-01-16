@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use shared::world::Biome;
+use shared::world::{Biome, CHUNK_S1};
 
 use crate::world::riverbed::generation::{coverage::CoverageTrait};
 

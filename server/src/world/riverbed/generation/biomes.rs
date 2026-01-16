@@ -1,6 +1,7 @@
-use shared::world::{Biome, ColPos};
+use riverbed_noise::{add, add_const, fbm, fbm_scaled, mul, mul_const, powi, quantize, ridge};
+use shared::world::{Biome, CHUNK_S1, CHUNK_S2, ColPos, WATER_H, blocks::blocks::BlockId, unchunked};
 
-use crate::world::riverbed::generation::{biome_params::BiomeParameters, layer::Layer};
+use crate::world::riverbed::generation::{biome_params::BiomeParameters, layer::{Height, Layer, LayerTag}};
 
 const MOUNTAIN_H: f32 = 120.;
 
@@ -36,16 +37,16 @@ fn generate_polar_ocean(seed: u32, col: ColPos, params: &BiomeParameters) -> Vec
     mul_const(&mut n, -2.);
     add_const(&mut n, WATER_H as f32);
     vec![
-        Layer { block: Block::Sand, height: Height::Constant(5.), tag: LayerTag::Soil },
-        Layer { block: Block::SeaBlock, height: Height::Constant(WATER_H as f32), tag: LayerTag::Fixed { height: WATER_H as usize } },
-        Layer { block: Block::Ice, height: Height::Noise(n), tag: LayerTag::Fixed { height: (WATER_H as usize) -1 } },
+        Layer { block: BlockId::Sand, height: Height::Constant(5.), tag: LayerTag::Soil },
+        Layer { block: BlockId::Water, height: Height::Constant(WATER_H as f32), tag: LayerTag::Fixed { height: WATER_H as usize } },
+        Layer { block: BlockId::Ice, height: Height::Noise(n), tag: LayerTag::Fixed { height: (WATER_H as usize) -1 } },
     ]
 }
 
 fn generate_ocean(seed: u32, col: ColPos, params: &BiomeParameters) -> Vec<Layer> {
     vec![
-        Layer { block: Block::Sand, height: Height::Constant(5.), tag: LayerTag::Soil },
-        Layer { block: Block::SeaBlock, height: Height::Constant(WATER_H as f32), tag: LayerTag::Fixed { height: WATER_H as usize } }, 
+        Layer { block: BlockId::Sand, height: Height::Constant(5.), tag: LayerTag::Soil },
+        Layer { block: BlockId::Water, height: Height::Constant(WATER_H as f32), tag: LayerTag::Fixed { height: WATER_H as usize } }, 
     ]
 }
 
@@ -60,8 +61,8 @@ fn generate_plain(seed: u32, col: ColPos, params: &BiomeParameters) -> Vec<Layer
         WATER_H as f32 + 10.
     );
     vec![
-        Layer { block: Block::Granite, height: Height::Constant(WATER_H as f32), tag: LayerTag::Mantle },
-        Layer { block: Block::GrassBlock, height: Height::Noise(plain), tag: LayerTag::Soil }, 
+        Layer { block: BlockId::Stone, height: Height::Constant(WATER_H as f32), tag: LayerTag::Mantle },
+        Layer { block: BlockId::Grass, height: Height::Noise(plain), tag: LayerTag::Soil }, 
     ]
 }
 
@@ -83,8 +84,8 @@ fn generate_mountain(seed: u32, col: ColPos, params: &BiomeParameters) -> Vec<La
     powi(&mut mountain_presence, 2);
     add(&mut mountain_presence, &n);
     vec![
-        Layer { block: Block::Granite, height: Height::Noise(n), tag: LayerTag::Mantle },
-        Layer { block: Block::GrassBlock, height: Height::Noise(mountain_presence), tag: LayerTag::Soil }
+        Layer { block: BlockId::Stone, height: Height::Noise(n), tag: LayerTag::Mantle },
+        Layer { block: BlockId::Grass, height: Height::Noise(mountain_presence), tag: LayerTag::Soil }
     ]
 }
 
@@ -97,8 +98,8 @@ fn generate_desert(seed: u32, col: ColPos, params: &BiomeParameters) -> Vec<Laye
         }
     }
     vec![
-        Layer { block: Block::Granite, height: Height::Constant(WATER_H as f32), tag: LayerTag::Mantle },
-        Layer { block: Block::Sand, height: Height::Noise(sin), tag: LayerTag::Deposit }, 
+        Layer { block: BlockId::Stone, height: Height::Constant(WATER_H as f32), tag: LayerTag::Mantle },
+        Layer { block: BlockId::Sand, height: Height::Noise(sin), tag: LayerTag::Deposit }, 
     ]
 }
 
@@ -114,9 +115,9 @@ fn generate_jungle(seed: u32, col: ColPos, params: &BiomeParameters) -> Vec<Laye
     );
     quantize(&mut n, 4.);
     vec![
-        Layer { block: Block::Granite, height: Height::Constant(WATER_H as f32), tag: LayerTag::Mantle },
-        Layer { block: Block::Podzol, height: Height::Constant(WATER_H as f32 + 15.), tag: LayerTag::Soil },
-        Layer { block: Block::GrassBlock, height: Height::Noise(n), tag: LayerTag::Deposit }, 
+        Layer { block: BlockId::Stone, height: Height::Constant(WATER_H as f32), tag: LayerTag::Mantle },
+        Layer { block: BlockId::Dirt, height: Height::Constant(WATER_H as f32 + 15.), tag: LayerTag::Soil },
+        Layer { block: BlockId::Grass, height: Height::Noise(n), tag: LayerTag::Deposit }, 
     ]
 }
 
@@ -132,7 +133,7 @@ fn generate_canyon(seed: u32, col: ColPos, params: &BiomeParameters) -> Vec<Laye
     mul_const(&mut n, -100.);
     add_const(&mut n, 100.);
     vec![
-        Layer { block: Block::CoarseDirt, height: Height::Noise(n), tag: LayerTag::Mantle },
+        Layer { block: BlockId::Dirt, height: Height::Noise(n), tag: LayerTag::Mantle },
     ]
 }
 
@@ -156,8 +157,8 @@ fn generate_tundra(seed: u32, col: ColPos, params: &BiomeParameters) -> Vec<Laye
     mul_const(&mut icicles, 60.);
     add_const(&mut icicles, WATER_H as f32 + 5.);
     vec![
-        Layer { block: Block::Granite, height: Height::Constant(WATER_H as f32), tag: LayerTag::Mantle },
-        Layer { block: Block::Snow, height: Height::Noise(n), tag: LayerTag::Soil },
-        Layer { block: Block::Ice, height: Height::Noise(icicles), tag: LayerTag::Deposit }, 
+        Layer { block: BlockId::Stone, height: Height::Constant(WATER_H as f32), tag: LayerTag::Mantle },
+        Layer { block: BlockId::Snow, height: Height::Noise(n), tag: LayerTag::Soil },
+        Layer { block: BlockId::Ice, height: Height::Noise(icicles), tag: LayerTag::Deposit }, 
     ]
 }
