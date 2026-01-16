@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use bevy::prelude::*;
-use bevy::log::trace;
 use bevy::tasks::AsyncComputeTaskPool;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use shared::world::{ColPos, Realm};
-use crate::{init::WorldRng, world::riverbed::{ColUnloadEvent, PlayerCol, VoxelWorld, generation::TerrainGenerator}};
+use crate::{init::WorldRng, world::riverbed::{ColUnloadEvent, PlayerCol, VoxelWorld, generation::TerrainGenerator, load_area::ColPosAreaDiff}};
 
 pub fn setup_load_thread(mut commands: Commands, world: Res<VoxelWorld>, world_rng: Res<WorldRng>) {
     let (player_pos_sender, player_pos_recv) = unbounded::<PlayerColumnUpdate>();
@@ -52,7 +51,7 @@ pub fn setup_load_thread(mut commands: Commands, world: Res<VoxelWorld>, world_r
                             to_load.swap_remove(i);
                         } else {
                             load_world.unload_col(col);
-                            trace!("{}", LogData::ColUnloaded(col));
+                            debug!("Unloaded col {:?}", col);
                             if unload_sender.send(col).is_err() {
                                 // This means the game is shutting down, so we break the loop
                                 warn!("ColUnloadsReciever channel is closed, stopping terrain thread");
@@ -80,7 +79,7 @@ pub fn setup_load_thread(mut commands: Commands, world: Res<VoxelWorld>, world_r
                     ).unwrap();
                 let col = to_load.remove(closest_idx);
                 terrain_gen.generate(&load_world, col);
-                trace!("{}", LogData::ColGenerated(col));
+                debug!("Generated col {:?}", col);
                 load_world.mark_change_col(col);
             }
         }
@@ -100,7 +99,7 @@ pub fn assign_player_col(
             old_col_opt: None,
             new_col: col,
         };
-        trace!("{}", LogData::PlayerMoved { id: player.index(), new_col: col});
+        debug!("Assigned player {} to column {:?}", player.index(), col);
         if sender.0.send(update).is_err() {
             panic!("PlayerColumnUpdateSender channel is closed");
         }
@@ -120,7 +119,7 @@ pub fn send_player_pos_update(
                 old_col_opt: Some(player_col.0),
                 new_col,
             };
-            trace!("{}", LogData::PlayerMoved { id: player.index(), new_col });
+            debug!("Player {} moved to column {:?}", player.index(), new_col);
             if sender.0.send(update).is_err() {
                 panic!("PlayerColumnUpdateSender channel is closed");
             }

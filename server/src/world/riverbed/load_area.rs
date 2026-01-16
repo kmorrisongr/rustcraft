@@ -12,23 +12,31 @@ pub fn range_around(a: i32, dist: i32) -> RangeInclusive<i32> {
     (a - dist)..=(a + dist)
 }
 
-impl ColPos {
+pub trait ColPosAreaDiff {
+    fn in_rd(&self, other: &ColPos) -> bool;
+    fn rd_area(&self) -> Box<dyn Iterator<Item = ColPos> + '_>;
+    fn player_area_diff(&self, other: Option<ColPos>) -> PlayerAreaDiff;
+}
+
+impl ColPosAreaDiff for ColPos {
     fn in_rd(&self, other: &ColPos) -> bool {
         (self.x - other.x).abs() <= RENDER_DISTANCE as i32 &&
         (self.z - other.z).abs() <= RENDER_DISTANCE as i32 &&
         self.realm == other.realm
     }
 
-    fn rd_area(&self) -> impl Iterator<Item = ColPos> {
-        iproduct!(
-            range_around(self.x, RENDER_DISTANCE as i32),
-            range_around(self.z, RENDER_DISTANCE as i32)
-        ).map(|(x, z)| ColPos { x, z, realm: self.realm })
+    fn rd_area(&self) -> std::boxed::Box<dyn Iterator<Item = ColPos> + '_> {
+        Box::new(
+            iproduct!(
+                range_around(self.x, RENDER_DISTANCE as i32),
+                range_around(self.z, RENDER_DISTANCE as i32)
+            ).map(|(x, z)| ColPos { x, z, realm: self.realm })
+        )
     }
 
     // Given RENDER_DISTANCE and another column position, returns the columns that are in self area but not in the other area,
     // and the columns that are in the other area but not in self area.
-    pub fn player_area_diff(&self, other: Option<ColPos>) -> PlayerAreaDiff {
+    fn player_area_diff(&self, other: Option<ColPos>) -> PlayerAreaDiff {
         let exclusive_in_self = if let Some(other_col) = other {
             self.rd_area().filter(|col| !col.in_rd(&other_col)).collect()
         } else {

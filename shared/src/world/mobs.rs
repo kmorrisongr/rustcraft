@@ -1,7 +1,7 @@
 use bevy::math::{Quat, Vec3};
 use serde::{Deserialize, Serialize};
 
-use crate::{messages::PlayerId, world::BlockPos};
+use crate::messages::PlayerId;
 
 pub type MobId = u128;
 
