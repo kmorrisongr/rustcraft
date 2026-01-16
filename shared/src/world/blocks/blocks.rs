@@ -183,6 +183,7 @@ pub enum BlockId {
     SpruceLeaves,
     SpruceLog,
     Water,
+    Air,
 }
 
 static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> =
@@ -299,6 +300,16 @@ static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> 
                     visibility: BlockTransparency::Liquid,
                 },
             ),
+            (
+                BlockId::Air,
+                BlockProperties {
+                    breakability: None,
+                    hitbox: Hitbox::Pathable {
+                        ray_hitbox: BlockHitbox::None,
+                    },
+                    visibility: BlockTransparency::Transparent,
+                },
+            )
         ])
     });
 

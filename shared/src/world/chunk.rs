@@ -55,8 +55,12 @@ impl Chunk {
     }
 
     pub fn set_if_empty(&mut self, (x, y, z): IntraChunkPos, block: BlockId) -> bool {
-        pad_linearize(x, y, z);
-        false
+        let idx = pad_linearize(x, y, z);
+        if self.palette[self.data.get(idx)] != BlockId::Air {
+            return false;
+        }
+        self.data.set(idx, self.palette.index(block));
+        true
     }
 
     pub fn copy_side_from(&mut self, other: &Chunk, face: Face) {
@@ -104,6 +108,7 @@ impl Chunk {
 impl From<&[BlockId]> for Chunk {
     fn from(values: &[BlockId]) -> Self {
         let mut palette = Palette::new();
+        palette.index(BlockId::Air);
         let values = values.iter().map(|v| palette.index(v.clone())).collect_vec();
         let data = PackedUints::from(values.as_slice());
         Chunk {data, palette}

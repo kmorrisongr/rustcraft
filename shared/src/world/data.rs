@@ -150,17 +150,10 @@ pub struct ServerChunk {
 #[derive(Resource, Default, Clone, Serialize, Deserialize, Debug)]
 pub struct ServerWorldMap {
     pub name: String,
-    pub chunks: ServerChunkWorldMap,
     pub players: HashMap<PlayerId, Player>,
     pub mobs: HashMap<MobId, ServerMob>,
     pub item_stacks: Vec<ServerItemStack>,
     pub time: u64,
-}
-
-#[derive(Default, Clone, Serialize, Deserialize, Debug)]
-pub struct ServerChunkWorldMap {
-    pub map: HashMap<ChunkPos, ServerChunk>,
-    pub chunks_to_update: Vec<ChunkPos>,
 }
 
 #[derive(Resource, Clone, Copy, Serialize, Deserialize, Default)]
@@ -174,9 +167,10 @@ pub struct ItemStack {
 }
 
 pub trait WorldMap {
+    fn has_chunk(&self, chunk_pos: &ChunkPos) -> bool;
     fn get_block_mut_by_coordinates(&mut self, position: &BlockPos) -> Option<&mut BlockData>;
-    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<&BlockData>;
-    fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> Option<BlockData>;
+    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<&BlockId>;
+    fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> bool;
     fn set_block(&mut self, position: &BlockPos, block: BlockData);
 
     fn get_height_ground(&self, position: Vec3) -> i32 {

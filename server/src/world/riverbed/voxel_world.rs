@@ -86,23 +86,23 @@ impl VoxelWorld {
         }
     }
 
-    pub fn get_block(&self, pos: BlockPos) -> Option<BlockId> {
+    pub fn get_block(&self, pos: BlockPos) -> BlockId {
         let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(pos);
         match self.chunks.get(&chunk_pos) {
-            None => None,
-            Some(chunk) => Some(chunk.value().read().get(chunked_pos).clone()),
+            None => BlockId::Air,
+            Some(chunk) => chunk.value().read().get(chunked_pos).clone(),
         }
     }
 
-    pub fn get_block_safe(&self, pos: BlockPos) -> Option<BlockId> {
+    pub fn get_block_safe(&self, pos: BlockPos) -> BlockId {
         if pos.y < 0 || pos.y >= MAX_HEIGHT as i32 {
-            None
+            BlockId::Air
         } else {
-            Some(self.get_block(pos)?)
+            self.get_block(pos)
         }
     }
 
-    pub fn top_block(&self, pos: BlockPos2d) -> Option<(BlockId, i32)> {
+    pub fn top_block(&self, pos: BlockPos2d) -> (BlockId, i32) {
         let (col_pos, pos2d) = pos.into();
         for y in (0..Y_CHUNKS as i32).rev() {
             let chunk_pos = ChunkPos {
@@ -113,10 +113,12 @@ impl VoxelWorld {
             };
             if let Some(chunk) = self.chunks.get(&chunk_pos) {
                 let (&block, block_y) = chunk.value().read().top(pos2d);
-                return Some((block.clone(), y * CHUNK_S1 as i32 + block_y as i32));
+                if block != BlockId::Air {
+                    return (block.clone(), y * CHUNK_S1 as i32 + block_y as i32);
+                }
             }
         }
-        None
+        (BlockId::Air, 0)
     }
 
     pub fn is_col_loaded(&self, player_pos: Vec3, realm: Realm) -> bool {
@@ -308,23 +310,32 @@ impl VoxelWorld {
 }
 
 impl WorldMap for VoxelWorld {
+    fn has_chunk(&self, chunk_pos: &ChunkPos) -> bool {
+        self.chunks.contains_key(chunk_pos)
+    }
+
     fn get_block_mut_by_coordinates(&mut self, position: &BlockPos) -> Option<&mut BlockData> {
         unimplemented!()
     }
 
-    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<&BlockData> {
-        unimplemented!()
+    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<&BlockId> {
+        let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(*position);
+        match self.chunks.get(&chunk_pos) {
+            None => None,
+            Some(chunk) => Some(&chunk.value().read().get(chunked_pos)),
+        }
     }
 
-    fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> Option<BlockData> {
-        unimplemented!()
+    fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> bool {
+        self.set_block_safe(*global_block_pos, BlockId::Air)
     }
 
     fn set_block(&mut self, position: &BlockPos, block: BlockData) {
-        unimplemented!()
+        self.set_block_safe(*position, block.id);
     }
 
     fn mark_block_for_update(&mut self, position: &BlockPos) {
-        unimplemented!()
+        let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(*position);
+        self.mark_change(chunk_pos, chunked_pos, self.get_block_safe(*position));
     }
 }

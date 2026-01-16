@@ -1,5 +1,5 @@
 pub mod materials;
-pub mod meshing;
+pub mod riverbed;
 pub mod render;
 pub mod render_distance;
 pub mod voxel;
