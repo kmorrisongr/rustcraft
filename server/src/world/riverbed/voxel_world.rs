@@ -2,7 +2,7 @@ use bevy::prelude::{Resource, Vec3};
 use crossbeam::channel::Sender;
 use crossbeam_skiplist::{map::Entry, SkipMap};
 use parking_lot::RwLock;
-use shared::world::{BlockPos, BlockPos2d, CHUNK_S1, CHUNKP_S1, ChunkPos, ChunkedPos, ColPos, ColedPos, MAX_HEIGHT, Realm, WorldMap, Y_CHUNKS, blocks::blocks::{BlockData, BlockId}, chunked, face::Face, pos2d::chunks_in_col};
+use shared::world::{BlockPos, BlockPos2d, CHUNK_S1, CHUNKP_S1, ChunkPos, IntraChunkPos, ColPos, IntraColPos, MAX_HEIGHT, Realm, WorldMap, Y_CHUNKS, blocks::blocks::{BlockData, BlockId}, chunked, face::Face, pos2d::chunks_in_col};
 use std::sync::Arc;
 
 use crate::world::riverbed::Chunk;
@@ -33,7 +33,7 @@ impl VoxelWorld {
     }
 
     pub fn set_block(&self, pos: BlockPos, block: BlockId) {
-        let (chunk_pos, chunked_pos) = <(ChunkPos, ChunkedPos)>::from(pos);
+        let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(pos);
         self.chunks.get_or_insert_with(chunk_pos, || RwLock::new(Chunk::new()))
             .value()
             .write()
@@ -52,7 +52,7 @@ impl VoxelWorld {
     pub fn set_yrange(
         &self,
         col_pos: ColPos,
-        (x, z): ColedPos,
+        (x, z): IntraColPos,
         top: i32,
         mut height: usize,
         block: BlockId,
@@ -78,7 +78,7 @@ impl VoxelWorld {
     }
 
     pub fn set_if_empty(&self, pos: BlockPos, block: BlockId) {
-        let (chunk_pos, chunked_pos) = <(ChunkPos, ChunkedPos)>::from(pos);
+        let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(pos);
         if self.chunks.get_or_insert_with(chunk_pos, || RwLock::new(Chunk::new()))
             .value()
             .write()
@@ -89,7 +89,7 @@ impl VoxelWorld {
     }
 
     pub fn get_block(&self, pos: BlockPos) -> Option<BlockId> {
-        let (chunk_pos, chunked_pos) = <(ChunkPos, ChunkedPos)>::from(pos);
+        let (chunk_pos, chunked_pos) = <(ChunkPos, IntraChunkPos)>::from(pos);
         match self.chunks.get(&chunk_pos) {
             None => None,
             Some(chunk) => Some(chunk.value().read().get(chunked_pos).clone()),
@@ -199,7 +199,7 @@ impl VoxelWorld {
     }
 
     /// Mark a block change, reflecting in neighboring chunks if needed
-    fn mark_change(&self, chunk_pos: ChunkPos, (x, y, z): ChunkedPos, block: BlockId) {
+    fn mark_change(&self, chunk_pos: ChunkPos, (x, y, z): IntraChunkPos, block: BlockId) {
         self.chunk_changes.send(chunk_pos).expect("Failed to send chunk change");
         // register change for neighboring chunks
         let border_sign_x = VoxelWorld::border_sign(x);

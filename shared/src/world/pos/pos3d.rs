@@ -6,7 +6,7 @@ use crate::world::{CHUNK_S1, Realm};
 use super::{chunked, unchunked, ColPos, CHUNK_S1I};
 
 #[derive(Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Default, Debug, Hash, Serialize, Deserialize)]
-pub struct Pos3d<const U: usize> {
+pub struct DiscretePos3d<const U: usize> {
     pub x: i32,
     pub y: i32,
     pub z: i32,
@@ -15,12 +15,12 @@ pub struct Pos3d<const U: usize> {
 
 const K: usize = 0x517cc1b727220a95;
 
-impl<const U: usize> Pos3d<U> {
+impl<const U: usize> DiscretePos3d<U> {
     pub fn overworld(x: i32, y: i32, z: i32) -> Self {
         Self { x, y, z, realm: Realm::Overworld }
     }
 
-    pub fn dist(&self, other: Pos3d<U>) -> i32 {
+    pub fn dist(&self, other: DiscretePos3d<U>) -> i32 {
         (self.x - other.x).abs()
             .max((self.y - other.y).abs())
             .max((self.z - other.z).abs())
@@ -43,11 +43,11 @@ impl<const U: usize> Pos3d<U> {
     }
 }
 
-impl<const U: usize> Add for Pos3d<U>{
+impl<const U: usize> Add for DiscretePos3d<U>{
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Pos3d {
+        DiscretePos3d {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
             z: self.z + rhs.z,
@@ -56,11 +56,11 @@ impl<const U: usize> Add for Pos3d<U>{
     }
 }
 
-impl<const U: usize> Sub for Pos3d<U>{
+impl<const U: usize> Sub for DiscretePos3d<U>{
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Pos3d {
+        DiscretePos3d {
             x: self.x - rhs.x,
             y: self.y - rhs.y,
             z: self.z - rhs.z,
@@ -69,9 +69,9 @@ impl<const U: usize> Sub for Pos3d<U>{
     }
 }
 
-pub type BlockPos = Pos3d<1>;
-pub type ChunkPos = Pos3d<CHUNK_S1>;
-pub type ChunkedPos = (usize, usize, usize);
+pub type BlockPos = DiscretePos3d<1>;
+pub type ChunkPos = DiscretePos3d<CHUNK_S1>;
+pub type IntraChunkPos = (usize, usize, usize);
 
 impl From<(Vec3, Realm)> for BlockPos {
     fn from((pos, realm): (Vec3, Realm)) -> Self {
@@ -120,8 +120,8 @@ impl Add<(i32, i32, i32)> for BlockPos {
     }
 }
 
-impl From<(ChunkPos, ChunkedPos)> for BlockPos {
-    fn from((chunk_pos, (dx, dy, dz)): (ChunkPos, ChunkedPos)) -> Self {
+impl From<(ChunkPos, IntraChunkPos)> for BlockPos {
+    fn from((chunk_pos, (dx, dy, dz)): (ChunkPos, IntraChunkPos)) -> Self {
         BlockPos {
             x: unchunked(chunk_pos.x, dx),
             y: unchunked(chunk_pos.y, dy),
@@ -131,7 +131,7 @@ impl From<(ChunkPos, ChunkedPos)> for BlockPos {
     }
 }
 
-impl From<BlockPos> for (ChunkPos, ChunkedPos) {
+impl From<BlockPos> for (ChunkPos, IntraChunkPos) {
     fn from(block_pos: BlockPos) -> Self {
         let (cx, dx) = chunked(block_pos.x);
         let (cy, dy) = chunked(block_pos.y);

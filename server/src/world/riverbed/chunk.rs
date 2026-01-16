@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use packed_uints::PackedUints;
-use shared::world::{CHUNK_S1, CHUNK_S1I, CHUNKP_S1, CHUNKP_S2, CHUNKP_S3, ChunkedPos, ColedPos, blocks::blocks::BlockId, face::Face};
+use shared::world::{CHUNK_S1, CHUNK_S1I, CHUNKP_S1, CHUNKP_S2, CHUNKP_S3, IntraChunkPos, IntraColPos, blocks::blocks::BlockId, face::Face};
 
 use crate::world::riverbed::utils::Palette;
 
@@ -20,21 +20,21 @@ pub fn pad_linearize(x: usize, y: usize, z: usize) -> usize {
 }
 
 impl Chunk {
-    pub fn get(&self, (x, y, z): ChunkedPos) -> &BlockId {
+    pub fn get(&self, (x, y, z): IntraChunkPos) -> &BlockId {
         &self.palette[self.data.get(pad_linearize(x, y, z))]
     }
 
-    pub fn set(&mut self, (x, y, z): ChunkedPos, block: BlockId) {
+    pub fn set(&mut self, (x, y, z): IntraChunkPos, block: BlockId) {
         let idx = pad_linearize(x, y, z);
         self.data.set(idx, self.palette.index(block));
     }
 
-    pub fn set_unpadded(&mut self, (x, y, z): ChunkedPos, block: BlockId) {
+    pub fn set_unpadded(&mut self, (x, y, z): IntraChunkPos, block: BlockId) {
         let idx = linearize(x, y, z);
         self.data.set(idx, self.palette.index(block));
     }
 
-    pub fn set_yrange(&mut self, (x, top, z): ChunkedPos, height: usize, block: BlockId) {
+    pub fn set_yrange(&mut self, (x, top, z): IntraChunkPos, height: usize, block: BlockId) {
         let value = self.palette.index(block);
         // Note: we do end+1 because set_range(_step) is not inclusive
         self.data.set_range_step(
@@ -45,7 +45,7 @@ impl Chunk {
         );
     }
 
-    pub fn top(&self, (x, z): ColedPos) -> (&BlockId, usize) {
+    pub fn top(&self, (x, z): IntraColPos) -> (&BlockId, usize) {
         for y in (0..CHUNK_S1).rev() {
             let b_idx = self.data.get(pad_linearize(x, y, z));
             if b_idx > 0 {
@@ -55,7 +55,7 @@ impl Chunk {
         (&self.palette[0], 0)
     }
 
-    pub fn set_if_empty(&mut self, (x, y, z): ChunkedPos, block: BlockId) -> bool {
+    pub fn set_if_empty(&mut self, (x, y, z): IntraChunkPos, block: BlockId) -> bool {
         pad_linearize(x, y, z);
         false
     }

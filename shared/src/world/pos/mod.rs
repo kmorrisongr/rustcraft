@@ -1,8 +1,8 @@
 pub mod pos3d;
 pub mod pos2d;
 use bevy::math::{I64Vec3, Vec3};
-pub use pos3d::{BlockPos, ChunkPos, ChunkedPos};
-pub use pos2d::{BlockPos2d, ColPos, ColedPos};
+pub use pos3d::{BlockPos, ChunkPos, IntraChunkPos};
+pub use pos2d::{BlockPos2d, ColPos, IntraColPos};
 
 use super::CHUNK_S1I;
 const CHUNK_S1F: f32 = CHUNK_S1I as f32;

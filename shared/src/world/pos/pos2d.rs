@@ -3,10 +3,10 @@ use bevy::prelude::Vec3;
 use serde::{Deserialize, Serialize};
 use crate::world::{CHUNK_S1, Realm, Y_CHUNKS};
 
-use super::{chunked, pos3d::Pos3d, unchunked, BlockPos, ChunkPos, CHUNK_S1I};
+use super::{chunked, pos3d::DiscretePos3d, unchunked, BlockPos, ChunkPos, CHUNK_S1I};
 
 #[derive(Clone, Copy, Eq, PartialEq, Default, Debug, Hash, Serialize, Deserialize)]
-pub struct Pos2d<const U: usize> {
+pub struct DiscretePos2d<const U: usize> {
     pub x: i32,
     pub z: i32,
     pub realm: Realm
@@ -14,8 +14,8 @@ pub struct Pos2d<const U: usize> {
 
 const K: usize = 0x517cc1b727220a95;
 
-impl<const U: usize> Pos2d<U> {
-    pub fn dist(&self, other: Pos2d<U>) -> i32 {
+impl<const U: usize> DiscretePos2d<U> {
+    pub fn dist(&self, other: DiscretePos2d<U>) -> i32 {
         (self.x - other.x).abs()
             .max((self.z - other.z).abs())
     }
@@ -32,15 +32,15 @@ impl<const U: usize> Pos2d<U> {
     }
 }
 
-impl<const U: usize> From<Pos3d<U>> for Pos2d<U> {
-    fn from(pos3d: Pos3d<U>) -> Self {
-        Pos2d { x: pos3d.x, z: pos3d.z, realm: pos3d.realm }
+impl<const U: usize> From<DiscretePos3d<U>> for DiscretePos2d<U> {
+    fn from(pos3d: DiscretePos3d<U>) -> Self {
+        DiscretePos2d { x: pos3d.x, z: pos3d.z, realm: pos3d.realm }
     }
 }
 
-pub type BlockPos2d = Pos2d<1>;
-pub type ColPos = Pos2d<CHUNK_S1>;
-pub type ColedPos = (usize, usize);
+pub type BlockPos2d = DiscretePos2d<1>;
+pub type ColPos = DiscretePos2d<CHUNK_S1>;
+pub type IntraColPos = (usize, usize);
 
 impl From<(Vec3, Realm)> for BlockPos2d {
     fn from((pos, realm): (Vec3, Realm)) -> Self {
@@ -52,8 +52,8 @@ impl From<(Vec3, Realm)> for BlockPos2d {
     }
 }
 
-impl From<(ColPos, ColedPos)> for BlockPos2d {
-    fn from((chunk_pos, (dx, dz)): (ColPos, ColedPos)) -> Self {
+impl From<(ColPos, IntraColPos)> for BlockPos2d {
+    fn from((chunk_pos, (dx, dz)): (ColPos, IntraColPos)) -> Self {
         BlockPos2d {
             x: unchunked(chunk_pos.x, dx),
             z: unchunked(chunk_pos.z, dz),
@@ -62,7 +62,7 @@ impl From<(ColPos, ColedPos)> for BlockPos2d {
     }
 }
 
-impl From<BlockPos2d> for (ColPos, ColedPos) {
+impl From<BlockPos2d> for (ColPos, IntraColPos) {
     fn from(block_pos: BlockPos2d) -> Self {
         let (cx, dx) = chunked(block_pos.x);
         let (cz, dz) = chunked(block_pos.z);
