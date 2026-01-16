@@ -9,9 +9,8 @@ use bevy_renet::renet::RenetServer;
 use shared::messages::mob::MobUpdateEvent;
 use shared::messages::{ItemStackUpdateEvent, PlayerId, ServerToClientMessage, WorldUpdate};
 use shared::players::Player;
-use shared::world::{
-    ChunkPos, SerdablePackedUints, ServerChunk, ServerWorldMap,
-};
+use shared::world::ChunkPos;
+use shared::world::chunk::ServerChunk;
 use shared::{GameServerConfig, CHUNK_SIZE, LOD1_MULTIPLIER};
 
 /// Maximum number of chunks to send to a client per update

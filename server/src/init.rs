@@ -164,10 +164,6 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
 
     let mut world_map = ServerWorldMap {
         name: world_data.name,
-        chunks: ServerChunkWorldMap {
-            map: world_data.map,
-            chunks_to_update: Vec::new(),
-        },
         players: HashMap::new(),
         mobs: world_data.mobs,
         item_stacks: world_data.item_stacks,
