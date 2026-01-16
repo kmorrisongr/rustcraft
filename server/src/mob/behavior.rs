@@ -9,6 +9,8 @@ use shared::{
     world::{MobAction, MobTarget, ServerWorldMap, WorldMap},
 };
 
+use crate::world::riverbed::VoxelWorld;
+
 /// Mob movement speed as a fraction of player speed
 const MOB_WALK_SPEED_MULTIPLIER: f32 = 0.7;
 /// Mob flee speed as a fraction of player speed
@@ -33,7 +35,7 @@ fn apply_mob_physics(
     position: &mut Vec3,
     velocity: &mut Vec3,
     on_ground: &mut bool,
-    world_map: &ServerWorldMap,
+    world_map: &impl WorldMap,
     dimensions: Vec3,
     delta: f32,
 ) {
@@ -51,10 +53,7 @@ fn apply_mob_physics(
 
     // Try vertical movement
     let candidate_y = *position + vertical_displacement;
-    if world_map
-        .chunks
-        .check_collision_box(&Aabb3d::new(candidate_y, half_extents))
-    {
+    if world_map.check_collision_box(&Aabb3d::new(candidate_y, half_extents)) {
         // Collision detected
         if velocity.y <= 0.0 {
             *on_ground = true;
@@ -83,7 +82,7 @@ fn apply_horizontal_movement(
     position: &mut Vec3,
     velocity: &mut Vec3,
     on_ground: bool,
-    world_map: &ServerWorldMap,
+    world_map: &impl WorldMap,
     dimensions: Vec3,
     direction: Vec3,
     speed: f32,
@@ -99,10 +98,7 @@ fn apply_horizontal_movement(
     // Try X-axis movement
     let candidate_x = *position + Vec3::new(horizontal_displacement.x, 0.0, 0.0);
     let mut blocked = false;
-    if !world_map
-        .chunks
-        .check_collision_box(&Aabb3d::new(candidate_x, half_extents))
-    {
+    if !world_map.check_collision_box(&Aabb3d::new(candidate_x, half_extents)) {
         position.x = candidate_x.x;
     } else {
         blocked = true;
@@ -110,10 +106,7 @@ fn apply_horizontal_movement(
 
     // Try Z-axis movement
     let candidate_z = *position + Vec3::new(0.0, 0.0, horizontal_displacement.z);
-    if !world_map
-        .chunks
-        .check_collision_box(&Aabb3d::new(candidate_z, half_extents))
-    {
+    if !world_map.check_collision_box(&Aabb3d::new(candidate_z, half_extents)) {
         position.z = candidate_z.z;
     } else {
         blocked = true;
@@ -125,7 +118,12 @@ fn apply_horizontal_movement(
     }
 }
 
-pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Time<Fixed>>) {
+pub fn mob_behavior_system(
+    mut world_map: ResMut<ServerWorldMap>,
+    mut voxel_world: ResMut<VoxelWorld>,
+    delta: Res<Time<Fixed>>,
+) {
+    let voxel_world = voxel_world.as_mut();
     let mut mobs = world_map.mobs.clone();
 
     for (_mob_id, mob) in mobs.iter_mut() {
@@ -168,7 +166,7 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
             &mut mob.position,
             &mut mob.velocity,
             &mut mob.on_ground,
-            &world_map,
+            voxel_world,
             dimensions,
             delta,
         );
@@ -189,7 +187,7 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
                         &mut mob.position,
                         &mut mob.velocity,
                         mob.on_ground,
-                        &world_map,
+                        voxel_world,
                         dimensions,
                         dir,
                         speed,
@@ -228,7 +226,7 @@ pub fn mob_behavior_system(mut world_map: ResMut<ServerWorldMap>, delta: Res<Tim
                         &mut mob.position,
                         &mut mob.velocity,
                         mob.on_ground,
-                        &world_map,
+                        voxel_world,
                         dimensions,
                         flee_dir,
                         flee_speed,
