@@ -23,7 +23,7 @@ use shared::{
     get_shared_renet_config,
     messages::PlayerId,
     physics::RustcraftPhysicsPlugin,
-    world::{ServerChunkWorldMap, ServerWorldMap},
+    world::ServerWorldMap,
     GameFolderPaths, GameServerConfig, TICKS_PER_SECOND,
 };
 use std::fmt::{Debug, Display, Formatter};
@@ -109,7 +109,7 @@ pub fn add_netcode_network(
 #[derive(Resource)]
 pub struct WorldRng {
     pub seed: u64,
-    pub rng: ChaCha8Rng
+    pub rng: ChaCha8Rng,
 }
 
 pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: GameFolderPaths) {

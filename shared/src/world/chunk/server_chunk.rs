@@ -1,9 +1,9 @@
 use crate::messages::PlayerId;
+use crate::world::blocks::blocks::{BlockData, BlockId};
 use crate::world::utils::Palette;
-use crate::world::blocks::blocks::{BlockId};
 use packed_uints::PackedUints;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 
 /// Represents a type of flora that can be requested for generation in the chunk above.
@@ -25,14 +25,14 @@ impl Serialize for SerdablePackedUints {
         // Format: [length as u32, then all values as u32]
         let length = self.0.length as u32;
         let values: Vec<u32> = self.0.unpack_u32();
-        
+
         // Build the byte buffer: 4 bytes for length + 4 bytes per value
         let mut bytes: Vec<u8> = Vec::with_capacity(4 + values.len() * 4);
         bytes.extend_from_slice(&length.to_le_bytes());
         for val in values.iter().take(self.0.length) {
             bytes.extend_from_slice(&val.to_le_bytes());
         }
-        
+
         serializer.serialize_bytes(&bytes)
     }
 }
@@ -58,11 +58,11 @@ impl<'de> Deserialize<'de> for SerdablePackedUints {
                 if v.len() < 4 {
                     return Err(E::custom("PackedUints data too short"));
                 }
-                
+
                 // Read length (first 4 bytes)
                 let length = u32::from_le_bytes(v[0..4].try_into().unwrap()) as usize;
                 let data_bytes = &v[4..];
-                
+
                 if data_bytes.len() != length * 4 {
                     return Err(E::custom(format!(
                         "expected {} bytes for {} values, got {}",
@@ -71,12 +71,12 @@ impl<'de> Deserialize<'de> for SerdablePackedUints {
                         data_bytes.len()
                     )));
                 }
-                
+
                 let values: Vec<usize> = data_bytes
                     .chunks_exact(4)
                     .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()) as usize)
                     .collect();
-                
+
                 Ok(SerdablePackedUints(PackedUints::from(values.as_slice())))
             }
 
@@ -97,15 +97,25 @@ impl<'de> Deserialize<'de> for SerdablePackedUints {
     }
 }
 
-#[derive(Clone, Default, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ServerChunk {
     pub data: SerdablePackedUints,
-    pub palette: Palette<BlockId>,
+    pub palette: Palette<BlockData>,
     /// Timestamp marking the last update this chunk has received
     pub ts: u64,
     pub sent_to_clients: HashSet<PlayerId>,
 }
 
+impl Default for ServerChunk {
+    fn default() -> Self {
+        Self {
+            data: SerdablePackedUints(PackedUints::new(0)),
+            palette: Palette::new(),
+            ts: 0,
+            sent_to_clients: HashSet::new(),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
