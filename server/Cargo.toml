@@ -18,11 +18,22 @@ serde = { workspace = true }
 bevy_rapier3d = { workspace = true }
 bincode = { workspace = true }
 clap = { workspace = true }
+itertools = { workspace = true }
+packed-uints = { workspace = true }
 
 bevy_app = { version = "0.17", default-features=false }
 
 ulid = "1.1.4"
 futures-lite = "2.5"
+hashbrown = "0.16.1"
+crossbeam = "0.8.4"
+parking_lot = "0.12.5"
+rand_chacha = "0.9.0"
+crossbeam-skiplist = "0.1.3"
+csv = "1.4.0"
+anyhow = "1.0.100"
+
+riverbed_noise = { path = "../crates/riverbed_noise", version = "*" }
 
 # Define the library target
 [lib]

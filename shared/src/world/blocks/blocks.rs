@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
-use super::{GameElementId, ItemId};
 use bevy::math::{bounding::Aabb3d, Vec3A};
 use nonempty::{nonempty, NonEmpty};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+
+use crate::world::{face::Face, GameElementId, ItemId};
 
 #[derive(Copy, Clone)]
 struct RayHitboxArgs {
@@ -182,6 +183,7 @@ pub enum BlockId {
     SpruceLeaves,
     SpruceLog,
     Water,
+    Air,
 }
 
 static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> =
@@ -298,27 +300,29 @@ static BLOCK_PROPERTIES: std::sync::LazyLock<HashMap<BlockId, BlockProperties>> 
                     visibility: BlockTransparency::Liquid,
                 },
             ),
+            (
+                BlockId::Air,
+                BlockProperties {
+                    breakability: None,
+                    hitbox: Hitbox::Pathable {
+                        ray_hitbox: BlockHitbox::None,
+                    },
+                    visibility: BlockTransparency::Transparent,
+                },
+            ),
         ])
     });
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum BlockDirection {
-    Front,
-    Right,
-    Back,
-    Left,
-}
-
 /// Data associated with a given `BlockId`
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct BlockData {
     pub id: BlockId,
-    pub direction: BlockDirection,
+    pub direction: Face,
     pub breaking_progress: u8,
 }
 
 impl BlockData {
-    pub fn new(id: BlockId, direction: BlockDirection) -> Self {
+    pub fn new(id: BlockId, direction: Face) -> Self {
         BlockData {
             id,
             direction,
@@ -442,6 +446,10 @@ impl BlockId {
             Some(BlockProperties { visibility, .. }) => *visibility,
             None => BlockTransparency::Solid,
         }
+    }
+
+    pub fn is_fertile_soil(&self) -> bool {
+        matches!(*self, BlockId::Dirt | BlockId::Grass)
     }
 }
 

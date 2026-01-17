@@ -3,7 +3,7 @@ use crate::{
         cleanup::cleanup_all_players_from_world,
         dispatcher::{self, setup_resources_and_events},
     },
-    world::{data::SAVE_PATH, load_from_file::load_world_data},
+    world::{data::SAVE_PATH, load_from_file::load_world_data, riverbed::TerrainLoadPlugin},
 };
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -16,13 +16,14 @@ use bevy_renet::{
     netcode::{NetcodeServerPlugin, ServerAuthentication, ServerConfig},
     renet::RenetServer,
 };
+use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use shared::{
     constants::{NETCODE_SERVER_TRANSPORT_ERROR, SOCKET_LOCAL_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR},
     get_shared_renet_config,
     messages::PlayerId,
     physics::RustcraftPhysicsPlugin,
-    world::{ServerChunkWorldMap, ServerWorldMap},
+    world::ServerWorldMap,
     GameFolderPaths, GameServerConfig, TICKS_PER_SECOND,
 };
 use std::fmt::{Debug, Display, Formatter};
@@ -105,6 +106,12 @@ pub fn add_netcode_network(
     Ok((server, transport, granted_addr))
 }
 
+#[derive(Resource)]
+pub struct WorldRng {
+    pub seed: u64,
+    pub rng: ChaCha8Rng,
+}
+
 pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: GameFolderPaths) {
     let (server, transport, addr) = match add_netcode_network(socket) {
         Ok(data) => data,
@@ -126,6 +133,7 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
     app.add_plugins(LogDiagnosticsPlugin::default());
     app.add_plugins(LogPlugin::default());
     app.add_plugins(RustcraftPhysicsPlugin);
+    app.add_plugins(TerrainLoadPlugin);
 
     app.insert_resource(ServerLobby::default());
     app.insert_resource(game_folder_paths.clone());
@@ -156,11 +164,6 @@ pub fn init(socket: UdpSocket, config: GameServerConfig, game_folder_paths: Game
 
     let mut world_map = ServerWorldMap {
         name: world_data.name,
-        chunks: ServerChunkWorldMap {
-            map: world_data.map,
-            chunks_to_update: Vec::new(),
-            generation_requests: HashMap::new(),
-        },
         players: HashMap::new(),
         mobs: world_data.mobs,
         item_stacks: world_data.item_stacks,

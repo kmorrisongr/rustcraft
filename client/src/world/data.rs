@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 use shared::world::BlockData;
+use shared::world::BlockPos;
+use shared::world::IntraChunkPos;
 use shared::world::LodLevel;
 use shared::world::WorldMap;
 use std::collections::HashSet;
@@ -18,29 +20,10 @@ pub enum GlobalMaterial {
     Items,
 }
 
-#[derive(Clone, Debug)]
-pub struct ClientChunk {
-    pub map: HashMap<IVec3, BlockData>, // Maps block positions within a chunk to block IDs
-    pub entity: Option<Entity>,
-    pub last_mesh_ts: Instant, // When was the last time a mesh was created for this chunk ?
-    pub current_lod: LodLevel, // Current LOD level of this chunk's mesh
-}
-
-impl Default for ClientChunk {
-    fn default() -> Self {
-        Self {
-            map: HashMap::new(),
-            entity: None,
-            last_mesh_ts: Instant::now(),
-            current_lod: LodLevel::default(),
-        }
-    }
-}
-
 #[derive(Resource, Clone)]
 pub struct ClientWorldMap {
     pub name: String,
-    pub map: HashMap<IVec3, Arc<ClientChunk>>, // Maps global chunk positions to chunks (Arc for cheap cloning)
+    pub map: HashMap<ChunkPos, Arc<Chunk>>,
     pub total_blocks_count: u64,
     pub total_chunks_count: u64,
     pub dirty: bool,
@@ -66,23 +49,23 @@ impl ClientWorldMap {
 }
 
 impl WorldMap for ClientWorldMap {
-    fn has_chunk(&self, chunk_pos: &IVec3) -> bool {
+    fn has_chunk(&self, chunk_pos: &ChunkPos) -> bool {
         self.map.contains_key(chunk_pos)
     }
 
-    fn get_block_by_coordinates(&self, position: &IVec3) -> Option<&BlockData> {
+    fn get_block_by_coordinates(&self, position: &BlockPos) -> Option<&BlockData> {
         let (chunk_pos, local_pos) = global_to_chunk_local(position);
         let chunk = self.map.get(&chunk_pos)?;
         chunk.map.get(&local_pos)
     }
 
-    fn get_block_mut_by_coordinates(&mut self, position: &IVec3) -> Option<&mut BlockData> {
+    fn get_block_mut_by_coordinates(&mut self, position: &BlockPos) -> Option<&mut BlockData> {
         let (chunk_pos, local_pos) = global_to_chunk_local(position);
         let chunk = Arc::make_mut(self.map.get_mut(&chunk_pos)?);
         chunk.map.get_mut(&local_pos)
     }
 
-    fn remove_block_by_coordinates(&mut self, global_block_pos: &IVec3) -> Option<BlockData> {
+    fn remove_block_by_coordinates(&mut self, global_block_pos: &BlockPos) -> Option<BlockData> {
         let block: &BlockData = self.get_block_by_coordinates(global_block_pos)?;
         let kind: BlockData = *block;
 
@@ -96,7 +79,7 @@ impl WorldMap for ClientWorldMap {
         Some(kind)
     }
 
-    fn set_block(&mut self, position: &IVec3, block: BlockData) {
+    fn set_block(&mut self, position: &BlockPos, block: BlockData) {
         let (chunk_pos, local_pos) = global_to_chunk_local(position);
         let chunk: &mut ClientChunk = Arc::make_mut(
             self.map
@@ -108,7 +91,7 @@ impl WorldMap for ClientWorldMap {
         self.mark_dirty();
     }
 
-    fn mark_block_for_update(&mut self, _block_pos: &IVec3) {
+    fn mark_block_for_update(&mut self, _block_pos: &BlockPos) {
         // Useless in client
     }
 }

@@ -4,6 +4,7 @@ use bevy_log::{error, info};
 use ron::ser::PrettyConfig;
 use shared::messages::PlayerId;
 use shared::players::Player;
+use shared::world::ChunkPos;
 use shared::world::MobId;
 use shared::world::ServerChunk;
 use shared::world::ServerItemStack;
@@ -24,7 +25,7 @@ use crate::world::data::SAVE_PATH;
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct WorldData {
-    pub map: HashMap<IVec3, ServerChunk>,
+    pub map: HashMap<ChunkPos, ServerChunk>,
     pub mobs: HashMap<MobId, ServerMob>,
     pub seed: WorldSeed,
     pub name: String,

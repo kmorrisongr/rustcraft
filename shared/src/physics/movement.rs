@@ -13,31 +13,9 @@ use crate::{
         water as water_physics, RustcraftPhysicsBody,
     },
     players::Player,
-    world::{world_position_to_chunk_position, WorldMap},
+    world::{WorldMap},
 };
 
-/// Recompute gravity_enabled based on whether required chunks are loaded.
-fn compute_gravity_enabled(player: &Player, world_map: &impl WorldMap) -> bool {
-    let current_chunk = world_position_to_chunk_position(player.position);
-    let chunk_below = current_chunk - IVec3::Y;
-    let chunk_above = current_chunk + IVec3::Y;
-    world_map.has_chunk(&current_chunk)
-        && world_map.has_chunk(&chunk_below)
-        && world_map.has_chunk(&chunk_above)
-}
-
-/// Check if gravity state needs to be updated and update it if so.
-fn maybe_update_gravity_state(player: &mut Player, world_map: &impl WorldMap) {
-    let current_chunk = world_position_to_chunk_position(player.position);
-    let chunk_changed = player.last_gravity_check_chunk != Some(current_chunk);
-
-    if chunk_changed {
-        player.last_gravity_check_chunk = Some(current_chunk);
-        player.gravity_enabled = compute_gravity_enabled(player, world_map);
-    } else if !player.gravity_enabled {
-        player.gravity_enabled = compute_gravity_enabled(player, world_map);
-    }
-}
 
 /// Simulate player movement using Rapier-compatible physics.
 ///
@@ -54,13 +32,6 @@ pub fn simulate_player_movement_rapier<W: WorldMap>(
     world_map: &W,
     action: &PlayerFrameInput,
 ) {
-    // Check if enough chunks are loaded
-    let chunks = world_map.get_surrounding_chunks(player.position, 1);
-    if chunks.len() < 9 {
-        log::debug!("Not enough chunks loaded, skipping movement simulation");
-        return;
-    }
-
     let delta = action.delta_ms as f32 / 1000.0;
     if delta <= 0.0 {
         return;
@@ -76,9 +47,6 @@ pub fn simulate_player_movement_rapier<W: WorldMap>(
 
     // Calculate movement direction
     let mut direction = calculate_movement_direction(player, action);
-
-    // Update gravity state
-    maybe_update_gravity_state(player, world_map);
 
     // Apply water physics (buoyancy, drag, swimming)
     water_physics::apply_water_physics(player, world_map, delta);
@@ -220,13 +188,13 @@ fn apply_movement_with_collision<W: WorldMap>(
 
     // Try horizontal movement (X axis)
     let candidate_x = player.position + Vec3::new(horizontal_displacement.x, 0.0, 0.0);
-    if !world_map.check_collision_box(&Aabb3d::new(candidate_x, half_extents)) {
+    if !world_map.check_collision_box(&Aabb3d::new(Vec3::from(candidate_x), half_extents)) {
         player.position.x = candidate_x.x;
     }
 
     // Try horizontal movement (Z axis)
     let candidate_z = player.position + Vec3::new(0.0, 0.0, horizontal_displacement.z);
-    if !world_map.check_collision_box(&Aabb3d::new(candidate_z, half_extents)) {
+    if !world_map.check_collision_box(&Aabb3d::new(Vec3::from(candidate_z), half_extents)) {
         player.position.z = candidate_z.z;
     }
 
@@ -235,13 +203,13 @@ fn apply_movement_with_collision<W: WorldMap>(
         // In fly mode, use direction for vertical movement
         let fly_vertical = Vec3::new(0.0, direction.y * speed * delta, 0.0);
         let candidate_y = player.position + fly_vertical;
-        if !world_map.check_collision_box(&Aabb3d::new(candidate_y, half_extents)) {
+        if !world_map.check_collision_box(&Aabb3d::new(Vec3::from(candidate_y), half_extents)) {
             player.position.y = candidate_y.y;
         }
     } else {
         // Normal gravity-based vertical movement
         let candidate_y = player.position + vertical_displacement;
-        if world_map.check_collision_box(&Aabb3d::new(candidate_y, half_extents)) {
+        if world_map.check_collision_box(&Aabb3d::new(Vec3::from(candidate_y), half_extents)) {
             // Collision detected
             if player.velocity.y <= 0.0 {
                 player.on_ground = true;

@@ -6,9 +6,7 @@ use bevy_platform::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    messages::PlayerId,
-    world::{ItemId, ItemStack, ItemType},
-    MAX_INVENTORY_SLOTS,
+    MAX_INVENTORY_SLOTS, messages::PlayerId, world::{ItemId, ItemStack, ItemType}
 };
 
 #[derive(Debug, Resource, Clone, Serialize, Deserialize, PartialEq)]

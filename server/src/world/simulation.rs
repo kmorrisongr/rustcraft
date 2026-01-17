@@ -9,7 +9,7 @@ use shared::{
     world::ServerWorldMap,
 };
 
-use crate::network::extensions::SendGameMessageExtension;
+use crate::{network::extensions::SendGameMessageExtension, world::riverbed::VoxelWorld};
 
 #[derive(Message, Debug)]
 pub struct PlayerInputsEvent {
@@ -20,11 +20,12 @@ pub struct PlayerInputsEvent {
 pub fn handle_player_inputs_system(
     mut events: MessageReader<PlayerInputsEvent>,
     mut world_map: ResMut<ServerWorldMap>,
+    mut voxel_world: ResMut<VoxelWorld>,
     mut server: ResMut<RenetServer>,
 ) {
     let world_map = world_map.as_mut();
     let players = &mut world_map.players;
-    let chunks = &mut world_map.chunks;
+    let voxel_world = voxel_world.as_mut();
 
     let mut player_actions = HashMap::<u64, HashSet<NetworkAction>>::new();
     for client_id in players.keys() {
@@ -34,7 +35,7 @@ pub fn handle_player_inputs_system(
     for ev in events.read() {
         let player = players.get_mut(&ev.client_id).unwrap();
 
-        simulate_player_actions(player, chunks, &ev.input.clone(), CallerType::Server);
+        simulate_player_actions(player, voxel_world, &ev.input.clone(), CallerType::Server);
 
         player.last_input_processed = ev.input.time_ms;
     }

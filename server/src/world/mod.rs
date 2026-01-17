@@ -1,8 +1,7 @@
-pub mod background_generation;
 pub mod broadcast_world;
 pub(crate) mod data;
-pub mod generation;
 pub mod load_from_file;
+pub mod riverbed;
 pub mod save;
 pub mod simulation;
 pub mod stacks;
@@ -11,7 +10,8 @@ use bevy::prelude::IVec3;
 use bevy::prelude::ResMut;
 use bevy::prelude::*;
 use bevy_log::{debug, info};
-use shared::world::{BlockData, ItemStack, ServerItemStack, ServerWorldMap, WorldMap};
+use shared::world::blocks::blocks::BlockData;
+use shared::world::{ItemStack, ServerItemStack, ServerWorldMap, WorldMap};
 use ulid::Ulid;
 
 #[derive(Message, Debug)]

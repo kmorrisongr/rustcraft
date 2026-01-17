@@ -5,7 +5,7 @@ use bevy_renet::netcode::{
 use bevy_renet::{renet::RenetClient, RenetClientPlugin};
 use rand::Rng;
 use shared::constants::{
-    DEFAULT_RENDER_DISTANCE, NETCODE_CLIENT_TRANSPORT_ERROR, SOCKET_BIND_ERROR,
+    RENDER_DISTANCE, NETCODE_CLIENT_TRANSPORT_ERROR, SOCKET_BIND_ERROR,
     SOCKET_LOCAL_ADDR_ERROR, TARGET_SERVER_ADDR_ERROR, UNIX_EPOCH_TIME_ERROR,
     USERNAME_MISSING_AUTHENTICATED_ERROR,
 };
@@ -139,7 +139,7 @@ pub fn launch_local_server_system(
                 GameServerConfig {
                     world_name: world_name_clone,
                     is_solo: true,
-                    broadcast_render_distance: DEFAULT_RENDER_DISTANCE,
+                    broadcast_render_distance: RENDER_DISTANCE,
                 },
                 cloned_paths,
             );

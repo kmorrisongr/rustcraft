@@ -1,9 +1,11 @@
 use crate::{
     messages::{NetworkAction, PlayerFrameInput},
     players::Player,
-    world::{raycast, BlockData, BlockDirection, FaceDirectionExt, ItemStack, ItemType, WorldMap},
+    world::{
+        blocks::blocks::BlockData, face::Face, BlockPos, ItemStack, ItemType, Realm, WorldMap,
+    },
 };
-use bevy::math::{NormedVectorSpace, Vec3};
+use bevy::math::{IVec3, NormedVectorSpace, Vec3};
 use bevy_log::info;
 
 #[derive(Debug, Clone, Copy)]
@@ -50,21 +52,15 @@ fn handle_block_breaking(
     action: &PlayerFrameInput,
     caller_type: CallerType,
 ) {
-    let block_position = raycast::raycast(
-        world_map,
-        &action.camera,
-        &player.position,
-        action.view_mode,
+    let block_position = world_map.raycast(
+        Realm::Overworld,
+        action.camera.translation,
+        Vec3::from(player.position),
+        // TODO: how far?
+        100.0,
     );
 
-    log::debug!(
-        "{} Player {} is trying to break block is at {:?}",
-        caller_type.as_str(),
-        player.id,
-        block_position,
-    );
-
-    if block_position.is_none() {
+    let Some(block_position) = block_position else {
         log::info!(
             "{} Player {} tried to break a block but no valid block was found | [Camera: {:?}, Player Pos: {:?}, ViewMode: {:?}]",
             caller_type.as_str(),
@@ -74,11 +70,19 @@ fn handle_block_breaking(
             action.view_mode
         );
         return;
-    }
+    };
+    log::debug!(
+        "{} Player {} is trying to break block is at {:?}",
+        caller_type.as_str(),
+        player.id,
+        block_position,
+    );
 
-    let block_pos = block_position.unwrap().position;
+    let block_pos_vec = block_position.pos;
+    let block_pos = BlockPos::overworld(block_pos_vec.x, block_pos_vec.y, block_pos_vec.z);
 
-    let distance = (block_pos.as_vec3() + Vec3::splat(0.5) - player.position).norm();
+    let distance =
+        (block_pos_vec.as_vec3() + Vec3::splat(0.5) - Vec3::from(player.position)).norm();
     log::debug!(
         "{} Calculated distance to block center: {:.2} (block pos: {:?}, player pos: {:?})",
         caller_type.as_str(),
@@ -109,7 +113,7 @@ fn handle_block_breaking(
         );
         return;
     }
-    let block = block.unwrap();
+    let mut block = block.unwrap();
 
     // Try to break the block
     block.breaking_progress += 1;
@@ -165,21 +169,15 @@ fn handle_block_placement(
     action: &PlayerFrameInput,
     caller_type: CallerType,
 ) {
-    let raycast_response = raycast::raycast(
-        world_map,
-        &action.camera,
-        &player.position,
-        action.view_mode,
+    let raycast_response = world_map.raycast(
+        Realm::Overworld,
+        action.camera.translation,
+        Vec3::from(player.position),
+        // TODO: how far?
+        100.0,
     );
 
-    log::debug!(
-        "{} Player {} is trying to place block is at {:?}",
-        caller_type.as_str(),
-        player.id,
-        raycast_response,
-    );
-
-    if raycast_response.is_none() {
+    let Some(raycast_response) = raycast_response else {
         log::info!(
             "{} Player {} tried to place a block but no valid block was found | [Camera: {:?}, Player Pos: {:?}, ViewMode: {:?}]",
             caller_type.as_str(),
@@ -189,12 +187,16 @@ fn handle_block_placement(
             action.view_mode
         );
         return;
-    }
+    };
+    log::debug!(
+        "{} Player {} is trying to place block is at {:?}",
+        caller_type.as_str(),
+        player.id,
+        raycast_response,
+    );
 
-    let raycast_response = raycast_response.unwrap();
-
-    let collision_pos = raycast_response.position;
-    let face_direction = raycast_response.face;
+    let collision_pos = raycast_response.pos;
+    let face_direction = raycast_response.normal;
 
     log::debug!(
         "{} Player {} is trying to place block at {:?} on face {:?}",
@@ -204,9 +206,13 @@ fn handle_block_placement(
         face_direction
     );
 
-    let face = raycast_response.face.to_ivec3();
+    let face = raycast_response.normal.as_ivec3();
 
-    let block_to_create_pos = collision_pos + face;
+    let block_to_create_pos = IVec3::new(
+        collision_pos.x + face.x,
+        collision_pos.y + face.y,
+        collision_pos.z + face.z,
+    );
 
     let block_to_create_pos_vec3 = Vec3::new(
         (collision_pos.x + face.x) as f32,
@@ -218,7 +224,8 @@ fn handle_block_placement(
 
     let target_cube_center = block_to_create_pos_vec3 + (unit_cube / 2.);
 
-    let distance = (collision_pos.as_vec3() + Vec3::splat(0.5) - player.position).norm();
+    let distance =
+        (collision_pos.as_vec3() + Vec3::splat(0.5) - Vec3::from(player.position)).norm();
 
     // Validate interaction distance
     if distance > INTERACTION_DISTANCE {
@@ -234,7 +241,11 @@ fn handle_block_placement(
 
     // Check if there's already a block at that position
     if world_map
-        .get_block_by_coordinates(&block_to_create_pos)
+        .get_block_by_coordinates(&BlockPos::overworld(
+            block_to_create_pos.x,
+            block_to_create_pos.y,
+            block_to_create_pos.z,
+        ))
         .is_some()
     {
         log::warn!(
@@ -246,7 +257,7 @@ fn handle_block_placement(
         return;
     }
 
-    let delta = player.position - target_cube_center;
+    let delta = Vec3::from(player.position) - target_cube_center;
     let distance = delta.abs();
 
     log::debug!(
@@ -292,8 +303,15 @@ fn handle_block_placement(
             player.inventory.remove_item_from_stack(inventory_slot, 1);
 
             // Place the block
-            let block = BlockData::new(block_id, BlockDirection::Front);
-            world_map.set_block(&block_to_create_pos, block);
+            let block = BlockData::new(block_id, Face::Front);
+            world_map.set_block(
+                &BlockPos::overworld(
+                    block_to_create_pos.x,
+                    block_to_create_pos.y,
+                    block_to_create_pos.z,
+                ),
+                block,
+            );
 
             log::info!(
                 "{} Player {} placed block {:?} at position {:?}",

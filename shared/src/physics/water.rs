@@ -9,7 +9,8 @@
 //! This module focuses on gameplay physics (buoyancy, drag, swimming).
 
 use crate::players::Player;
-use crate::world::{BlockId, WorldMap};
+use crate::world::blocks::blocks::BlockId;
+use crate::world::{BlockPos, WorldMap};
 
 /// Constants for water physics
 pub mod constants {
@@ -79,14 +80,14 @@ pub fn calculate_water_submersion(player: &Player, world_map: &impl WorldMap) ->
 fn find_water_surface_height(world_map: &impl WorldMap, x: i32, z: i32) -> f32 {
     // Search downward from maximum height
     for y in (0..constants::MAX_WATER_SEARCH_HEIGHT).rev() {
-        if let Some(block) = world_map.get_block_by_coordinates(&bevy::math::IVec3::new(x, y, z)) {
-            if block.id == BlockId::Water {
+        if let Some(block) = world_map.get_block_by_coordinates(&BlockPos::overworld(x, y, z)) {
+            if matches!(block.id, BlockId::Water) {
                 // Found water, now find the surface (first air block above water)
                 for surface_y in y..constants::MAX_WATER_SEARCH_HEIGHT {
                     if let Some(above_block) =
-                        world_map.get_block_by_coordinates(&bevy::math::IVec3::new(x, surface_y, z))
+                        world_map.get_block_by_coordinates(&BlockPos::overworld(x, surface_y, z))
                     {
-                        if above_block.id != BlockId::Water {
+                        if !matches!(above_block.id, BlockId::Water) {
                             return surface_y as f32;
                         }
                     } else {
